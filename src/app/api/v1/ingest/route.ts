@@ -1,0 +1,79 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { resolveDevToken } from "@/lib/token";
+
+// ============================================================================
+// Presence ingest — called by Claude Code hooks + git hooks via the CLI.
+// Body: { repo: "owner/name", branch, file?, tool, kind: "activity"|"session_start"|"session_end", summary? }
+// Auth: Bearer <dev token>.
+// ============================================================================
+
+export async function POST(request: Request) {
+  const auth = await resolveDevToken(request.headers.get("authorization"));
+  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => null);
+  if (!body?.repo) {
+    return NextResponse.json({ error: "repo required" }, { status: 400 });
+  }
+
+  const admin = supabaseAdmin();
+  const { data: repo } = await admin
+    .from("linked_repos")
+    .select("id, org_id")
+    .eq("full_name", body.repo)
+    .eq("org_id", auth.org_id)
+    .single();
+  if (!repo) {
+    return NextResponse.json({ error: "repo not linked" }, { status: 404 });
+  }
+
+  const kind = body.kind ?? "activity";
+
+  if (kind === "session_start") {
+    const { data: session } = await admin
+      .from("sessions")
+      .insert({
+        org_id: repo.org_id,
+        repo_id: repo.id,
+        user_id: auth.user_id,
+        dev_label: auth.label,
+        branch: body.branch ?? null,
+        summary: body.summary ?? null,
+        agent_kind: body.agent ?? "claude-code",
+      })
+      .select("id")
+      .single();
+    return NextResponse.json({ ok: true, session_id: session?.id });
+  }
+
+  if (kind === "session_end") {
+    await admin
+      .from("sessions")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", body.session_id)
+      .eq("org_id", repo.org_id);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Default: activity event.
+  if (!body.file) {
+    return NextResponse.json({ error: "file required" }, { status: 400 });
+  }
+  await admin.from("activity").insert({
+    org_id: repo.org_id,
+    repo_id: repo.id,
+    session_id: body.session_id ?? null,
+    user_id: auth.user_id,
+    branch: body.branch ?? null,
+    file: body.file,
+    tool: body.tool ?? "edit",
+  });
+  if (body.session_id) {
+    await admin
+      .from("sessions")
+      .update({ last_seen: new Date().toISOString(), branch: body.branch ?? null })
+      .eq("id", body.session_id);
+  }
+  return NextResponse.json({ ok: true });
+}

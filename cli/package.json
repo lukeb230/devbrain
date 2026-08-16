@@ -1,0 +1,8 @@
+{
+  "name": "devbrain-cli",
+  "version": "0.1.0",
+  "description": "DevBrain CLI — wires Claude Code + git hooks to your team's DevBrain",
+  "bin": { "devbrain": "bin/devbrain.mjs" },
+  "type": "module",
+  "engines": { "node": ">=18" }
+}

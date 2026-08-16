@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.panel {
+  @apply rounded-xl border border-ink-700 bg-ink-900 p-4;
+}

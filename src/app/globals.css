@@ -5,3 +5,16 @@
 .panel {
   @apply rounded-xl border border-ink-700 bg-ink-900 p-4;
 }
+
+/* Rendered .brain/ markdown */
+.brain-prose h1, .brain-prose h2, .brain-prose h3 {
+  @apply mb-2 mt-4 font-semibold text-white;
+}
+.brain-prose h1 { @apply text-lg; }
+.brain-prose h2 { @apply text-base; }
+.brain-prose p { @apply mb-3; }
+.brain-prose ul, .brain-prose ol { @apply mb-3 ml-5 list-disc space-y-1; }
+.brain-prose code { @apply rounded bg-ink-800 px-1 py-0.5 text-xs text-brand-400; }
+.brain-prose pre { @apply mb-3 overflow-x-auto rounded-lg bg-ink-950 p-3 text-xs; }
+.brain-prose pre code { @apply bg-transparent p-0; }
+.brain-prose strong { @apply text-slate-100; }

@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { changedFiles, verifyWebhook } from "@/lib/github";
+import { changedFiles, prChangedFiles, prMergeableState, verifyWebhook } from "@/lib/github";
+
+/** Log a diagnostic into the events table so failures are visible, not silent. */
+async function logError(admin: Admin, orgId: string | null, repoId: string | null, where: string, err: unknown) {
+  try {
+    await admin.from("events").insert({
+      org_id: orgId,
+      repo_id: repoId,
+      kind: "error",
+      payload: { where, message: String((err as Error)?.message || err) },
+    });
+  } catch { /* last resort: swallow */ }
+}
 
 // ============================================================================
 // GitHub App webhook receiver.
@@ -75,8 +87,8 @@ export async function POST(request: Request) {
               repo.default_branch,
               branch,
             );
-          } catch {
-            /* branch may be gone or compare too large — keep [] */
+          } catch (err) {
+            await logError(admin, repo.org_id, repo.id, `push:compare:${branch}`, err);
           }
         }
         await admin.from("branches").upsert({
@@ -87,6 +99,46 @@ export async function POST(request: Request) {
           changed_files: files,
           last_push_at: new Date().toISOString(),
         });
+
+        // Main moved → conflict status of every open PR may have changed.
+        if (branch === repo.default_branch) {
+          const { data: openPrs } = await admin
+            .from("prs")
+            .select("number")
+            .eq("repo_id", repo.id)
+            .eq("state", "open");
+          for (const p of openPrs ?? []) {
+            try {
+              const state = await prMergeableState(
+                payload.installation.id,
+                payload.repository.full_name,
+                p.number,
+              );
+              await admin
+                .from("prs")
+                .update({ mergeable_state: state })
+                .eq("repo_id", repo.id)
+                .eq("number", p.number);
+            } catch (err) {
+              await logError(admin, repo.org_id, repo.id, `push:mergeable:#${p.number}`, err);
+            }
+          }
+        }
+        break;
+      }
+
+      case "delete": {
+        // Branch deleted on GitHub → drop it from the dashboard immediately.
+        if (payload.ref_type === "branch") {
+          const repo = await repoByGithubId(admin, payload.repository.id);
+          if (repo) {
+            await admin
+              .from("branches")
+              .delete()
+              .eq("repo_id", repo.id)
+              .eq("name", payload.ref);
+          }
+        }
         break;
       }
 
@@ -96,14 +148,25 @@ export async function POST(request: Request) {
         const pr = payload.pull_request;
         let files: string[] = [];
         try {
-          files = await changedFiles(
+          files = await prChangedFiles(
             payload.installation.id,
             payload.repository.full_name,
-            pr.base.ref,
-            pr.head.ref,
+            pr.number,
           );
-        } catch {
-          /* keep [] */
+        } catch (err) {
+          await logError(admin, repo.org_id, repo.id, `pr:files:#${pr.number}`, err);
+        }
+        let mergeable = "unknown";
+        if (pr.state === "open") {
+          try {
+            mergeable = await prMergeableState(
+              payload.installation.id,
+              payload.repository.full_name,
+              pr.number,
+            );
+          } catch (err) {
+            await logError(admin, repo.org_id, repo.id, `pr:mergeable:#${pr.number}`, err);
+          }
         }
         await admin.from("prs").upsert({
           repo_id: repo.id,
@@ -116,9 +179,19 @@ export async function POST(request: Request) {
           state: pr.merged ? "merged" : pr.state,
           draft: pr.draft ?? false,
           changed_files: files,
+          mergeable_state: mergeable,
           html_url: pr.html_url,
           updated_at: new Date().toISOString(),
         });
+
+        // Merge landed → stamp the head branch so it shows "merged" for 48h.
+        if (payload.action === "closed" && pr.merged) {
+          await admin
+            .from("branches")
+            .update({ merged_at: new Date().toISOString() })
+            .eq("repo_id", repo.id)
+            .eq("name", pr.head.ref);
+        }
         break;
       }
 

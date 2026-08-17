@@ -35,8 +35,16 @@ nobody steps on anyone.
 1. If your changes altered how a module works, its interfaces, or a decision —
    update the matching doc under `.brain/` **in the same branch**, so the
    reviewer sees code and context change together.
-2. Remind your human to open a pull request; they cannot approve their own —
+2. **Conflict check — mandatory before any pull request:**
+   `git fetch origin && git merge origin/main` on your branch. If there are
+   conflicts, resolve them yourself now (and re-run the build) — a PR must
+   never be opened while it conflicts with main. The dashboard flags
+   conflicting PRs in red; don't be the red one.
+3. Remind your human to open a pull request; they cannot approve their own —
    a teammate reviews it.
+4. After the PR merges, the branch is done: it shows as "merged" on the
+   dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
+   merged branch — start fresh from main.
 
 ## Security rules (non-negotiable)
 

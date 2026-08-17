@@ -34,16 +34,17 @@ export default async function RepoPage({
     await Promise.all([
       supabase
         .from("prs")
-        .select("number, title, author, head_branch, state, review_state, draft, changed_files, html_url, updated_at")
+        .select("number, title, author, head_branch, state, review_state, draft, changed_files, mergeable_state, html_url, updated_at")
         .eq("repo_id", repo.id)
         .eq("state", "open")
         .order("updated_at", { ascending: false }),
       supabase
         .from("branches")
-        .select("name, head_sha, changed_files, last_push_at")
+        .select("name, head_sha, changed_files, last_push_at, merged_at")
         .eq("repo_id", repo.id)
+        .or(`merged_at.is.null,merged_at.gte.${new Date(Date.now() - 48 * 3600_000).toISOString()}`)
         .order("last_push_at", { ascending: false })
-        .limit(10),
+        .limit(15),
       supabase
         .from("activity")
         .select("branch, file, tool, at")
@@ -82,9 +83,10 @@ export default async function RepoPage({
     if (!list.includes(a.file) && list.length < 8) list.push(a.file);
   }
 
-  // Cross-branch collision detection on changed files.
+  // Cross-branch collision detection on changed files (unmerged branches only).
   const fileBranches = new Map<string, string[]>();
   for (const b of branches ?? []) {
+    if (b.merged_at) continue;
     for (const f of (b.changed_files as string[]) ?? []) {
       if (!fileBranches.has(f)) fileBranches.set(f, []);
       fileBranches.get(f)!.push(b.name);
@@ -98,7 +100,15 @@ export default async function RepoPage({
         <Link href="/dashboard" className="text-sm text-slate-400 hover:text-white">
           ← All repositories
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-white">{repo.full_name}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="mt-2 text-2xl font-bold text-white">{repo.full_name}</h1>
+          <Link
+            href={`/dashboard/${repo.id}/brain`}
+            className="rounded-lg bg-ink-800 px-3 py-1.5 text-sm text-brand-400 hover:text-brand-500"
+          >
+            🧠 Second Brain
+          </Link>
+        </div>
         <p className="text-sm text-slate-500">
           default branch: {repo.default_branch} · <Live repoId={repo.id} />
         </p>
@@ -177,6 +187,16 @@ export default async function RepoPage({
                 >
                   #{pr.number} {pr.title}
                 </a>
+                {pr.mergeable_state === "dirty" && (
+                  <span className="ml-2 rounded bg-red-500/15 px-1.5 py-0.5 text-xs font-semibold text-red-400">
+                    ⚠ conflicts with {repo.default_branch}
+                  </span>
+                )}
+                {pr.mergeable_state === "behind" && (
+                  <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-400">
+                    behind {repo.default_branch}
+                  </span>
+                )}
                 <div className="text-xs text-slate-500">
                   {pr.author} · {pr.head_branch}
                   {pr.draft ? " · draft" : ""}
@@ -200,11 +220,20 @@ export default async function RepoPage({
             <ul className="space-y-2 text-sm">
               {branches.map((b) => (
                 <li key={b.name}>
-                  <span className="text-slate-200">{b.name}</span>
-                  <span className="ml-2 text-xs text-slate-500">
-                    {((b.changed_files as string[]) ?? []).length} changed vs{" "}
-                    {repo.default_branch}
+                  <span className={b.merged_at ? "text-slate-500" : "text-slate-200"}>
+                    {b.name}
                   </span>
+                  {b.merged_at ? (
+                    <span className="ml-2 rounded bg-purple-500/15 px-1.5 py-0.5 text-xs text-purple-300">
+                      merged {Math.max(1, Math.round((Date.now() - new Date(b.merged_at).getTime()) / 3600_000))}h ago
+                      · auto-removes at 48h
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-xs text-slate-500">
+                      {((b.changed_files as string[]) ?? []).length} changed vs{" "}
+                      {repo.default_branch}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

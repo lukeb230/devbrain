@@ -2,7 +2,12 @@
 
 // Live refresher: subscribes to Supabase Realtime changes for this repo and
 // re-renders the server component data via router.refresh() (debounced).
-// This is what makes the dashboard "live" without any refresh button.
+//
+// CRITICAL FIX: with RLS enabled, postgres_changes subscriptions connect fine
+// but deliver ZERO events unless the user's JWT is explicitly passed to the
+// realtime client (otherwise it authorizes as anon and sees no rows). We call
+// realtime.setAuth() with the session token before subscribing, and keep it
+// fresh on auth refresh. A 5s poll remains as a belt-and-braces fallback.
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -17,28 +22,52 @@ export function Live({ repoId }: { repoId: string }) {
 
   useEffect(() => {
     const supabase = supabaseBrowser();
+    let cancelled = false;
+
     const refresh = () => {
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => router.refresh(), 400);
+      timer.current = setTimeout(() => router.refresh(), 300);
     };
 
-    const channel = supabase.channel(`repo-${repoId}`);
-    for (const table of TABLES) {
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table, filter: `repo_id=eq.${repoId}` },
-        refresh,
-      );
-    }
-    channel.subscribe((s) => {
-      if (s === "SUBSCRIBED") setStatus("live");
-      if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") setStatus("off");
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    (async () => {
+      // Hand the user's JWT to the realtime socket BEFORE subscribing, so RLS
+      // authorizes event delivery as this user rather than anon.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        await supabase.realtime.setAuth(session.access_token);
+      }
+      if (cancelled) return;
+
+      channel = supabase.channel(`repo-${repoId}`);
+      for (const table of TABLES) {
+        channel.on(
+          "postgres_changes",
+          { event: "*", schema: "public", table, filter: `repo_id=eq.${repoId}` },
+          refresh,
+        );
+      }
+      channel.subscribe((s) => {
+        if (s === "SUBSCRIBED") setStatus("live");
+        if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") setStatus("off");
+      });
+    })();
+
+    // Keep realtime auth fresh across token refreshes.
+    const { data: authSub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session?.access_token) supabase.realtime.setAuth(session.access_token);
     });
 
-    // Fallback: refresh every 60s even if realtime hiccups.
-    const interval = setInterval(() => router.refresh(), 60_000);
+    // Fallback poll: even if realtime misbehaves, the page is ≤5s stale.
+    const interval = setInterval(() => router.refresh(), 5_000);
+
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+      authSub.subscription.unsubscribe();
       clearInterval(interval);
       if (timer.current) clearTimeout(timer.current);
     };
@@ -56,7 +85,7 @@ export function Live({ repoId }: { repoId: string }) {
               : "bg-slate-600")
         }
       />
-      {status === "live" ? "live" : status === "connecting" ? "connecting…" : "offline (auto-retry)"}
+      {status === "live" ? "live" : status === "connecting" ? "connecting…" : "offline (polling)"}
     </span>
   );
 }

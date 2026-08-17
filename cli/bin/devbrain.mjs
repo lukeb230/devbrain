@@ -137,7 +137,14 @@ if (cmd === "send") {
     /* no stdin — fine */
   }
 
-  const file = hookInput?.tool_input?.file_path;
+  // Repo-relative path: never leak the machine's folder layout.
+  let file = hookInput?.tool_input?.file_path;
+  if (file) {
+    try {
+      const root = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+      if (root && file.startsWith(root)) file = file.slice(root.length + 1);
+    } catch { /* keep as-is */ }
+  }
   const sessionFile = join(CONFIG_DIR, "session-" + repo.replace("/", "_"));
 
   if (kind === "session_start") {

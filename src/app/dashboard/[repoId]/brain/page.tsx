@@ -10,8 +10,10 @@ export const dynamic = "force-dynamic";
 // repo's .brain/ folder, so what you read here is exactly what every Claude
 // on that branch reads. Markdown only; raw HTML is escaped before rendering.
 
+// Escape raw HTML tags only — marked handles entities itself; escaping &
+// here caused double-encoding (&amp;&amp; artifacts in code blocks).
 function esc(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(/</g, "&lt;");
 }
 
 export default async function BrainPage({

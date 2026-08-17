@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "./live";
 
@@ -102,12 +103,20 @@ export default async function RepoPage({
         </Link>
         <div className="flex items-center justify-between">
           <h1 className="mt-2 text-2xl font-bold text-white">{repo.full_name}</h1>
-          <Link
-            href={`/dashboard/${repo.id}/brain`}
-            className="rounded-lg bg-ink-800 px-3 py-1.5 text-sm text-brand-400 hover:text-brand-500"
-          >
-            🧠 Second Brain
-          </Link>
+          <span className="flex gap-2">
+            <Link
+              href={`/dashboard/${repo.id}/brain`}
+              className="rounded-lg bg-ink-800 px-3 py-1.5 text-sm text-brand-400 hover:text-brand-500"
+            >
+              🧠 Second Brain
+            </Link>
+            <Link
+              href={`/dashboard/${repo.id}/rules`}
+              className="rounded-lg bg-ink-800 px-3 py-1.5 text-sm text-slate-300 hover:text-white"
+            >
+              Rules
+            </Link>
+          </span>
         </div>
         <p className="text-sm text-slate-500">
           default branch: {repo.default_branch} · <Live repoId={repo.id} />
@@ -187,16 +196,7 @@ export default async function RepoPage({
                 >
                   #{pr.number} {pr.title}
                 </a>
-                {pr.mergeable_state === "dirty" && (
-                  <span className="ml-2 rounded bg-red-500/15 px-1.5 py-0.5 text-xs font-semibold text-red-400">
-                    ⚠ conflicts with {repo.default_branch}
-                  </span>
-                )}
-                {pr.mergeable_state === "behind" && (
-                  <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-400">
-                    behind {repo.default_branch}
-                  </span>
-                )}
+                <PrBadges pr={pr} defaultBranch={repo.default_branch} />
                 <div className="text-xs text-slate-500">
                   {pr.author} · {pr.head_branch}
                   {pr.draft ? " · draft" : ""}

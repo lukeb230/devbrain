@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   const since = new Date(Date.now() - ACTIVE_WINDOW_MIN * 60_000).toISOString();
 
-  const [prs, sessions, activity, claims] = await Promise.all([
+  const [prs, sessions, activity, claims, policies, decisions] = await Promise.all([
     admin
       .from("prs")
       .select("number, title, author, head_branch, review_state, draft, changed_files, html_url")
@@ -58,7 +58,28 @@ export async function GET(request: Request) {
       .select("dev_label, paths, note, expires_at")
       .eq("repo_id", repo.id)
       .is("released_at", null),
+    admin
+      .from("policies")
+      .select("rule, enabled")
+      .eq("repo_id", repo.id),
+    admin
+      .from("events")
+      .select("payload, at")
+      .eq("repo_id", repo.id)
+      .eq("kind", "decision")
+      .order("at", { ascending: false })
+      .limit(10),
   ]);
+
+  const DEFAULT_RULES = [
+    "no_self_approve: a teammate must approve your PR; you cannot approve your own",
+    "pr_only_main: never commit directly to main — always a feature branch + PR",
+    "no_conflict_pr: merge origin/main into your branch and resolve conflicts BEFORE opening a PR",
+    "brain_updates_required: update the matching .brain/ doc in the same branch as any behavior change",
+    "collision_check: check who is editing a file before touching it",
+  ];
+  const disabled = new Set((policies.data ?? []).filter((p) => !p.enabled).map((p) => p.rule));
+  const team_rules = DEFAULT_RULES.filter((r) => !disabled.has(r.split(":")[0]));
 
   // Group active files per session.
   const filesBySession = new Map<string, Set<string>>();
@@ -69,6 +90,7 @@ export async function GET(request: Request) {
   }
 
   const activeSessions = (sessions.data ?? []).map((s) => ({
+    id: s.id,
     dev: s.dev_label,
     branch: s.branch,
     summary: s.summary,
@@ -104,6 +126,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     repo: repo.full_name,
     generated_at: new Date().toISOString(),
+    team_rules,
     open_prs: (prs.data ?? []).map((p) => ({
       number: p.number,
       title: p.title,
@@ -115,5 +138,8 @@ export async function GET(request: Request) {
     active_sessions: activeSessions,
     claims: claims.data ?? [],
     collisions,
+    recent_decisions: (decisions.data ?? []).map(
+      (d) => (d.payload as { text?: string; by?: string }),
+    ),
   });
 }

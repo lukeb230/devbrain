@@ -65,6 +65,17 @@ const TOOLS = [
     },
   },
   {
+    name: "log_decision",
+    description:
+      "Log a team-visible decision to DevBrain (shown to all devs and included in every Claude's context). Use after making a non-obvious choice: 'chose X over Y because Z'. Keep it one sentence.",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string", description: "The decision, one sentence." } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_brain",
     description:
       "Read the team's second brain (.brain/ folder) for THIS repo and branch — the structured context of the whole app. Returns all brain docs concatenated. Read this before exploring the codebase manually.",
@@ -88,6 +99,17 @@ async function callTool(name, args) {
         : { file, editing_now: [], collisions: [], advice: "Clear — nobody is on this file right now." },
       null, 2,
     );
+  }
+  if (name === "log_decision") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, text: String(args?.text || "") }),
+    });
+    return JSON.stringify(await res.json());
   }
   if (name === "get_brain") {
     const root = repoRoot();

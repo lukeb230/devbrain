@@ -9,6 +9,15 @@ This repo is tracked by DevBrain — the team's shared second brain. Three
 developers (and their Claudes) work here in parallel. Follow this workflow so
 nobody steps on anyone.
 
+## The team rules (served live in get_team_context as `team_rules`)
+
+The context digest includes the current rules for this repo. Follow them as
+hard requirements, not suggestions. Defaults: no self-approving PRs; never
+commit directly to main; never open a PR that conflicts with main; update
+.brain/ docs alongside behavior changes; check who's editing before touching
+a file (a PreToolUse hook also enforces this automatically — if it warns you,
+STOP and tell your human instead of overriding).
+
 ## At the start of every task
 
 1. Call `get_brain` (devbrain MCP) and read it before exploring the codebase —
@@ -45,6 +54,12 @@ nobody steps on anyone.
 4. After the PR merges, the branch is done: it shows as "merged" on the
    dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
    merged branch — start fresh from main.
+
+## After finishing a task
+
+- If you made a non-obvious choice (library, pattern, tradeoff), call
+  `log_decision` with one sentence — it appears on the team dashboard and in
+  every teammate's Claude context. This is how the hive mind learns.
 
 ## Security rules (non-negotiable)
 

@@ -1,15 +1,24 @@
 import { App } from "@octokit/app";
 import { verify } from "@octokit/webhooks-methods";
 
+/** Normalize the private key env var into a valid PEM. Survives every common
+ *  paste accident: literal \n sequences, stripped BEGIN/END headers, and
+ *  collapsed newlines. */
+function normalizePrivateKey(raw: string): string {
+  let key = (raw || "").replace(/\\n/g, "\n").trim();
+  if (key.includes("BEGIN")) return key;
+  // Headers were stripped — rebuild the PEM from bare base64 material.
+  const body = key.replace(/\s+/g, "");
+  const lines = body.match(/.{1,64}/g) || [];
+  return `-----BEGIN RSA PRIVATE KEY-----\n${lines.join("\n")}\n-----END RSA PRIVATE KEY-----\n`;
+}
+
 /** GitHub App instance (server-only). Requires DEVBRAIN_GH_APP_ID and
- *  DEVBRAIN_GH_APP_PRIVATE_KEY (PEM, newlines as \n) in the environment. */
+ *  DEVBRAIN_GH_APP_PRIVATE_KEY in the environment. */
 export function githubApp() {
   return new App({
     appId: process.env.DEVBRAIN_GH_APP_ID!,
-    privateKey: (process.env.DEVBRAIN_GH_APP_PRIVATE_KEY || "").replace(
-      /\\n/g,
-      "\n",
-    ),
+    privateKey: normalizePrivateKey(process.env.DEVBRAIN_GH_APP_PRIVATE_KEY || ""),
   });
 }
 

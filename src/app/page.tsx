@@ -2,15 +2,26 @@ import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SignInButton } from "./sign-in-button";
 
-export default async function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ denied?: string }>;
+}) {
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) redirect("/dashboard");
+  const { denied } = await searchParams;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-8 px-6 text-center">
+      {denied && (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
+          This DevBrain is private — your GitHub account isn&apos;t on the team
+          allowlist. Ask an admin to add you.
+        </p>
+      )}
       <div>
         <h1 className="text-4xl font-bold tracking-tight text-white">
           DevBrain

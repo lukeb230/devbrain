@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
+import { Live } from "./live";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,8 @@ export default async function RepoPage({
   if (!repo) notFound();
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }] =
+  const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }] =
     await Promise.all([
       supabase
         .from("prs")
@@ -55,7 +57,30 @@ export default async function RepoPage({
         .eq("repo_id", repo.id)
         .order("created_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("sessions")
+        .select("id, dev_label, branch, summary, agent_kind, last_seen")
+        .eq("repo_id", repo.id)
+        .is("ended_at", null)
+        .gte("last_seen", activeSince)
+        .order("last_seen", { ascending: false }),
     ]);
+
+  // Group each live session's recently-touched files.
+  const { data: recentActivity } = await supabase
+    .from("activity")
+    .select("session_id, file, at")
+    .eq("repo_id", repo.id)
+    .gte("at", activeSince)
+    .order("at", { ascending: false })
+    .limit(200);
+  const filesBySession = new Map<string, string[]>();
+  for (const a of recentActivity ?? []) {
+    const key = String(a.session_id ?? "");
+    if (!filesBySession.has(key)) filesBySession.set(key, []);
+    const list = filesBySession.get(key)!;
+    if (!list.includes(a.file) && list.length < 8) list.push(a.file);
+  }
 
   // Cross-branch collision detection on changed files.
   const fileBranches = new Map<string, string[]>();
@@ -74,8 +99,50 @@ export default async function RepoPage({
           ← All repositories
         </Link>
         <h1 className="mt-2 text-2xl font-bold text-white">{repo.full_name}</h1>
-        <p className="text-sm text-slate-500">default branch: {repo.default_branch}</p>
+        <p className="text-sm text-slate-500">
+          default branch: {repo.default_branch} · <Live repoId={repo.id} />
+        </p>
       </header>
+
+      <section className="panel mb-6">
+        <h2 className="mb-3 text-lg font-semibold text-white">Now working</h2>
+        {!liveSessions || liveSessions.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            Nobody is in an active session on this repo right now. Sessions
+            appear here the moment anyone&apos;s Claude Code starts working.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {liveSessions.map((s) => (
+              <li key={s.id} className="flex items-start gap-3">
+                <span className="mt-1.5 h-2.5 w-2.5 flex-shrink-0 animate-pulse rounded-full bg-emerald-400" />
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-200">
+                    {s.dev_label}
+                    <span className="ml-2 text-xs text-slate-500">
+                      {s.agent_kind}
+                      {s.branch ? ` · ${s.branch}` : ""}
+                    </span>
+                  </div>
+                  {s.summary && (
+                    <div className="text-xs text-slate-400">{s.summary}</div>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {(filesBySession.get(String(s.id)) ?? []).map((f) => (
+                      <code
+                        key={f}
+                        className="rounded bg-ink-800 px-1.5 py-0.5 text-xs text-brand-400"
+                      >
+                        {f}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {collisions.length > 0 && (
         <section className="panel mb-6 border-amber-500/50">

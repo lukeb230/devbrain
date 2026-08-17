@@ -13,6 +13,22 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
+      // Allowlist: if DEVBRAIN_ALLOWED_LOGINS is set (comma-separated GitHub
+      // usernames), only those accounts may use the app. Unset = open (dev).
+      const allowRaw = process.env.DEVBRAIN_ALLOWED_LOGINS || "";
+      if (allowRaw.trim()) {
+        const allowed = allowRaw
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+        const login = (
+          (data.user.user_metadata?.user_name as string | undefined) ?? ""
+        ).toLowerCase();
+        if (!allowed.includes(login)) {
+          await supabase.auth.signOut();
+          return NextResponse.redirect(`${origin}/?denied=1`);
+        }
+      }
       const admin = supabaseAdmin();
       const { data: memberships } = await admin
         .from("org_members")

@@ -23,11 +23,19 @@ export default async function DashboardPage() {
     <main className="mx-auto max-w-4xl px-6 py-10">
       <header className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">DevBrain</h1>
-        <form action="/auth/sign-out" method="post">
-          <button className="text-sm text-slate-400 hover:text-white">
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/settings/tokens"
+            className="text-sm text-slate-400 hover:text-white"
+          >
+            Dev tokens
+          </Link>
+          <form action="/auth/sign-out" method="post">
+            <button className="text-sm text-slate-400 hover:text-white">
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <section className="panel">

@@ -103,7 +103,16 @@ if (cmd === "init") {
   };
   ensure("PostToolUse", "Edit|Write|MultiEdit", hookCmd("activity"));
   ensure("SessionStart", undefined, hookCmd("session_start"));
-  ensure("Stop", undefined, hookCmd("session_end"));
+  // SessionEnd fires when the session actually closes. (NOT "Stop", which
+  // fires after every response — that bug marked sessions dead mid-work.)
+  ensure("SessionEnd", undefined, hookCmd("session_end"));
+  // Migrate any old devbrain hook off the Stop event.
+  if (Array.isArray(settings.hooks.Stop)) {
+    settings.hooks.Stop = settings.hooks.Stop.filter(
+      (h) => !JSON.stringify(h).includes("devbrain"),
+    );
+    if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
+  }
 
   mkdirSync(join(homedir(), ".claude"), { recursive: true });
   writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));

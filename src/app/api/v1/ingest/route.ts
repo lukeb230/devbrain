@@ -70,9 +70,15 @@ export async function POST(request: Request) {
     tool: body.tool ?? "edit",
   });
   if (body.session_id) {
+    // Activity proves the session is alive — refresh last_seen and clear any
+    // premature ended_at (resilience against misfired end hooks).
     await admin
       .from("sessions")
-      .update({ last_seen: new Date().toISOString(), branch: body.branch ?? null })
+      .update({
+        last_seen: new Date().toISOString(),
+        branch: body.branch ?? null,
+        ended_at: null,
+      })
       .eq("id", body.session_id);
   }
   return NextResponse.json({ ok: true });

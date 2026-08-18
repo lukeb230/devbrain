@@ -86,38 +86,38 @@ export function ActivityFeed({ rows, limit = 12 }: { rows: ActivityRow[]; limit?
         return (
           <li key={g.key}>
             <details className="group">
-              <summary className="flex cursor-pointer list-none items-baseline gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                <span className="text-xs text-slate-400 transition-transform group-open:rotate-90">▸</span>
+              <summary className="flex cursor-pointer list-none items-baseline gap-2 rounded px-1 py-0.5 text-sm hover:bg-ink-800/60 [&::-webkit-details-marker]:hidden">
+                <span className="text-xs text-slate-600 transition-transform group-open:rotate-90">▸</span>
                 <span className="min-w-0 truncate">
                   {g.repo && (
-                    <span className="mr-1.5 text-xs text-slate-400">{g.repo.split("/")[1] ?? g.repo}</span>
+                    <span className="mr-1.5 text-xs text-slate-500">{g.repo.split("/")[1] ?? g.repo}</span>
                   )}
-                  {g.dev && <span className="font-medium text-slate-900">{g.dev}</span>}
+                  {g.dev && <span className="font-medium text-slate-200">{g.dev}</span>}
                   {g.label ? (
-                    <span className="text-slate-700"> — {g.label}</span>
+                    <span className="text-slate-300"> — {g.label}</span>
                   ) : (
-                    <span className="text-slate-500">
+                    <span className="text-slate-400">
                       {g.dev ? " worked on " : "activity on "}
-                      <code className="text-slate-700">{g.branch ?? "?"}</code>
+                      <code className="text-slate-300">{g.branch ?? "?"}</code>
                     </span>
                   )}
                 </span>
-                <span className="ml-auto flex-shrink-0 text-xs text-slate-400">
+                <span className="ml-auto flex-shrink-0 text-xs text-slate-500">
                   {g.files.length} file{g.files.length === 1 ? "" : "s"}
                   {created > 0 ? ` (${created} new)` : ""} · {timeAgo(g.latest)}
                 </span>
               </summary>
-              <ul className="mb-1.5 ml-7 mt-1 space-y-0.5">
+              <ul className="mb-1 ml-6 mt-1 space-y-0.5">
                 {g.files.map((f) => (
                   <li key={f.file} className="flex items-baseline gap-2 text-xs">
-                    <code className="truncate text-slate-600">{f.file}</code>
-                    <span className="flex-shrink-0 text-slate-400">
+                    <code className="truncate text-brand-400/90">{f.file}</code>
+                    <span className="flex-shrink-0 text-slate-600">
                       {f.tool === "write" ? "created" : "edited"} · {timeAgo(f.at)}
                     </span>
                   </li>
                 ))}
                 {g.branch && (
-                  <li className="pt-0.5 text-xs text-slate-400">on {g.branch}</li>
+                  <li className="pt-0.5 text-xs text-slate-600">on {g.branch}</li>
                 )}
               </ul>
             </details>

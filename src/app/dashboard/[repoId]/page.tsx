@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "./live";
@@ -48,11 +49,11 @@ export default async function RepoPage({
         .limit(15),
       supabase
         .from("activity")
-        .select("branch, file, tool, at")
+        .select("session_id, dev_label, label, branch, file, tool, at")
         .eq("repo_id", repo.id)
         .gte("at", since)
         .order("at", { ascending: false })
-        .limit(50),
+        .limit(200),
       supabase
         .from("restore_points")
         .select("tag, sha, environment, created_at")
@@ -251,17 +252,7 @@ export default async function RepoPage({
               dev machine to start streaming presence.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm">
-              {activity.slice(0, 15).map((a, i) => (
-                <li key={i} className="truncate text-slate-300">
-                  <code className="text-xs">{a.file}</code>
-                  <span className="ml-1 text-xs text-slate-500">
-                    {a.tool}
-                    {a.branch ? ` · ${a.branch}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <ActivityFeed rows={activity} limit={12} />
           )}
         </section>
       </div>

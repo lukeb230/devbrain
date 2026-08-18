@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
 import { LiveAll } from "./live-all";
@@ -32,13 +33,14 @@ export default async function DashboardPage() {
       supabase.from("sessions").select("id, repo_id, dev_label, branch, agent_kind, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_branch, review_state, draft, mergeable_state, changed_files, html_url, updated_at").eq("state", "open").order("updated_at", { ascending: false }),
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),
-      supabase.from("activity").select("repo_id, session_id, file, at").gte("at", activeSince).order("at", { ascending: false }).limit(150),
+      supabase.from("activity").select("repo_id, session_id, dev_label, label, branch, file, tool, at").gte("at", new Date(Date.now() - 24 * 3600_000).toISOString()).order("at", { ascending: false }).limit(300),
       supabase.from("events").select("repo_id, kind, payload, at").in("kind", ["decision", "broadcast", "rule_change"]).order("at", { ascending: false }).limit(10),
     ]);
 
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
   const filesBySession = new Map<string, string[]>();
   for (const a of activity ?? []) {
+    if (a.at < activeSince) continue; // "Now working" chips: last 15 min only
     const key = String(a.session_id ?? "");
     if (!filesBySession.has(key)) filesBySession.set(key, []);
     const list = filesBySession.get(key)!;
@@ -165,6 +167,21 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="panel">
+          <h2 className="mb-3 text-lg font-semibold text-white">Recent work (24h)</h2>
+          {!activity || activity.length === 0 ? (
+            <p className="text-sm text-slate-500">Nothing yet today.</p>
+          ) : (
+            <ActivityFeed
+              rows={(activity ?? []).map((a) => ({
+                ...a,
+                repo: repoById.get(a.repo_id)?.full_name ?? null,
+              }))}
+              limit={10}
+            />
+          )}
         </section>
 
         <section className="panel">

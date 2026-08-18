@@ -79,7 +79,7 @@ export async function GET(request: Request) {
       .limit(10),
     admin
       .from("tasks")
-      .select("id, title, detail, priority, tags, created_by, created_at")
+      .select("id, title, detail, priority, tags, created_by, created_at, assigned_to")
       .eq("repo_id", repo.id)
       .eq("status", "open")
       .order("priority")
@@ -172,6 +172,7 @@ export async function GET(request: Request) {
       priority: t.priority,
       tags: t.tags,
       by: t.created_by,
+      assigned_to: t.assigned_to,
     })),
   });
 }

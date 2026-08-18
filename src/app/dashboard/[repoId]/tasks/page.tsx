@@ -1,8 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "../live";
-import { completeTask, createTask, reopenTask } from "./actions";
+import { assignTask, completeTask, createTask, reopenTask } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +48,15 @@ export default async function TasksPage({
     .single();
   if (!repo) notFound();
 
-  const { data: tasks } = await supabase
-    .from("tasks")
-    .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at")
-    .eq("repo_id", repo.id)
-    .order("priority")
-    .order("created_at");
+  const [{ data: tasks }, members] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to")
+      .eq("repo_id", repo.id)
+      .order("priority")
+      .order("created_at"),
+    teamMembers(),
+  ]);
 
   const open = (tasks ?? []).filter((t) => t.status === "open");
   const done = (tasks ?? [])
@@ -105,6 +109,16 @@ export default async function TasksPage({
                 <option value="2">P2 · High</option>
                 <option value="3">P3 · Medium</option>
                 <option value="4">P4 · Low</option>
+              </select>
+              <select
+                name="assignee"
+                defaultValue=""
+                className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:border-brand-500 focus:outline-none"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
               <button
                 type="submit"
@@ -168,6 +182,9 @@ export default async function TasksPage({
                         <div className="text-sm font-medium text-slate-900">{t.title}</div>
                         {t.detail && <div className="text-xs text-slate-500">{t.detail}</div>}
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {t.assigned_to && (
+                            <span className="chip bg-brand-50 text-brand-700">→ {t.assigned_to}</span>
+                          )}
                           {((t.tags as string[]) ?? []).map((tag) => (
                             <span key={tag} className="chip bg-slate-100 text-slate-600">{tag}</span>
                           ))}
@@ -176,6 +193,23 @@ export default async function TasksPage({
                           </span>
                         </div>
                       </div>
+                      <form action={assignTask} className="flex flex-shrink-0 items-center gap-1">
+                        <input type="hidden" name="repoId" value={repo.id} />
+                        <input type="hidden" name="id" value={t.id} />
+                        <select
+                          name="assignee"
+                          defaultValue={t.assigned_to ?? ""}
+                          className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 focus:border-brand-500 focus:outline-none"
+                        >
+                          <option value="">Unassigned</option>
+                          {members.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <button className="rounded border border-slate-200 px-1.5 py-0.5 text-xs text-slate-500 hover:border-brand-500 hover:text-brand-600">
+                          Set
+                        </button>
+                      </form>
                     </li>
                   ))}
                 </ul>

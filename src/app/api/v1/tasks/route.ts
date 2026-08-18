@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const admin = supabaseAdmin();
   const { data: tasks } = await admin
     .from("tasks")
-    .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at")
+    .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to")
     .eq("repo_id", repo.id)
     .order("priority")
     .order("created_at");
@@ -68,10 +68,25 @@ export async function POST(request: Request) {
         priority,
         tags,
         created_by: auth.label,
+        assigned_to: String(body.assigned_to || "").trim() || null,
       })
       .select("id")
       .single();
     return NextResponse.json({ ok: true, id: data?.id });
+  }
+
+  if (action === "assign") {
+    const id = String(body.id || "");
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+    const { data } = await admin
+      .from("tasks")
+      .update({ assigned_to: String(body.assigned_to || "").trim() || null })
+      .eq("id", id)
+      .eq("repo_id", repo.id)
+      .select("id, title, assigned_to")
+      .single();
+    if (!data) return NextResponse.json({ error: "task not found" }, { status: 404 });
+    return NextResponse.json({ ok: true, task: data });
   }
 
   if (action === "complete" || action === "reopen") {

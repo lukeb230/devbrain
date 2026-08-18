@@ -1,9 +1,18 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "./live";
+import { completeTask } from "./tasks/actions";
+
+const PRIORITY_CHIP: Record<number, string> = {
+  1: "bg-red-50 text-red-700",
+  2: "bg-amber-50 text-amber-700",
+  3: "bg-brand-50 text-brand-700",
+  4: "bg-slate-100 text-slate-600",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +40,7 @@ export default async function RepoPage({
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }] =
+  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }, { data: tasks }] =
     await Promise.all([
       supabase
         .from("prs")
@@ -66,7 +75,19 @@ export default async function RepoPage({
         .is("ended_at", null)
         .gte("last_seen", activeSince)
         .order("last_seen", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select("id, title, priority, tags, status, assigned_to, done_by, done_at, created_at")
+        .eq("repo_id", repo.id)
+        .order("priority")
+        .order("created_at"),
     ]);
+
+  const openTasks = (tasks ?? []).filter((t) => t.status === "open");
+  const doneTasks = (tasks ?? [])
+    .filter((t) => t.status === "done")
+    .sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""))
+    .slice(0, 6);
 
   // Group each live session's recently-touched files.
   const { data: recentActivity } = await supabase
@@ -191,6 +212,60 @@ export default async function RepoPage({
                     </li>
                   ))}
                 </ul>
+              )}
+            </section>
+
+            <section className="card card-pad">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="card-title">Tasks</h2>
+                <Link href={`/dashboard/${repo.id}/tasks`} className="text-xs text-slate-400 hover:text-brand-600">
+                  Manage
+                </Link>
+              </div>
+              {openTasks.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  No open tasks. Add them on the{" "}
+                  <Link href={`/dashboard/${repo.id}/tasks`} className="text-brand-600 hover:underline">Tasks tab</Link>.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {openTasks.map((t) => (
+                    <li key={t.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                      <form action={completeTask}>
+                        <input type="hidden" name="repoId" value={repo.id} />
+                        <input type="hidden" name="id" value={t.id} />
+                        <button
+                          title="Mark complete"
+                          className="block rounded border border-slate-300 bg-white hover:border-brand-600 hover:bg-brand-50"
+                          style={{ height: 16, width: 16 }}
+                        />
+                      </form>
+                      <span className={`chip flex-shrink-0 ${PRIORITY_CHIP[t.priority] ?? PRIORITY_CHIP[4]}`}>
+                        P{t.priority}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{t.title}</span>
+                      {t.assigned_to && (
+                        <span className="chip flex-shrink-0 bg-brand-50 text-brand-700">→ {t.assigned_to}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {doneTasks.length > 0 && (
+                <div className="mt-3 border-t border-slate-100 pt-2">
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Completed
+                  </div>
+                  <ul className="space-y-1">
+                    {doneTasks.map((t) => (
+                      <li key={t.id} className="flex items-baseline gap-2 text-sm">
+                        <span className="text-emerald-600">✓</span>
+                        <span className="min-w-0 truncate text-slate-400 line-through">{t.title}</span>
+                        <span className="flex-shrink-0 text-xs text-slate-400">{t.done_by}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </section>
 

@@ -100,7 +100,7 @@ const TOOLS = [
   {
     name: "list_tasks",
     description:
-      "The team's shared task board for this repo: open tasks sorted by priority (1=critical..4=low) plus recently completed ones. Call when your human asks what to do next, when finishing a task (to suggest a related follow-up), or when planning. Suggest tasks weighing BOTH priority and relatedness to what was just worked on (matching files/tags) — e.g. 'we just touched the store; this P2 store task is a natural next step.'",
+      "The team's shared task board for this repo: open tasks sorted by priority (1=critical..4=low) plus recently completed ones. Call when your human asks what to do next, when finishing a task (to suggest a related follow-up), or when planning. Suggest tasks weighing priority, relatedness to what was just worked on (matching files/tags), AND assignment — prefer tasks assigned to your dev or unassigned; mention when a task belongs to a teammate — e.g. 'we just touched the store; this P2 store task is a natural next step.'",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -114,6 +114,7 @@ const TOOLS = [
         priority: { type: "number", description: "1=critical, 2=high, 3=medium, 4=low", minimum: 1, maximum: 4 },
         tags: { type: "array", items: { type: "string" }, description: "Preset tags: bug, feature, ui, backend, plugin, brain, docs, refactor — plus any custom." },
         detail: { type: "string", description: "Optional context: files involved, acceptance criteria." },
+        assignee: { type: "string", description: "Optional team member to assign (their GitHub login/name as shown on the board)." },
       },
       required: ["title"],
       additionalProperties: false,
@@ -219,6 +220,7 @@ async function callTool(name, args) {
         priority: args?.priority,
         tags: args?.tags,
         detail: args?.detail,
+        assigned_to: args?.assignee,
       }),
     });
     return JSON.stringify(await res.json());

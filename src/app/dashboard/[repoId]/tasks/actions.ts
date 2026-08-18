@@ -41,6 +41,7 @@ export async function createTask(formData: FormData): Promise<void> {
   const ctx = await authedRepo(repoId);
   if (!ctx) return;
 
+  const assigned = String(formData.get("assignee") || "").trim();
   await supabaseAdmin().from("tasks").insert({
     org_id: ctx.repo.org_id,
     repo_id: ctx.repo.id,
@@ -49,8 +50,26 @@ export async function createTask(formData: FormData): Promise<void> {
     priority,
     tags,
     created_by: devName(ctx.user),
+    assigned_to: assigned || null,
   });
   revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
+}
+
+export async function assignTask(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  const assignee = String(formData.get("assignee") || "").trim();
+  if (!repoId || !id) return;
+  const ctx = await authedRepo(repoId);
+  if (!ctx) return;
+  await supabaseAdmin()
+    .from("tasks")
+    .update({ assigned_to: assignee || null })
+    .eq("id", id)
+    .eq("org_id", ctx.repo.org_id);
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
 }
 
 export async function completeTask(formData: FormData): Promise<void> {
@@ -65,6 +84,7 @@ export async function completeTask(formData: FormData): Promise<void> {
     .eq("id", id)
     .eq("org_id", ctx.repo.org_id);
   revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
 }
 
 export async function reopenTask(formData: FormData): Promise<void> {
@@ -79,4 +99,5 @@ export async function reopenTask(formData: FormData): Promise<void> {
     .eq("id", id)
     .eq("org_id", ctx.repo.org_id);
   revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
 }

@@ -72,7 +72,9 @@ digest includes `open_tasks`; `list_tasks` has the full picture).
   Reason about it: prefer higher priority (1=critical..4=low), but weigh
   relatedness to what was JUST worked on. If you touched `store.ts` and a P2
   task also touches the store, say so: "we're already in this area — want to
-  knock out [task] while we're here?" Then let your human choose.
+  knock out [task] while we're here?" Then let your human choose. Tasks can
+  be assigned: prefer ones assigned to your dev or unassigned, and flag it
+  when a candidate belongs to a teammate instead of silently taking it.
 - **When you finish work that matches an open task** — call `complete_task`
   (confirm with your human if the match isn't obvious). It moves to the
   Completed section for 72 hours; it is never deleted silently.

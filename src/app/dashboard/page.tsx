@@ -33,7 +33,7 @@ export default async function DashboardPage() {
       supabase.from("prs").select("repo_id, number, title, author, head_branch, review_state, draft, mergeable_state, changed_files, html_url, updated_at").eq("state", "open").order("updated_at", { ascending: false }),
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),
       supabase.from("activity").select("repo_id, session_id, file, at").gte("at", activeSince).order("at", { ascending: false }).limit(150),
-      supabase.from("events").select("repo_id, kind, payload, at").eq("kind", "decision").order("at", { ascending: false }).limit(8),
+      supabase.from("events").select("repo_id, kind, payload, at").in("kind", ["decision", "broadcast", "rule_change"]).order("at", { ascending: false }).limit(10),
     ]);
 
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
@@ -168,22 +168,38 @@ export default async function DashboardPage() {
         </section>
 
         <section className="panel">
-          <h2 className="mb-3 text-lg font-semibold text-white">Recent decisions</h2>
+          <h2 className="mb-3 text-lg font-semibold text-white">Team feed</h2>
           {!decisions || decisions.length === 0 ? (
             <p className="text-sm text-slate-500">
-              None logged yet. Claudes log decisions via the plugin&apos;s{" "}
-              <code className="rounded bg-ink-800 px-1">log_decision</code> tool; they land here for everyone.
+              Quiet so far. Claudes post here via{" "}
+              <code className="rounded bg-ink-800 px-1">broadcast</code> (live heads-ups) and{" "}
+              <code className="rounded bg-ink-800 px-1">log_decision</code> (permanent learnings).
             </p>
           ) : (
             <ul className="space-y-2 text-sm">
-              {decisions.map((d, i) => (
-                <li key={i} className="text-slate-300">
-                  {(d.payload as { text?: string })?.text}
-                  <span className="ml-2 text-xs text-slate-500">
-                    {repoById.get(d.repo_id ?? "")?.full_name ?? ""} · {timeAgo(d.at)}
-                  </span>
-                </li>
-              ))}
+              {decisions.map((d, i) => {
+                const p = d.payload as { text?: string; by?: string; rule?: string; enabled?: boolean };
+                const chip =
+                  d.kind === "broadcast"
+                    ? { t: "📣", c: "text-amber-300" }
+                    : d.kind === "rule_change"
+                      ? { t: "⚙", c: "text-slate-400" }
+                      : { t: "✎", c: "text-brand-400" };
+                const text =
+                  d.kind === "rule_change"
+                    ? `Rule "${p.rule}" turned ${p.enabled ? "ON" : "off"} by ${p.by ?? "?"}`
+                    : p.text;
+                return (
+                  <li key={i} className="text-slate-300">
+                    <span className={`mr-1.5 ${chip.c}`}>{chip.t}</span>
+                    {text}
+                    <span className="ml-2 text-xs text-slate-500">
+                      {p.by && d.kind !== "rule_change" ? `${p.by} · ` : ""}
+                      {timeAgo(d.at)}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

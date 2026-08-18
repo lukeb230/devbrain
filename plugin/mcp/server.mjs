@@ -76,6 +76,17 @@ const TOOLS = [
     },
   },
   {
+    name: "broadcast",
+    description:
+      "Send a live heads-up to every teammate AND their Claudes right now (it reaches active sessions within one turn). Use BEFORE making changes that affect others — breaking an API signature, renaming shared types, force-pushing — or when you discover something blocking. One or two sentences.",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string", description: "The heads-up message." } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "log_decision",
     description:
       "Log a team-visible decision to DevBrain (shown to all devs and included in every Claude's context). Use after making a non-obvious choice: 'chose X over Y because Z'. Keep it one sentence.",
@@ -127,6 +138,17 @@ async function callTool(name, args) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ kind: "session_update", repo, session_id, summary: String(args?.status || "") }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "broadcast") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/broadcasts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, text: String(args?.text || "") }),
     });
     return JSON.stringify(await res.json());
   }

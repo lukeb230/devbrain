@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { linkifyBody, parseBrain } from "@/lib/brain";
 import { fetchBrainDocs } from "@/lib/github";
+import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
@@ -27,13 +28,14 @@ export default async function WidgetPage() {
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
+  const members = await teamMembers();
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, review_state, draft, mergeable_state, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files").is("merged_at", null),
-      supabase.from("tasks").select("id, repo_id, title, priority, tags, assigned_to, status, done_by, done_at").order("priority").order("created_at"),
+      supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at").order("priority").order("created_at"),
       supabase.from("events").select("kind, payload, at").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
       supabase.from("activity").select("session_id, dev_label, label, branch, file, tool, at, repo_id").gte("at", daySince).order("at", { ascending: false }).limit(150),
     ]);
@@ -128,11 +130,14 @@ export default async function WidgetPage() {
       repo_id: t.repo_id,
       repo: short(t.repo_id),
       title: t.title,
+      detail: t.detail,
       priority: t.priority,
       tags: (t.tags as string[]) ?? [],
       assigned_to: t.assigned_to,
       status: t.status,
       done_by: t.done_by,
+      created_by: t.created_by,
+      created_at: t.created_at,
     })),
     feed: (feed ?? []).map((d) => {
       const p = d.payload as { text?: string; by?: string };
@@ -148,6 +153,7 @@ export default async function WidgetPage() {
       at: a.at,
       repo: repoById.get(a.repo_id)?.full_name ?? null,
     })),
+    members,
     brain,
     lastRepo: lastRepo ? { id: lastRepo.id, name: short(lastRepo.id) } : null,
     conflicted: (prs ?? []).filter((p) => p.mergeable_state === "dirty").length,

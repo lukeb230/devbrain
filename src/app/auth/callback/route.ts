@@ -41,19 +41,37 @@ export async function GET(request: Request) {
           (data.user.user_metadata?.user_name as string | undefined) ??
           data.user.email?.split("@")[0] ??
           "team";
-        const slug = `${login}-${data.user.id.slice(0, 6)}`.toLowerCase();
-        const { data: org } = await admin
+        // Single-team instance: an allowlisted newcomer JOINS the existing
+        // team org (so they see the same repos, tasks, and brain as everyone
+        // else). Only the very first user ever bootstraps a new org.
+        const { data: existingOrg } = await admin
           .from("orgs")
-          .insert({ name: `${login}'s team`, slug })
           .select("id")
+          .order("created_at")
+          .limit(1)
           .single();
-        if (org) {
+        if (existingOrg) {
           await admin.from("org_members").insert({
-            org_id: org.id,
+            org_id: existingOrg.id,
             user_id: data.user.id,
-            role: "owner",
+            role: "member",
             github_login: login,
           });
+        } else {
+          const slug = `${login}-${data.user.id.slice(0, 6)}`.toLowerCase();
+          const { data: org } = await admin
+            .from("orgs")
+            .insert({ name: `${login}'s team`, slug })
+            .select("id")
+            .single();
+          if (org) {
+            await admin.from("org_members").insert({
+              org_id: org.id,
+              user_id: data.user.id,
+              role: "owner",
+              github_login: login,
+            });
+          }
         }
       }
       return NextResponse.redirect(`${origin}/dashboard`);

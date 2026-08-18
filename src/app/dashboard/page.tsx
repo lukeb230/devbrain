@@ -28,7 +28,7 @@ export default async function DashboardPage() {
   if (!user) redirect("/");
 
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: activity }, { data: decisions }] =
+  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: activity }, { data: decisions }, { data: topTasks }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, is_vault").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, branch, agent_kind, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
@@ -36,6 +36,7 @@ export default async function DashboardPage() {
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),
       supabase.from("activity").select("repo_id, session_id, dev_label, label, branch, file, tool, at").gte("at", new Date(Date.now() - 24 * 3600_000).toISOString()).order("at", { ascending: false }).limit(300),
       supabase.from("events").select("repo_id, kind, payload, at").in("kind", ["decision", "broadcast", "rule_change"]).order("at", { ascending: false }).limit(12),
+      supabase.from("tasks").select("repo_id, id, title, priority").eq("status", "open").order("priority").order("created_at").limit(8),
     ]);
 
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
@@ -216,6 +217,38 @@ export default async function DashboardPage() {
                   </li>
                 ))}
               </ul>
+            </section>
+
+            <section className="card card-pad">
+              <h2 className="card-title mb-3">Top tasks</h2>
+              {!topTasks || topTasks.length === 0 ? (
+                <p className="text-sm text-slate-500">No open tasks. Add them on a repo&apos;s Tasks tab.</p>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {topTasks.map((t) => (
+                    <li key={t.id} className="flex items-baseline gap-2">
+                      <span
+                        className={
+                          "chip flex-shrink-0 " +
+                          (t.priority === 1
+                            ? "bg-red-50 text-red-700"
+                            : t.priority === 2
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-slate-100 text-slate-600")
+                        }
+                      >
+                        P{t.priority}
+                      </span>
+                      <Link
+                        href={`/dashboard/${t.repo_id}/tasks`}
+                        className="min-w-0 truncate text-slate-700 hover:text-brand-600"
+                      >
+                        {t.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             <section className="card card-pad">

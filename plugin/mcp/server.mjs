@@ -98,6 +98,39 @@ const TOOLS = [
     },
   },
   {
+    name: "list_tasks",
+    description:
+      "The team's shared task board for this repo: open tasks sorted by priority (1=critical..4=low) plus recently completed ones. Call when your human asks what to do next, when finishing a task (to suggest a related follow-up), or when planning. Suggest tasks weighing BOTH priority and relatedness to what was just worked on (matching files/tags) — e.g. 'we just touched the store; this P2 store task is a natural next step.'",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "add_task",
+    description:
+      "Add a task to the team's shared board (visible to all devs and their Claudes, auto-sorted by priority). Use when your human describes work to do later, or when you discover needed work mid-task (a bug you can't fix now, missing tests, cleanup). priority: 1=critical, 2=high, 3=medium (default), 4=low.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short imperative title, e.g. 'Add CSV export to gear list'" },
+        priority: { type: "number", description: "1=critical, 2=high, 3=medium, 4=low", minimum: 1, maximum: 4 },
+        tags: { type: "array", items: { type: "string" }, description: "Preset tags: bug, feature, ui, backend, plugin, brain, docs, refactor — plus any custom." },
+        detail: { type: "string", description: "Optional context: files involved, acceptance criteria." },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "complete_task",
+    description:
+      "Mark a board task complete (moves to the Completed section for 72h — never deletes). Call when work you just finished matches an open task; confirm with your human first if it's not obviously the same work. Get the id from list_tasks or the open_tasks list in your context.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Task id from list_tasks / open_tasks." } },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_brain",
     description:
       "Read the team's second brain (.brain/ folder) for THIS repo and branch — the structured context of the whole app. Returns all brain docs concatenated. Read this before exploring the codebase manually.",
@@ -160,6 +193,44 @@ async function callTool(name, args) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, text: String(args?.text || "") }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "list_tasks") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/tasks?repo=${encodeURIComponent(repo)}`, {
+      headers: { Authorization: `Bearer ${cfg.token}` },
+    });
+    return JSON.stringify(await res.json(), null, 2);
+  }
+  if (name === "add_task") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({
+        repo,
+        action: "create",
+        title: String(args?.title || ""),
+        priority: args?.priority,
+        tags: args?.tags,
+        detail: args?.detail,
+      }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "complete_task") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, action: "complete", id: String(args?.id || "") }),
     });
     return JSON.stringify(await res.json());
   }

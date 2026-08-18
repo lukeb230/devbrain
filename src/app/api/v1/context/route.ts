@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   const since = new Date(Date.now() - ACTIVE_WINDOW_MIN * 60_000).toISOString();
 
-  const [prs, sessions, activity, claims, policies, decisions, broadcasts] = await Promise.all([
+  const [prs, sessions, activity, claims, policies, decisions, broadcasts, tasks] = await Promise.all([
     admin
       .from("prs")
       .select("number, title, author, head_branch, review_state, draft, changed_files, html_url")
@@ -77,6 +77,14 @@ export async function GET(request: Request) {
       .gte("at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
       .order("at", { ascending: false })
       .limit(10),
+    admin
+      .from("tasks")
+      .select("id, title, detail, priority, tags, created_by, created_at")
+      .eq("repo_id", repo.id)
+      .eq("status", "open")
+      .order("priority")
+      .order("created_at")
+      .limit(15),
   ]);
 
   const DEFAULT_RULES = [
@@ -152,6 +160,18 @@ export async function GET(request: Request) {
     recent_broadcasts: (broadcasts.data ?? []).map((b) => ({
       ...(b.payload as { text?: string; by?: string }),
       at: b.at,
+    })),
+    // Open tasks sorted by priority (1=critical..4=low). When your human asks
+    // "what's next?", suggest from these — prefer higher priority, and weigh
+    // relatedness to what was just worked on (files/tags). Complete via the
+    // complete_task tool when work matching a task is finished.
+    open_tasks: (tasks.data ?? []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      detail: t.detail,
+      priority: t.priority,
+      tags: t.tags,
+      by: t.created_by,
     })),
   });
 }

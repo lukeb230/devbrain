@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-const TABLES = ["prs", "branches", "activity", "sessions", "claims", "events", "linked_repos", "policies"];
+const TABLES = ["prs", "branches", "activity", "sessions", "claims", "events", "linked_repos", "policies", "tasks"];
 
 export function LiveAll() {
   const router = useRouter();

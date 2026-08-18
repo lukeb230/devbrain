@@ -111,6 +111,7 @@ export default async function RepoPage({
         live={<Live repoId={repo.id} />}
         tabs={[
           { label: "Overview", href: `/dashboard/${repo.id}`, active: true },
+          { label: "Tasks", href: `/dashboard/${repo.id}/tasks` },
           { label: "Brain", href: `/dashboard/${repo.id}/brain` },
           { label: "Rules", href: `/dashboard/${repo.id}/rules` },
         ]}

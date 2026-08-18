@@ -87,6 +87,40 @@ export async function GET(request: Request) {
       .limit(15),
   ]);
 
+  // Stale-brain detection: merges from the last 72h whose changed files
+  // include real code but NO .brain/ update. Any teammate's Claude can (and
+  // should) offer to repair these — subscription-powered, no API key needed.
+  const { data: mergedBranches } = await admin
+    .from("branches")
+    .select("name, changed_files, merged_at")
+    .eq("repo_id", repo.id)
+    .gte("merged_at", new Date(Date.now() - 72 * 3600_000).toISOString());
+  const { data: mergedPrs } = await admin
+    .from("prs")
+    .select("number, title, head_branch")
+    .eq("repo_id", repo.id)
+    .neq("state", "open");
+  const prByBranch = new Map((mergedPrs ?? []).map((p) => [p.head_branch, p]));
+  const isCode = (f: string) =>
+    !f.startsWith(".brain/") && !f.startsWith(".github/") &&
+    !/package-lock|\.lock$|\.min\.|\.map$/.test(f);
+  const brain_stale = (mergedBranches ?? [])
+    .filter((b) => {
+      const files = (b.changed_files as string[]) ?? [];
+      return files.some(isCode) && !files.some((f) => f.startsWith(".brain/"));
+    })
+    .map((b) => {
+      const pr = prByBranch.get(b.name);
+      return {
+        branch: b.name,
+        pr: pr?.number ?? null,
+        title: pr?.title ?? null,
+        merged_at: b.merged_at,
+        code_files: ((b.changed_files as string[]) ?? []).filter(isCode).slice(0, 12),
+      };
+    })
+    .slice(0, 5);
+
   const DEFAULT_RULES = [
     "no_self_approve: a teammate must approve your PR; you cannot approve your own",
     "pr_only_main: never commit directly to main — always a feature branch + PR",
@@ -174,5 +208,9 @@ export async function GET(request: Request) {
       by: t.created_by,
       assigned_to: t.assigned_to,
     })),
+    // Recent merges that changed code without updating .brain/ — the brain
+    // is stale for these. Offer your human to repair the affected notes now
+    // (small branch + PR); any teammate's Claude may do this.
+    brain_stale,
   });
 }

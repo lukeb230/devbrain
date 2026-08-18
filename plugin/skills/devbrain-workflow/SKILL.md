@@ -63,6 +63,18 @@ STOP and tell your human instead of overriding).
    dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
    merged branch — start fresh from main.
 
+## Stale-brain repair (the team's shared duty)
+
+The context digest includes `brain_stale`: recent merges that changed code
+without updating `.brain/`. If it's non-empty at the start of your session,
+tell your human — "PR #12 (dark mode rework) merged without brain updates;
+want me to bring the brain up to date first?" If they agree: read the merged
+changes (`git log`/`git show` on those commits), update the affected notes
+under `.brain/notes/` on a small branch (or fold it into your current branch
+if the work is related), and open a PR. This takes two minutes, costs
+nothing, and keeps the brain from rotting. ANY teammate's Claude may repair
+staleness — whoever sees it first.
+
 ## The task board
 
 The team keeps a shared, priority-sorted task board in DevBrain (your context

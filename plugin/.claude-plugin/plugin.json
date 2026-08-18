@@ -1,7 +1,7 @@
 {
   "name": "devbrain",
   "description": "Connects this Claude to the team's DevBrain: live team context, collision checks, presence, and the shared second brain.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "author": { "name": "Veriflush dev team" },
   "mcpServers": {
     "devbrain": {

@@ -38,7 +38,7 @@ export function LiveAll() {
     const { data: authSub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session?.access_token) supabase.realtime.setAuth(session.access_token);
     });
-    const interval = setInterval(() => router.refresh(), 5_000);
+    const interval = setInterval(() => { if (!document.hidden) router.refresh(); }, 5_000);
     return () => {
       cancelled = true;
       if (channel) supabase.removeChannel(channel);

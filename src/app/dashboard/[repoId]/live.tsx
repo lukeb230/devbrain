@@ -62,7 +62,7 @@ export function Live({ repoId }: { repoId: string }) {
     });
 
     // Fallback poll: even if realtime misbehaves, the page is ≤5s stale.
-    const interval = setInterval(() => router.refresh(), 5_000);
+    const interval = setInterval(() => { if (!document.hidden) router.refresh(); }, 5_000);
 
     return () => {
       cancelled = true;

@@ -27,6 +27,17 @@ export async function middleware(request: NextRequest) {
   );
 
   await supabase.auth.getUser();
+
+  // Remember the last repo the user visited so the desktop widget (and
+  // /widget) can open straight to it instead of the team home.
+  const m = request.nextUrl.pathname.match(/^\/dashboard\/([0-9a-f-]{36})/);
+  if (m) {
+    response.cookies.set("devbrain_last_repo", m[1], {
+      maxAge: 60 * 60 * 24 * 90,
+      sameSite: "lax",
+      path: "/",
+    });
+  }
   return response;
 }
 

@@ -13,18 +13,18 @@ export function AppNav({
   const appSlug = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
   return (
     <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-6 px-6">
-        <Link href="/dashboard" className="flex items-center gap-2">
+      <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 overflow-x-auto px-4 sm:gap-6 sm:px-6">
+        <Link href="/dashboard" className="flex flex-shrink-0 items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">
             D
           </span>
-          <span className="text-[15px] font-semibold tracking-tight text-slate-900">
+          <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 sm:inline">
             DevBrain
           </span>
         </Link>
 
         {tabs && tabs.length > 0 && (
-          <div className="flex items-center gap-1 text-sm">
+          <div className="flex flex-shrink-0 items-center gap-1 text-sm">
             {tabs.map((t) => (
               <Link
                 key={t.href}
@@ -42,7 +42,7 @@ export function AppNav({
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-4 text-sm">
+        <div className="ml-auto flex flex-shrink-0 items-center gap-3 text-sm sm:gap-4">
           {live}
           <a
             href={`https://github.com/apps/${appSlug}/installations/new`}

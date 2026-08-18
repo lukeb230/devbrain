@@ -194,6 +194,64 @@ if (cmd === "send") {
   process.exit(0);
 }
 
+if (cmd === "doctor") {
+  const results = [];
+  const ok = (n, d = "") => results.push(`  ✓ ${n}${d ? " — " + d : ""}`);
+  const bad = (n, d = "") => results.push(`  ✗ ${n}${d ? " — " + d : ""}`);
+
+  let cfg = null;
+  if (existsSync(CONFIG_PATH)) {
+    try { cfg = JSON.parse(readFileSync(CONFIG_PATH, "utf8")); ok("config", CONFIG_PATH); }
+    catch { bad("config", "exists but is not valid JSON — re-run: devbrain init"); }
+  } else bad("config", "missing — run: devbrain init");
+
+  if (cfg?.server && cfg?.token) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(`${cfg.server}/api/v1/context`, {
+        headers: { Authorization: `Bearer ${cfg.token}` }, signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      if (res.status === 401) bad("auth", "token rejected — revoke & create a new one on the Dev tokens page, re-run init");
+      else if (res.status === 400) ok("server + auth", cfg.server);
+      else ok("server reachable", `status ${res.status}`);
+    } catch (e) {
+      bad("server", `unreachable (${e.name === "AbortError" ? "timeout" : e.message})`);
+    }
+  }
+
+  const repo = currentRepo();
+  if (repo) {
+    ok("repo detected", repo);
+    if (cfg?.server && cfg?.token) {
+      try {
+        const res = await fetch(`${cfg.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, {
+          headers: { Authorization: `Bearer ${cfg.token}` },
+        });
+        if (res.ok) ok("repo linked in DevBrain");
+        else bad("repo not linked", "install the GitHub App on it from the dashboard");
+      } catch { /* covered above */ }
+    }
+  } else results.push("  · not inside a git repo (repo checks skipped)");
+
+  if (existsSync(CLAUDE_SETTINGS)) {
+    try {
+      const s = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8"));
+      const j = JSON.stringify(s.hooks || {});
+      const events = ["PostToolUse", "SessionStart", "SessionEnd"];
+      const missing = events.filter((e) => !JSON.stringify(s.hooks?.[e] || []).includes("devbrain"));
+      if (missing.length === 0) ok("presence hooks installed");
+      else bad("presence hooks", `missing on ${missing.join(", ")} — re-run: devbrain init`);
+      if (j.includes('"Stop"') && JSON.stringify(s.hooks?.Stop || []).includes("devbrain"))
+        bad("legacy Stop hook present", "re-run: devbrain init (it migrates to SessionEnd)");
+    } catch { bad("~/.claude/settings.json", "unreadable"); }
+  } else bad("~/.claude/settings.json", "missing — run: devbrain init");
+
+  console.log("devbrain doctor\n" + results.join("\n"));
+  process.exit(results.some((r) => r.includes("✗")) ? 1 : 0);
+}
+
 if (cmd === "ctx") {
   const config = loadConfig();
   const repo = currentRepo();
@@ -213,6 +271,7 @@ console.log(`devbrain — team second brain CLI
 
 Usage:
   devbrain init    Configure server + token, install Claude Code hooks
+  devbrain doctor  Verify the whole chain: config, server, auth, repo, hooks
   devbrain ctx     Print the live context digest for the current repo
   devbrain send    (internal — invoked by hooks)
 `);

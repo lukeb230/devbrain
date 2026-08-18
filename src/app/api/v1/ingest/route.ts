@@ -47,6 +47,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, session_id: session?.id });
   }
 
+  if (kind === "session_update") {
+    // A Claude announcing what it's working on — the live intent layer.
+    if (!body.session_id) {
+      return NextResponse.json({ error: "session_id required" }, { status: 400 });
+    }
+    await admin
+      .from("sessions")
+      .update({
+        summary: String(body.summary || "").slice(0, 200) || null,
+        last_seen: new Date().toISOString(),
+        ended_at: null,
+      })
+      .eq("id", body.session_id)
+      .eq("org_id", repo.org_id);
+    return NextResponse.json({ ok: true });
+  }
+
   if (kind === "session_end") {
     await admin
       .from("sessions")

@@ -59,7 +59,8 @@ export async function prChangedFiles(
   return (res.data || []).map((f: { filename: string }) => f.filename);
 }
 
-/** Fetch all .brain/*.md docs from a repo at a given ref (branch). */
+/** Fetch all .brain markdown files (root + notes/) at a given ref.
+ *  Names are relative to .brain/ — e.g. "index.md", "notes/store.md". */
 export async function fetchBrainDocs(
   installationId: number,
   fullName: string,
@@ -67,27 +68,41 @@ export async function fetchBrainDocs(
 ): Promise<{ name: string; content: string }[]> {
   const [owner, repo] = fullName.split("/");
   const octokit = await installationOctokit(installationId);
-  let listing;
-  try {
-    listing = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
-      owner, repo, path: ".brain", ref,
-    });
-  } catch {
-    return []; // no .brain folder on this ref
+
+  async function listDir(path: string) {
+    try {
+      const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+        owner, repo, path, ref,
+      });
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      return [];
+    }
   }
-  const files = (Array.isArray(listing.data) ? listing.data : [])
-    .filter((f: { type: string; name: string }) => f.type === "file" && f.name.endsWith(".md"))
-    .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
+
+  const root = await listDir(".brain");
+  const entries: string[] = [];
+  for (const f of root) {
+    if (f.type === "file" && f.name.endsWith(".md")) entries.push(f.name);
+    if (f.type === "dir" && f.name === "notes") {
+      const sub = await listDir(".brain/notes");
+      for (const s of sub) {
+        if (s.type === "file" && s.name.endsWith(".md")) entries.push(`notes/${s.name}`);
+      }
+    }
+  }
+  entries.sort();
+
   const docs: { name: string; content: string }[] = [];
-  for (const f of files) {
+  for (const name of entries) {
     const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
-      owner, repo, path: `.brain/${f.name}`, ref,
+      owner, repo, path: `.brain/${name}`, ref,
     });
     const data = res.data as { content?: string; encoding?: string };
     const content = data.content
       ? Buffer.from(data.content, (data.encoding as BufferEncoding) || "base64").toString("utf8")
       : "";
-    docs.push({ name: f.name, content });
+    docs.push({ name, content });
   }
   return docs;
 }

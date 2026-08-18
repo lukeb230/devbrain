@@ -4,13 +4,22 @@
 // (tasks + who's working — the glance content), and a bottom tab bar for
 // Tasks / PRs / Brain / Feed. Tab switches are instant (pure client state).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
+import { toggleRule } from "../dashboard/[repoId]/rules/actions";
 import { assignTask, completeTask, createTask, reopenTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetLive } from "./live";
+import {
+  DEFAULT_PREFS,
+  readPrefs,
+  testNotification,
+  WidgetNotifier,
+  writePrefs,
+  type NotifPrefs,
+} from "./notifier";
 
 export interface WidgetData {
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
@@ -24,10 +33,13 @@ export interface WidgetData {
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
   lastRepo: { id: string; name: string } | null;
   conflicted: number;
+  rules: { rule: string; label: string; on: boolean }[];
+  self: string | null;
 }
 
 const TABS = ["Home", "Tasks", "PRs", "Brain", "Feed"] as const;
 type Tab = (typeof TABS)[number];
+type View = Tab | "Settings";
 
 const PRIO: Record<number, string> = {
   1: "bg-red-50 text-red-700",
@@ -64,13 +76,51 @@ function TaskRow({ t, compact }: { t: WidgetData["tasks"][number]; compact?: boo
   );
 }
 
+function Switch({ on, small }: { on: boolean; small?: boolean }) {
+  const h = small ? "h-5 w-9" : "h-6 w-11";
+  const knob = small ? "h-3.5 w-3.5" : "h-4 w-4";
+  const shift = small ? (on ? "translate-x-5" : "translate-x-1") : on ? "translate-x-6" : "translate-x-1";
+  return (
+    <span
+      className={`relative inline-flex ${h} flex-shrink-0 items-center rounded-full transition-colors ` + (on ? "bg-brand-600" : "bg-slate-200")}
+    >
+      <span className={`inline-block ${knob} transform rounded-full bg-white shadow transition-transform ` + shift} />
+    </span>
+  );
+}
+
+const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; detail: string }[] = [
+  { key: "broadcasts", label: "Broadcasts", detail: "A teammate sends a team-wide heads-up" },
+  { key: "pr_conflicts", label: "PR conflicts", detail: "An open pull request develops merge conflicts" },
+  { key: "pr_approvals", label: "PR approvals", detail: "A pull request gets approved" },
+  { key: "p1_tasks", label: "Critical tasks", detail: "Someone files a new P1 task" },
+  { key: "handoffs", label: "Handoffs", detail: "A teammate leaves unfinished work for pickup" },
+];
+
 export function WidgetApp({ data }: { data: WidgetData }) {
-  const [tab, setTab] = useState<Tab>("Home");
+  const [tab, setTab] = useState<View>("Home");
+  const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
+  useEffect(() => setPrefs(readPrefs()), []); // localStorage only exists client-side
+  const setPref = (key: keyof NotifPrefs, value: boolean) => {
+    const next = { ...prefs, [key]: value };
+    setPrefs(next);
+    writePrefs(next);
+    if (key === "enabled" && value) void testNotification(); // proves permission + delivery immediately
+  };
   const open = data.tasks.filter((t) => t.status === "open");
   const done = data.tasks.filter((t) => t.status === "done").slice(0, 5);
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
+      <WidgetNotifier
+        self={data.self}
+        prSeeds={data.prs.map((p) => ({
+          repo_id: p.repo_id,
+          number: p.number,
+          mergeable_state: p.mergeable_state,
+          review_state: p.review_state,
+        }))}
+      />
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
         <span className="flex items-center gap-1.5">
@@ -78,17 +128,87 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           <span className="text-sm font-semibold text-slate-900">DevBrain</span>
           <WidgetLive />
         </span>
-        <a
-          href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"}
-          target="_blank"
-          className="text-[11px] text-slate-400 hover:text-brand-600"
+        <button
+          onClick={() => setTab(tab === "Settings" ? "Home" : "Settings")}
+          className={"text-[11px] " + (tab === "Settings" ? "font-medium text-brand-700" : "text-slate-400 hover:text-brand-600")}
         >
-          Full dashboard
-        </a>
+          Settings
+        </button>
       </div>
 
       {/* Content */}
       <div className={"min-h-0 flex-1 px-3 py-2.5 " + (tab === "Home" ? "overflow-hidden" : "overflow-y-auto")}>
+        {tab === "Settings" && (
+          <div className="space-y-2.5">
+            <div className="card px-2.5 py-2">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Notifications</span>
+                <button onClick={() => setPref("enabled", !prefs.enabled)} aria-label="Toggle notifications">
+                  <Switch on={prefs.enabled} small />
+                </button>
+              </div>
+              <ul className={"space-y-2 " + (prefs.enabled ? "" : "pointer-events-none opacity-40")}>
+                {NOTIF_ROWS.map((r) => (
+                  <li key={r.key} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block text-xs font-medium text-slate-800">{r.label}</span>
+                      <span className="block text-[10px] leading-snug text-slate-400">{r.detail}</span>
+                    </span>
+                    <button onClick={() => setPref(r.key, !prefs[r.key])} aria-label={`Toggle ${r.label}`}>
+                      <Switch on={prefs[r.key]} small />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => void testNotification()}
+                className="mt-2 rounded border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:border-brand-500 hover:text-brand-600"
+              >
+                Send test notification
+              </button>
+            </div>
+
+            {data.lastRepo && data.rules.length > 0 && (
+              <div className="card px-2.5 py-2">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Team rules <span className="normal-case">· {data.lastRepo.name}</span>
+                </div>
+                <ul className="space-y-2">
+                  {data.rules.map((r) => (
+                    <li key={r.rule} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 text-xs text-slate-800">{r.label}</span>
+                      <form action={toggleRule} className="flex-shrink-0">
+                        <input type="hidden" name="repoId" value={data.lastRepo!.id} />
+                        <input type="hidden" name="rule" value={r.rule} />
+                        <input type="hidden" name="enabled" value={String(!r.on)} />
+                        <button aria-label={r.on ? "Turn off" : "Turn on"}>
+                          <Switch on={r.on} small />
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[10px] leading-snug text-slate-400">
+                  Rules apply to every Claude working in this repo. Full details on the dashboard Rules tab.
+                </p>
+              </div>
+            )}
+
+            <div className="card px-2.5 py-2">
+              <a
+                href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"}
+                target="_blank"
+                className="text-xs font-medium text-brand-600 hover:underline"
+              >
+                Open full dashboard
+              </a>
+              <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
+                Opens in your browser with History, Rules, and repo management.
+              </p>
+            </div>
+          </div>
+        )}
+
         {tab === "Home" && (
           <div className="flex h-full flex-col gap-2.5">
             {data.collisions.length > 0 && (

@@ -41,4 +41,5 @@ export async function toggleRule(formData: FormData): Promise<void> {
     payload: { rule, enabled, by: user.email ?? user.id },
   });
   revalidatePath(`/dashboard/${repoId}/rules`);
+  revalidatePath("/widget"); // rules are also toggleable from the widget Settings view
 }

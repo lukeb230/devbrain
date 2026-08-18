@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { linkifyBody, parseBrain } from "@/lib/brain";
 import { fetchBrainDocs } from "@/lib/github";
 import { teamMembers } from "@/lib/members";
+import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
@@ -31,7 +32,7 @@ export default async function WidgetPage() {
   const members = await teamMembers();
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }] =
     await Promise.all([
-      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").order("created_at"),
+      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, review_state, draft, mergeable_state, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files").is("merged_at", null),
@@ -62,7 +63,7 @@ export default async function WidgetPage() {
 
   // Brain for the last-visited repo (best effort; tab degrades gracefully).
   let brain: WidgetData["brain"] = null;
-  const lastRepo = lastRepoId ? repoById.get(lastRepoId) : (repos ?? [])[0];
+  const lastRepo = lastRepoId ? (repoById.get(lastRepoId) ?? (repos ?? [])[0]) : (repos ?? [])[0];
   if (lastRepo) {
     try {
       const files = await fetchBrainDocs(lastRepo.installation_id, lastRepo.full_name, lastRepo.default_branch);
@@ -104,6 +105,30 @@ export default async function WidgetPage() {
       /* brain tab degrades */
     }
   }
+
+  // Team rules for the last-visited repo — editable from the Settings view.
+  let rules: WidgetData["rules"] = [];
+  if (lastRepo) {
+    const { data: policyRows } = await supabase
+      .from("policies")
+      .select("rule, enabled")
+      .eq("repo_id", lastRepo.id);
+    const state = new Map((policyRows ?? []).map((r) => [r.rule, r.enabled]));
+    rules = RULES_CATALOG.map((c) => ({
+      rule: c.rule,
+      label: c.label,
+      on: state.get(c.rule) ?? true, // core rules default ON
+    }));
+    if (lastRepo.writer_installation_id) {
+      for (const c of WRITER_CATALOG) {
+        rules.push({ rule: c.rule, label: c.label, on: state.get(c.rule) ?? false }); // writer rules default OFF
+      }
+    }
+  }
+
+  // Who am I — used to skip notifying yourself about your own actions.
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const self = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "") || null;
 
   const data: WidgetData = {
     sessions: (sessions ?? []).map((s) => ({
@@ -167,6 +192,8 @@ export default async function WidgetPage() {
     brain,
     lastRepo: lastRepo ? { id: lastRepo.id, name: short(lastRepo.id) } : null,
     conflicted: (prs ?? []).filter((p) => p.mergeable_state === "dirty").length,
+    rules,
+    self,
   };
 
   return <WidgetApp data={data} />;

@@ -29,7 +29,7 @@ export default async function DashboardPage() {
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: activity }, { data: decisions }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, is_vault").order("created_at"),
-      supabase.from("sessions").select("id, repo_id, dev_label, branch, agent_kind, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
+      supabase.from("sessions").select("id, repo_id, dev_label, branch, agent_kind, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_branch, review_state, draft, mergeable_state, changed_files, html_url, updated_at").eq("state", "open").order("updated_at", { ascending: false }),
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),
       supabase.from("activity").select("repo_id, session_id, file, at").gte("at", activeSince).order("at", { ascending: false }).limit(150),
@@ -110,6 +110,9 @@ export default async function DashboardPage() {
                     {repoById.get(s.repo_id)?.full_name}
                     {s.branch ? ` · ${s.branch}` : ""} · {s.agent_kind} · {timeAgo(s.last_seen)}
                   </span>
+                  {s.summary && (
+                    <div className="text-sm text-brand-400/90">“{s.summary}”</div>
+                  )}
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {(filesBySession.get(String(s.id)) ?? []).map((f) => (
                       <code key={f} className="rounded bg-ink-800 px-1.5 py-0.5 text-xs text-brand-400">{f}</code>

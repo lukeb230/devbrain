@@ -1,17 +1,17 @@
 import { marked } from "marked";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { linkifyBody, parseBrain } from "@/lib/brain";
 import { fetchBrainDocs } from "@/lib/github";
 import { supabaseServer } from "@/lib/supabase/server";
+import { BrainGraph } from "./graph";
 
 export const dynamic = "force-dynamic";
 
-// The Second Brain, visible to humans — rendered per branch straight from the
-// repo's .brain/ folder, so what you read here is exactly what every Claude
-// on that branch reads. Markdown only; raw HTML is escaped before rendering.
+// The Second Brain, Obsidian-style: a clickable knowledge graph on the left,
+// the selected note on the right — rendered per branch straight from the
+// repo's .brain/ folder, so this is exactly what that branch's Claude reads.
 
-// Escape raw HTML tags only — marked handles entities itself; escaping &
-// here caused double-encoding (&amp;&amp; artifacts in code blocks).
 function esc(s: string) {
   return s.replace(/</g, "&lt;");
 }
@@ -21,10 +21,10 @@ export default async function BrainPage({
   searchParams,
 }: {
   params: Promise<{ repoId: string }>;
-  searchParams: Promise<{ branch?: string }>;
+  searchParams: Promise<{ branch?: string; note?: string }>;
 }) {
   const { repoId } = await params;
-  const { branch } = await searchParams;
+  const { branch, note } = await searchParams;
   const supabase = await supabaseServer();
   const {
     data: { user },
@@ -46,7 +46,37 @@ export default async function BrainPage({
     .limit(15);
 
   const ref = branch || repo.default_branch;
-  const docs = await fetchBrainDocs(repo.installation_id, repo.full_name, ref);
+  const files = await fetchBrainDocs(repo.installation_id, repo.full_name, ref);
+  const graph = parseBrain(files);
+  const byTitle = new Map(graph.notes.map((n) => [n.title.toLowerCase(), n.slug]));
+
+  const hrefFor = (slug: string) =>
+    `/dashboard/${repo.id}/brain?${new URLSearchParams({
+      ...(branch ? { branch } : {}),
+      note: slug,
+    }).toString()}`;
+
+  const selectedSlug = note || "index";
+  const current = graph.bySlug.get(selectedSlug) ?? graph.bySlug.get("index") ?? graph.notes[0];
+  const backlinks = current ? (graph.backlinks.get(current.slug) ?? []) : [];
+
+  const nodes = graph.notes.map((n) => ({
+    slug: n.slug,
+    title: n.title,
+    type: n.type,
+    degree: n.links.length + (graph.backlinks.get(n.slug)?.length ?? 0),
+  }));
+  const edges: { a: string; b: string }[] = [];
+  const seen = new Set<string>();
+  for (const n of graph.notes) {
+    for (const l of n.links) {
+      const key = [n.slug, l].sort().join("→");
+      if (!seen.has(key)) {
+        seen.add(key);
+        edges.push({ a: n.slug, b: l });
+      }
+    }
+  }
 
   const branchNames = [
     repo.default_branch,
@@ -56,8 +86,8 @@ export default async function BrainPage({
   ];
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <header className="mb-8">
+    <main className="mx-auto max-w-6xl px-6 py-10">
+      <header className="mb-6">
         <Link href={`/dashboard/${repo.id}`} className="text-sm text-slate-400 hover:text-white">
           ← {repo.full_name}
         </Link>
@@ -67,12 +97,13 @@ export default async function BrainPage({
           {branchNames.map((b) => (
             <Link
               key={b}
-              href={`/dashboard/${repo.id}/brain${b === repo.default_branch ? "" : `?branch=${encodeURIComponent(b)}`}`}
+              href={`/dashboard/${repo.id}/brain?${new URLSearchParams({
+                ...(b === repo.default_branch ? {} : { branch: b }),
+                ...(current ? { note: current.slug } : {}),
+              }).toString()}`}
               className={
                 "rounded px-2 py-0.5 " +
-                (b === ref
-                  ? "bg-brand-600 font-semibold text-ink-950"
-                  : "bg-ink-800 text-slate-300 hover:text-white")
+                (b === ref ? "bg-brand-600 font-semibold text-ink-950" : "bg-ink-800 text-slate-300 hover:text-white")
               }
             >
               {b}
@@ -81,27 +112,66 @@ export default async function BrainPage({
         </div>
       </header>
 
-      {docs.length === 0 ? (
+      {graph.notes.length === 0 ? (
         <div className="panel text-sm text-slate-400">
           <p>
-            No <code className="rounded bg-ink-800 px-1">.brain/</code> folder on{" "}
-            <strong>{ref}</strong>. Seed one with markdown docs (overview,
-            architecture, decisions, gotchas) and it renders here — and becomes
-            what every Claude reads first.
+            No brain on <strong>{ref}</strong> yet. Run the plugin&apos;s{" "}
+            <strong>generate-brain</strong> skill in a Claude Code session on
+            this repo (“generate the brain for this repo”) — it builds the
+            linked knowledge graph as a PR.
           </p>
         </div>
       ) : (
-        docs.map((d) => (
-          <article key={d.name} className="panel mb-6">
-            <h2 className="mb-3 border-b border-ink-700 pb-2 text-sm font-semibold text-brand-400">
-              .brain/{d.name}
+        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+          <section className="panel self-start">
+            <h2 className="mb-2 text-sm font-semibold text-slate-400">
+              {graph.notes.length} notes · {edges.length} connections — click a dot
             </h2>
-            <div
-              className="brain-prose text-sm leading-relaxed text-slate-300"
-              dangerouslySetInnerHTML={{ __html: marked.parse(esc(d.content)) as string }}
-            />
-          </article>
-        ))
+            <BrainGraph nodes={nodes} edges={edges} selected={current?.slug ?? null} hrefFor={hrefFor} />
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+              {[["feature", "#34d399"], ["module", "#60a5fa"], ["screen", "#22d3ee"], ["data", "#c084fc"], ["decision", "#fbbf24"], ["gotcha", "#f87171"], ["overview", "#2dd4bf"]].map(([t, c]) => (
+                <span key={t} className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full" style={{ background: c }} /> {t}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          {current && (
+            <section className="panel self-start">
+              <div className="mb-3 flex items-baseline justify-between border-b border-ink-700 pb-2">
+                <h2 className="text-lg font-semibold text-white">{current.title}</h2>
+                <span className="text-xs text-slate-500">{current.type}</span>
+              </div>
+              {current.touches.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {current.touches.map((f) => (
+                    <code key={f} className="rounded bg-ink-800 px-1.5 py-0.5 text-xs text-slate-400">{f}</code>
+                  ))}
+                </div>
+              )}
+              <div
+                className="brain-prose text-sm leading-relaxed text-slate-300"
+                dangerouslySetInnerHTML={{
+                  __html: marked.parse(esc(linkifyBody(current.body, byTitle, hrefFor))) as string,
+                }}
+              />
+              {backlinks.length > 0 && (
+                <div className="mt-4 border-t border-ink-700 pt-3 text-xs text-slate-500">
+                  Linked from:{" "}
+                  {backlinks.map((b, i) => (
+                    <span key={b}>
+                      {i > 0 && " · "}
+                      <Link href={hrefFor(b)} className="text-brand-400 hover:text-brand-500">
+                        {graph.bySlug.get(b)?.title ?? b}
+                      </Link>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       )}
     </main>
   );

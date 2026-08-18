@@ -77,18 +77,6 @@ export async function POST(request: Request) {
   if (!body.file) {
     return NextResponse.json({ error: "file required" }, { status: 400 });
   }
-  // Snapshot the session's live status phrase ("adding light/dark mode") onto
-  // the activity row — this is what makes the feed human-readable. The phrase
-  // is captured at edit time, so a later focus change starts a new group.
-  let label: string | null = null;
-  if (body.session_id) {
-    const { data: s } = await admin
-      .from("sessions")
-      .select("summary")
-      .eq("id", body.session_id)
-      .single();
-    label = s?.summary ?? null;
-  }
   await admin.from("activity").insert({
     org_id: repo.org_id,
     repo_id: repo.id,
@@ -97,8 +85,6 @@ export async function POST(request: Request) {
     branch: body.branch ?? null,
     file: body.file,
     tool: body.tool ?? "edit",
-    dev_label: auth.label,
-    label,
   });
   if (body.session_id) {
     // Activity proves the session is alive — refresh last_seen and clear any

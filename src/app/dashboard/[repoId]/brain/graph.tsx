@@ -18,18 +18,16 @@ export interface GEdge {
   b: string;
 }
 
-// Light-mode palette: saturated-but-tasteful marks that hold up on white.
-export const GRAPH_COLORS: Record<string, string> = {
-  overview: "#0d9488",
-  feature: "#059669",
-  module: "#2563eb",
-  service: "#4f46e5",
-  screen: "#0891b2",
-  data: "#7c3aed",
-  decision: "#d97706",
-  gotcha: "#dc2626",
+const COLORS: Record<string, string> = {
+  overview: "#2dd4bf",
+  feature: "#34d399",
+  module: "#60a5fa",
+  service: "#818cf8",
+  screen: "#22d3ee",
+  data: "#c084fc",
+  decision: "#fbbf24",
+  gotcha: "#f87171",
 };
-const COLORS = GRAPH_COLORS;
 
 export function BrainGraph({
   nodes,
@@ -127,7 +125,7 @@ export function BrainGraph({
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      className="h-auto w-full select-none rounded-lg border border-slate-200 bg-slate-50"
+      className="h-auto w-full select-none rounded-lg bg-ink-950"
       role="img"
       aria-label="Brain graph"
     >
@@ -139,7 +137,7 @@ export function BrainGraph({
           <line
             key={i}
             x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y}
-            stroke={active ? "#4f46e5" : "#e2e8f0"}
+            stroke={active ? "#2dd4bf" : "#232d42"}
             strokeWidth={active ? 1.6 : 1}
             opacity={focus && !active ? 0.25 : 1}
           />
@@ -161,14 +159,14 @@ export function BrainGraph({
             onMouseLeave={() => setHover(null)}
           >
             {n.slug === selected && (
-              <circle r={r + 4} fill="none" stroke="#4f46e5" strokeWidth={1.5} />
+              <circle r={r + 4} fill="none" stroke="#2dd4bf" strokeWidth={1.5} />
             )}
             <circle r={r} fill={c} opacity={0.9} />
             <text
               y={r + 11}
               textAnchor="middle"
               fontSize={9}
-              fill={n.slug === focus ? "#0f172a" : "#94a3b8"}
+              fill={n.slug === focus ? "#e2e8f0" : "#64748b"}
             >
               {n.title}
             </text>

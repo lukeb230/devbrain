@@ -5,6 +5,7 @@
 // short animated settle so clusters visibly form.
 
 import { useRouter } from "next/navigation";
+import { GRAPH_COLORS } from "./colors";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export interface GNode {
@@ -18,17 +19,6 @@ export interface GEdge {
   b: string;
 }
 
-// Light-mode palette: saturated-but-tasteful marks that hold up on white.
-export const GRAPH_COLORS: Record<string, string> = {
-  overview: "#0d9488",
-  feature: "#059669",
-  module: "#2563eb",
-  service: "#4f46e5",
-  screen: "#0891b2",
-  data: "#7c3aed",
-  decision: "#d97706",
-  gotcha: "#dc2626",
-};
 const COLORS = GRAPH_COLORS;
 
 export function BrainGraph({

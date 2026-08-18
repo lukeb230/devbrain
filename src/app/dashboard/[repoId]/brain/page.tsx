@@ -5,7 +5,8 @@ import { AppNav } from "@/components/AppNav";
 import { linkifyBody, parseBrain } from "@/lib/brain";
 import { fetchBrainDocs } from "@/lib/github";
 import { supabaseServer } from "@/lib/supabase/server";
-import { BrainGraph, GRAPH_COLORS } from "./graph";
+import { GRAPH_COLORS } from "./colors";
+import { BrainGraph } from "./graph";
 
 export const dynamic = "force-dynamic";
 

@@ -34,20 +34,21 @@ export function BrainExplorer({
   branch: string | null;
 }) {
   const bySlug = new Map(notes.map((n) => [n.slug, n]));
-  const [selected, setSelected] = useState(
-    bySlug.has(initialSlug) ? initialSlug : (notes[0]?.slug ?? ""),
+  const [selected, setSelected] = useState<string | null>(
+    bySlug.has(initialSlug) ? initialSlug : (notes[0]?.slug ?? null),
   );
-  const current = bySlug.get(selected);
+  const current = selected ? bySlug.get(selected) : undefined;
 
   const select = useCallback(
-    (slug: string) => {
-      if (!bySlug.has(slug)) return;
+    (slug: string | null) => {
+      if (slug !== null && !bySlug.has(slug)) return;
       setSelected(slug);
       const params = new URLSearchParams({
         ...(branch ? { branch } : {}),
-        note: slug,
+        ...(slug ? { note: slug } : {}),
       });
-      window.history.replaceState(null, "", `/dashboard/${repoId}/brain?${params.toString()}`);
+      const qs = params.toString();
+      window.history.replaceState(null, "", `/dashboard/${repoId}/brain${qs ? `?${qs}` : ""}`);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [repoId, branch, notes],
@@ -82,6 +83,13 @@ export function BrainExplorer({
         </div>
       </section>
 
+      {!current && (
+        <section className="card col-span-12 self-start card-pad lg:col-span-5">
+          <p className="py-10 text-center text-sm text-slate-400">
+            Click a node to open its note.
+          </p>
+        </section>
+      )}
       {current && (
         <section className="card col-span-12 self-start card-pad lg:col-span-5">
           <div className="mb-3 flex items-baseline justify-between border-b border-slate-100 pb-2">

@@ -38,7 +38,7 @@ export function BrainGraph({
   nodes: GNode[];
   edges: GEdge[];
   selected: string | null;
-  onSelect: (slug: string) => void;
+  onSelect: (slug: string | null) => void;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const bodies = useRef(new Map<string, Body>());
@@ -207,6 +207,7 @@ export function BrainGraph({
       role="img"
       aria-label="Brain graph — drag nodes, click to open a note"
       onPointerMove={onPointerMove}
+      onClick={() => onSelect(null)} // background click = deselect (nodes stopPropagation)
     >
       {edges.map((e, i) => {
         const pa = p.get(e.a), pb = p.get(e.b);
@@ -235,6 +236,7 @@ export function BrainGraph({
             transform={`translate(${b.x},${b.y})`}
             opacity={dim(n.slug) ? 0.25 : 1}
             style={{ cursor: "grab" }}
+            onClick={(e) => e.stopPropagation()}
             onPointerDown={onPointerDown(n.slug)}
             onPointerUp={onPointerUp(n.slug)}
             onMouseEnter={() => { setHover(n.slug); alpha.current = Math.max(alpha.current, 0.05); }}

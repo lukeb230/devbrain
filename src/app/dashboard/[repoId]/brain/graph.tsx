@@ -188,12 +188,14 @@ export function BrainGraph({
     if (d && d.moved < 5) onSelect(slug);
   };
 
-  // Dim/highlight only while hovering — at rest the whole network stays lit
-  // (the selected note keeps its ring).
+  // Hover dims everything outside the hovered neighborhood; the SELECTED
+  // node permanently lights up its connection lines and rings its neighbors,
+  // so you always see visually what the open note links to.
   const focus = hover;
   const focusNeighbors = focus ? (neighbors.current.get(focus) ?? new Set()) : null;
   const dim = (slug: string) =>
     focus && slug !== focus && !(focusNeighbors && focusNeighbors.has(slug));
+  const selNeighbors = selected ? (neighbors.current.get(selected) ?? new Set()) : new Set();
 
   const p = bodies.current;
 
@@ -209,14 +211,15 @@ export function BrainGraph({
       {edges.map((e, i) => {
         const pa = p.get(e.a), pb = p.get(e.b);
         if (!pa || !pb) return null;
-        const active = focus && (e.a === focus || e.b === focus);
+        const hovered = focus && (e.a === focus || e.b === focus);
+        const owned = selected && (e.a === selected || e.b === selected);
         return (
           <line
             key={i}
             x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y}
-            stroke={active ? "#4f46e5" : "#dbe1ea"}
-            strokeWidth={active ? 1.8 : 1.1}
-            opacity={focus && !active ? 0.3 : 1}
+            stroke={hovered || owned ? "#4f46e5" : "#dbe1ea"}
+            strokeWidth={hovered ? 2 : owned ? 1.8 : 1.1}
+            opacity={focus && !hovered ? 0.3 : 1}
           />
         );
       })}
@@ -239,6 +242,9 @@ export function BrainGraph({
           >
             {n.slug === selected && (
               <circle r={r + 5} fill="none" stroke="#4f46e5" strokeWidth={1.6} />
+            )}
+            {n.slug !== selected && selNeighbors.has(n.slug) && (
+              <circle r={r + 4} fill="none" stroke="#4f46e5" strokeWidth={1} opacity={0.45} />
             )}
             {/* generous invisible hit area so grabbing feels easy */}
             <circle r={Math.max(14, r + 6)} fill="transparent" />

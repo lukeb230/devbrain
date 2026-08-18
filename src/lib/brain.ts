@@ -48,6 +48,20 @@ export function slugify(title: string): string {
 
 const WIKILINK = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
 
+// When a note's frontmatter doesn't declare a `type:`, infer one from its
+// name so graphs generated without types still get meaningful colors.
+function inferType(base: string, title: string): string {
+  const s = `${base} ${title}`.toLowerCase();
+  if (base === "index" || /overview|index|readme/.test(s)) return "overview";
+  if (/decision/.test(s)) return "decision";
+  if (/gotcha|pitfall|warning/.test(s)) return "gotcha";
+  if (/screen|page|view|ui|theme|theming|layout|shell/.test(s)) return "screen";
+  if (/data|model|schema|store|storage|state/.test(s)) return "data";
+  if (/service|api|client|server|hook/.test(s)) return "service";
+  if (/feature|notes?$|tracking|form|list|log|stats/.test(s)) return "feature";
+  return "module";
+}
+
 export function parseBrain(files: { name: string; content: string }[]): BrainGraph {
   const notes: BrainNote[] = [];
   for (const f of files) {
@@ -57,7 +71,7 @@ export function parseBrain(files: { name: string; content: string }[]): BrainGra
     notes.push({
       slug: base === "index" ? "index" : slugify(title),
       title,
-      type: String(meta.type || "module"),
+      type: String(meta.type || inferType(base, title)),
       touches: Array.isArray(meta.touches) ? (meta.touches as string[]) : [],
       body,
       links: [],

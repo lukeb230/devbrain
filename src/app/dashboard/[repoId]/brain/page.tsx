@@ -103,6 +103,7 @@ export default async function BrainPage({
           { label: "Overview", href: `/dashboard/${repo.id}` },
           { label: "Tasks", href: `/dashboard/${repo.id}/tasks` },
           { label: "Brain", href: `/dashboard/${repo.id}/brain`, active: true },
+          { label: "History", href: `/dashboard/${repo.id}/history` },
           { label: "Rules", href: `/dashboard/${repo.id}/rules` },
         ]}
       />

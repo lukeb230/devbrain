@@ -134,6 +134,7 @@ export default async function RepoPage({
           { label: "Overview", href: `/dashboard/${repo.id}`, active: true },
           { label: "Tasks", href: `/dashboard/${repo.id}/tasks` },
           { label: "Brain", href: `/dashboard/${repo.id}/brain` },
+          { label: "History", href: `/dashboard/${repo.id}/history` },
           { label: "Rules", href: `/dashboard/${repo.id}/rules` },
         ]}
       />
@@ -344,11 +345,17 @@ export default async function RepoPage({
             </section>
 
             <section className="card card-pad">
-              <h2 className="card-title mb-3">Restore points</h2>
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="card-title">Restore points</h2>
+                <Link href={`/dashboard/${repo.id}/history`} className="text-xs text-slate-400 hover:text-brand-600">
+                  Full history
+                </Link>
+              </div>
               {!restores || restores.length === 0 ? (
                 <p className="text-sm text-slate-500">
-                  None recorded. POST to /api/v1/restore-points from a deploy
-                  script to create the rollback timeline.
+                  No deploy-tagged points yet — but every push and merge is on the{" "}
+                  <Link href={`/dashboard/${repo.id}/history`} className="text-brand-600 hover:underline">History tab</Link>{" "}
+                  with rollback recipes.
                 </p>
               ) : (
                 <ul className="space-y-1.5 text-sm">

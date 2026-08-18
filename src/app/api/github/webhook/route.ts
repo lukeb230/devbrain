@@ -100,6 +100,33 @@ export async function POST(request: Request) {
           last_push_at: new Date().toISOString(),
         });
 
+        // Record default-branch pushes as history entries — the rollback
+        // timeline. Commit messages + files come free on the push payload.
+        if (branch === repo.default_branch && payload.after !== "0000000000000000000000000000000000000000") {
+          const commits = (payload.commits ?? []) as {
+            id: string; message: string; added?: string[]; modified?: string[]; removed?: string[];
+          }[];
+          const head = payload.head_commit ?? commits[commits.length - 1];
+          const files = [
+            ...new Set(
+              commits.flatMap((c) => [...(c.added ?? []), ...(c.modified ?? []), ...(c.removed ?? [])]),
+            ),
+          ].slice(0, 40);
+          await admin.from("events").insert({
+            org_id: repo.org_id,
+            repo_id: repo.id,
+            kind: "main_push",
+            payload: {
+              sha: payload.after,
+              before: payload.before,
+              message: String(head?.message ?? "").split("\n")[0].slice(0, 160),
+              pusher: payload.pusher?.name ?? null,
+              commit_count: commits.length,
+              files,
+            },
+          });
+        }
+
         // Main moved → conflict status of every open PR may have changed.
         if (branch === repo.default_branch) {
           const { data: openPrs } = await admin

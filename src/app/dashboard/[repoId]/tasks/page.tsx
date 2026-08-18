@@ -76,6 +76,7 @@ export default async function TasksPage({
           { label: "Overview", href: `/dashboard/${repo.id}` },
           { label: "Tasks", href: `/dashboard/${repo.id}/tasks`, active: true },
           { label: "Brain", href: `/dashboard/${repo.id}/brain` },
+          { label: "History", href: `/dashboard/${repo.id}/history` },
           { label: "Rules", href: `/dashboard/${repo.id}/rules` },
         ]}
       />

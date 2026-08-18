@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-const TABLES = ["prs", "branches", "activity", "sessions", "claims", "restore_points", "tasks"];
+const TABLES = ["prs", "branches", "activity", "sessions", "claims", "restore_points", "tasks", "events"];
 
 export function Live({ repoId }: { repoId: string }) {
   const router = useRouter();

@@ -2,19 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-.panel {
-  @apply rounded-xl border border-ink-700 bg-ink-900 p-4;
+/* Card surface */
+.card {
+  @apply rounded-lg border border-slate-200 bg-white shadow-card;
+}
+.card-pad {
+  @apply p-4;
+}
+
+/* Section label inside cards */
+.card-title {
+  @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+}
+
+/* Small status chip */
+.chip {
+  @apply inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium;
 }
 
 /* Rendered .brain/ markdown */
 .brain-prose h1, .brain-prose h2, .brain-prose h3 {
-  @apply mb-2 mt-4 font-semibold text-white;
+  @apply mb-2 mt-4 font-semibold text-slate-900;
 }
 .brain-prose h1 { @apply text-lg; }
 .brain-prose h2 { @apply text-base; }
 .brain-prose p { @apply mb-3; }
 .brain-prose ul, .brain-prose ol { @apply mb-3 ml-5 list-disc space-y-1; }
-.brain-prose code { @apply rounded bg-ink-800 px-1 py-0.5 text-xs text-brand-400; }
-.brain-prose pre { @apply mb-3 overflow-x-auto rounded-lg bg-ink-950 p-3 text-xs; }
+.brain-prose code { @apply rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800; }
+.brain-prose pre { @apply mb-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs; }
 .brain-prose pre code { @apply bg-transparent p-0; }
-.brain-prose strong { @apply text-slate-100; }
+.brain-prose strong { @apply text-slate-900; }
+.brain-prose a { @apply text-brand-600 hover:underline; }

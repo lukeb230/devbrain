@@ -1,23 +1,23 @@
 import type { Config } from "tailwindcss";
 
-// Industrial dark-first palette — familiar territory for the Flow-Sync team.
+// Light professional palette: white surfaces on a cool gray canvas,
+// indigo accent, semantic status colors (emerald/amber/red/violet).
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
-  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        ink: {
-          950: "#0a0e14",
-          900: "#111827",
-          800: "#1a2233",
-          700: "#232d42",
-        },
         brand: {
-          400: "#5eead4",
-          500: "#2dd4bf",
-          600: "#14b8a6",
+          50: "#eef2ff",
+          100: "#e0e7ff",
+          400: "#818cf8",
+          500: "#6366f1",
+          600: "#4f46e5",
+          700: "#4338ca",
         },
+      },
+      boxShadow: {
+        card: "0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)",
       },
     },
   },

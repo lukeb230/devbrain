@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { AppNav } from "@/components/AppNav";
 import { supabaseServer } from "@/lib/supabase/server";
 import { toggleRule } from "./actions";
 
@@ -65,59 +65,70 @@ export default async function RulesPage({
   const state = new Map((rows ?? []).map((r) => [r.rule, r.enabled]));
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
-      <header className="mb-8">
-        <Link href={`/dashboard/${repo.id}`} className="text-sm text-slate-400 hover:text-white">
-          ← {repo.full_name}
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold text-white">Team rules</h1>
-        <p className="text-sm text-slate-500">
-          Rules toggled ON are served to every Claude via the plugin — agents
+    <>
+      <AppNav
+        tabs={[
+          { label: "Overview", href: `/dashboard/${repo.id}` },
+          { label: "Brain", href: `/dashboard/${repo.id}/brain` },
+          { label: "Rules", href: `/dashboard/${repo.id}/rules`, active: true },
+        ]}
+      />
+      <main className="mx-auto max-w-4xl px-6 py-6">
+        <div className="mb-1 flex items-baseline gap-3">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Team rules</h1>
+          <span className="text-sm text-slate-500">{repo.full_name}</span>
+        </div>
+        <p className="mb-5 max-w-2xl text-sm text-slate-500">
+          Rules toggled on are served to every Claude via the plugin — agents
           follow them automatically. Rules with a GitHub link are also
           enforceable at the merge button via branch protection (a human clicks
           that on; DevBrain never holds write access).
         </p>
-      </header>
 
-      <section className="panel">
-        <ul className="divide-y divide-ink-700">
-          {CATALOG.map((c) => {
-            const on = state.get(c.rule) ?? true; // default: all rules on
-            return (
-              <li key={c.rule} className="flex items-start justify-between gap-4 py-4">
-                <div>
-                  <div className="font-medium text-slate-200">{c.label}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{c.detail}</div>
-                  {c.ghPath && (
-                    <a
-                      href={`https://github.com/${repo.full_name}/${c.ghPath}`}
-                      target="_blank"
-                      className="mt-1 inline-block text-xs text-brand-400 hover:text-brand-500"
+        <section className="card">
+          <ul className="divide-y divide-slate-100">
+            {CATALOG.map((c) => {
+              const on = state.get(c.rule) ?? true; // default: all rules on
+              return (
+                <li key={c.rule} className="flex items-start justify-between gap-4 p-4">
+                  <div>
+                    <div className="font-medium text-slate-900">{c.label}</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{c.detail}</div>
+                    {c.ghPath && (
+                      <a
+                        href={`https://github.com/${repo.full_name}/${c.ghPath}`}
+                        target="_blank"
+                        className="mt-1 inline-block text-xs font-medium text-brand-600 hover:underline"
+                      >
+                        Enforce on GitHub
+                      </a>
+                    )}
+                  </div>
+                  <form action={toggleRule}>
+                    <input type="hidden" name="repoId" value={repo.id} />
+                    <input type="hidden" name="rule" value={c.rule} />
+                    <input type="hidden" name="enabled" value={String(!on)} />
+                    <button
+                      className={
+                        "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors " +
+                        (on ? "bg-brand-600" : "bg-slate-200")
+                      }
+                      aria-label={on ? "Turn off" : "Turn on"}
                     >
-                      Enforce on GitHub →
-                    </a>
-                  )}
-                </div>
-                <form action={toggleRule}>
-                  <input type="hidden" name="repoId" value={repo.id} />
-                  <input type="hidden" name="rule" value={c.rule} />
-                  <input type="hidden" name="enabled" value={String(!on)} />
-                  <button
-                    className={
-                      "rounded-full px-3 py-1 text-xs font-semibold " +
-                      (on
-                        ? "bg-brand-600 text-ink-950"
-                        : "border border-ink-700 text-slate-500")
-                    }
-                  >
-                    {on ? "ON" : "off"}
-                  </button>
-                </form>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-    </main>
+                      <span
+                        className={
+                          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " +
+                          (on ? "translate-x-6" : "translate-x-1")
+                        }
+                      />
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      </main>
+    </>
   );
 }

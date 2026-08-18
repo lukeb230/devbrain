@@ -79,10 +79,10 @@ export function Live({ repoId }: { repoId: string }) {
         className={
           "h-2 w-2 rounded-full " +
           (status === "live"
-            ? "bg-emerald-400 animate-pulse"
+            ? "bg-emerald-500 animate-pulse"
             : status === "connecting"
               ? "bg-amber-400"
-              : "bg-slate-600")
+              : "bg-slate-300")
         }
       />
       {status === "live" ? "live" : status === "connecting" ? "connecting…" : "offline (polling)"}

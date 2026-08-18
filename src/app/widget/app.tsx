@@ -19,6 +19,7 @@ export interface WidgetData {
   tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
+  handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
   activity: ActivityRow[];
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
   lastRepo: { id: string; name: string } | null;
@@ -97,6 +98,18 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <div key={c.repo + c.file} className="truncate text-xs text-slate-700">
                     <code className="text-amber-800">{c.file}</code>
                     <span className="text-slate-400"> · {c.branches.join(" + ")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {data.handoffs.length > 0 && (
+              <div className="card flex-shrink-0 border-l-4 border-l-brand-400 px-2.5 py-1.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-700">Unfinished — resume?</div>
+                {data.handoffs.slice(0, 2).map((h) => (
+                  <div key={h.id} className="truncate text-xs text-slate-700">
+                    <span className="font-medium">{h.summary}</span>
+                    <span className="text-slate-400"> · {h.by} · {h.repo} · {timeAgo(h.at)}</span>
                   </div>
                 ))}
               </div>

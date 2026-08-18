@@ -4,6 +4,7 @@ import { ActivityFeed } from "@/components/ActivityFeed";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
+import { pickupHandoff } from "./handoff-actions";
 import { Live } from "./live";
 import { completeTask } from "./tasks/actions";
 
@@ -40,7 +41,7 @@ export default async function RepoPage({
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }, { data: tasks }] =
+  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }, { data: tasks }, { data: handoffs }] =
     await Promise.all([
       supabase
         .from("prs")
@@ -81,6 +82,13 @@ export default async function RepoPage({
         .eq("repo_id", repo.id)
         .order("priority")
         .order("created_at"),
+      supabase
+        .from("handoffs")
+        .select("id, dev_label, branch, summary, done, remaining, warnings, created_at")
+        .eq("repo_id", repo.id)
+        .is("picked_up_at", null)
+        .order("created_at", { ascending: false })
+        .limit(6),
     ]);
 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
@@ -318,6 +326,43 @@ export default async function RepoPage({
 
           {/* Rail */}
           <div className="col-span-12 space-y-6 lg:col-span-4">
+            {(handoffs?.length ?? 0) > 0 && (
+              <section className="card border-l-4 border-l-brand-400 card-pad">
+                <h2 className="card-title mb-3">Open handoffs — unfinished work</h2>
+                <ul className="space-y-3">
+                  {(handoffs ?? []).map((h) => (
+                    <li key={h.id} className="text-sm">
+                      <div className="font-medium text-slate-900">{h.summary}</div>
+                      <div className="text-xs text-slate-500">
+                        left by {h.dev_label}
+                        {h.branch ? ` on ${h.branch}` : ""} ·{" "}
+                        {Math.max(1, Math.round((Date.now() - new Date(h.created_at).getTime()) / 3600_000))}h ago
+                      </div>
+                      {h.remaining && (
+                        <div className="mt-0.5 text-xs text-slate-600">
+                          <span className="font-medium text-slate-500">Left: </span>
+                          {h.remaining}
+                        </div>
+                      )}
+                      {h.warnings && (
+                        <div className="mt-0.5 text-xs text-amber-700">
+                          <span className="font-medium">Watch out: </span>
+                          {h.warnings}
+                        </div>
+                      )}
+                      <form action={pickupHandoff} className="mt-1">
+                        <input type="hidden" name="repoId" value={repo.id} />
+                        <input type="hidden" name="id" value={h.id} />
+                        <button className="rounded-md border border-slate-300 px-2 py-0.5 text-xs text-slate-600 hover:border-brand-500 hover:text-brand-600">
+                          I&apos;m taking this
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section className="card card-pad">
               <h2 className="card-title mb-3">Branches</h2>
               {!branches || branches.length === 0 ? (

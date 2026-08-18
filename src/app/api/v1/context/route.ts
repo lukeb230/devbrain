@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   const since = new Date(Date.now() - ACTIVE_WINDOW_MIN * 60_000).toISOString();
 
-  const [prs, sessions, activity, claims, policies, decisions, broadcasts, tasks] = await Promise.all([
+  const [prs, sessions, activity, claims, policies, decisions, broadcasts, tasks, handoffs] = await Promise.all([
     admin
       .from("prs")
       .select("number, title, author, head_branch, review_state, draft, changed_files, html_url")
@@ -85,6 +85,13 @@ export async function GET(request: Request) {
       .order("priority")
       .order("created_at")
       .limit(15),
+    admin
+      .from("handoffs")
+      .select("id, dev_label, branch, task_id, summary, done, remaining, warnings, created_at")
+      .eq("repo_id", repo.id)
+      .is("picked_up_at", null)
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
 
   // Stale-brain detection: merges from the last 72h whose changed files
@@ -212,5 +219,19 @@ export async function GET(request: Request) {
     // is stale for these. Offer your human to repair the affected notes now
     // (small branch + PR); any teammate's Claude may do this.
     brain_stale,
+    // Unfinished work left by ended sessions. At session start, surface any
+    // relevant handoff (same branch, or a task assigned to your dev) and
+    // offer to resume it; call pickup_handoff when you take one over.
+    open_handoffs: (handoffs.data ?? []).map((h) => ({
+      id: h.id,
+      by: h.dev_label,
+      branch: h.branch,
+      task_id: h.task_id,
+      summary: h.summary,
+      done: h.done,
+      remaining: h.remaining,
+      warnings: h.warnings,
+      at: h.created_at,
+    })),
   });
 }

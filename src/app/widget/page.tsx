@@ -29,7 +29,7 @@ export default async function WidgetPage() {
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
   const members = await teamMembers();
-  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }] =
+  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
@@ -38,6 +38,7 @@ export default async function WidgetPage() {
       supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at").order("priority").order("created_at"),
       supabase.from("events").select("kind, payload, at").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
       supabase.from("activity").select("session_id, dev_label, label, branch, file, tool, at, repo_id").gte("at", daySince).order("at", { ascending: false }).limit(150),
+      supabase.from("handoffs").select("id, repo_id, dev_label, branch, summary, remaining, created_at").is("picked_up_at", null).order("created_at", { ascending: false }).limit(4),
     ]);
 
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
@@ -152,6 +153,15 @@ export default async function WidgetPage() {
       tool: a.tool,
       at: a.at,
       repo: repoById.get(a.repo_id)?.full_name ?? null,
+    })),
+    handoffs: (handoffs ?? []).map((h) => ({
+      id: h.id,
+      repo: short(h.repo_id),
+      by: h.dev_label,
+      branch: h.branch,
+      summary: h.summary,
+      remaining: h.remaining,
+      at: h.created_at,
     })),
     members,
     brain,

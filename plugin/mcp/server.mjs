@@ -132,6 +132,34 @@ const TOOLS = [
     },
   },
   {
+    name: "leave_handoff",
+    description:
+      "Leave a structured handoff note when wrapping up a session with UNFINISHED work - so the next session (yours or a teammate's) resumes instead of rediscovering. Call when your human says they're stopping, or before ending a multi-step task midway. Be specific: what's done, what's left, and any gotchas (weird state, half-applied changes, things that look broken but aren't).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        summary: { type: "string", description: "One line: what this work is (e.g. 'migrating gear list to tag filters')." },
+        done: { type: "string", description: "What's finished and verified." },
+        remaining: { type: "string", description: "What's left, in order, with enough detail to resume cold." },
+        warnings: { type: "string", description: "Gotchas for whoever resumes: half-applied changes, failing tests that are expected, decisions pending." },
+        task_id: { type: "string", description: "Optional board task id this work belongs to." },
+      },
+      required: ["summary", "remaining"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "pickup_handoff",
+    description:
+      "Claim an open handoff (from open_handoffs in your context) when you're resuming that work. Marks it taken so other Claudes stop offering it, and returns the full note. Call this BEFORE starting the resumed work.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Handoff id from open_handoffs." } },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_brain",
     description:
       "Read the team's second brain (.brain/ folder) for THIS repo and branch — the structured context of the whole app. Returns all brain docs concatenated. Read this before exploring the codebase manually.",
@@ -233,6 +261,41 @@ async function callTool(name, args) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "complete", id: String(args?.id || "") }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "leave_handoff") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    let branch = null;
+    try {
+      branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+    } catch { /* fine */ }
+    const res = await fetch(`${cfg.server}/api/v1/handoffs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({
+        repo,
+        action: "leave",
+        summary: String(args?.summary || ""),
+        done: args?.done,
+        remaining: args?.remaining,
+        warnings: args?.warnings,
+        task_id: args?.task_id,
+        branch,
+      }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "pickup_handoff") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/handoffs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, action: "pickup", id: String(args?.id || "") }),
     });
     return JSON.stringify(await res.json());
   }

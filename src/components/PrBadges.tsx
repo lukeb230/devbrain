@@ -13,37 +13,37 @@ export function PrBadges({
 }) {
   const chips: { text: string; cls: string }[] = [];
 
-  if (pr.draft) chips.push({ text: "draft", cls: "bg-slate-500/15 text-slate-400" });
+  if (pr.draft) chips.push({ text: "draft", cls: "bg-slate-100 text-slate-500" });
 
   switch (pr.mergeable_state) {
     case "dirty":
-      chips.push({ text: `⚠ CONFLICTS with ${defaultBranch}`, cls: "bg-red-500/20 text-red-400 font-semibold" });
+      chips.push({ text: `conflicts with ${defaultBranch}`, cls: "bg-red-50 text-red-700 border border-red-200 font-semibold" });
       break;
     case "behind":
-      chips.push({ text: `behind ${defaultBranch}`, cls: "bg-amber-500/15 text-amber-400" });
+      chips.push({ text: `behind ${defaultBranch}`, cls: "bg-amber-50 text-amber-700" });
       break;
     case "clean":
-      chips.push({ text: "✓ merges clean", cls: "bg-emerald-500/15 text-emerald-400" });
+      chips.push({ text: "merges clean", cls: "bg-emerald-50 text-emerald-700" });
       break;
     default:
-      chips.push({ text: "merge check pending", cls: "bg-slate-500/15 text-slate-500" });
+      chips.push({ text: "merge check pending", cls: "bg-slate-100 text-slate-500" });
   }
 
   switch (pr.review_state) {
     case "approved":
-      chips.push({ text: "✓ approved", cls: "bg-emerald-500/15 text-emerald-400" });
+      chips.push({ text: "approved", cls: "bg-emerald-50 text-emerald-700" });
       break;
     case "changes_requested":
-      chips.push({ text: "changes requested", cls: "bg-amber-500/15 text-amber-400" });
+      chips.push({ text: "changes requested", cls: "bg-amber-50 text-amber-700" });
       break;
     default:
-      chips.push({ text: "awaiting review", cls: "bg-blue-500/15 text-blue-300" });
+      chips.push({ text: "awaiting review", cls: "bg-brand-50 text-brand-700" });
   }
 
   return (
-    <span className="ml-2 inline-flex flex-wrap gap-1.5 align-middle">
+    <span className="inline-flex flex-wrap gap-1.5 align-middle">
       {chips.map((c) => (
-        <span key={c.text} className={`rounded px-1.5 py-0.5 text-xs ${c.cls}`}>
+        <span key={c.text} className={`chip ${c.cls}`}>
           {c.text}
         </span>
       ))}

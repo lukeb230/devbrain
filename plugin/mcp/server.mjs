@@ -132,6 +132,31 @@ const TOOLS = [
     },
   },
   {
+    name: "claim_area",
+    description:
+      "Claim an area of the codebase for focused work - a soft, time-boxed 'I own this, route around it' signal (default 24h, max 72h). Use at the start of multi-session or wide-reaching work (refactors, migrations) on specific files/directories. Teammates' Claudes will avoid suggesting work there and their pre-edit guard warns them. Claim narrowly (the files/dirs you'll actually touch), and release when done.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: { type: "array", items: { type: "string" }, description: "Repo-relative files or directory prefixes, e.g. ['src/lib/store.ts', 'src/components/gear/']" },
+        note: { type: "string", description: "One line: what you're doing here." },
+        hours: { type: "number", description: "How long you need it (default 24, max 72)." },
+      },
+      required: ["paths", "note"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "release_claim",
+    description:
+      "Release a claim when the work is done (or abandoned). With an id, releases that claim; without, releases ALL of your dev's claims in this repo. Always release when finishing - stale claims block teammates.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Claim id (from get_team_context claims). Omit to release all yours." } },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "leave_handoff",
     description:
       "Leave a structured handoff note when wrapping up a session with UNFINISHED work - so the next session (yours or a teammate's) resumes instead of rediscovering. Call when your human says they're stopping, or before ending a multi-step task midway. Be specific: what's done, what's left, and any gotchas (weird state, half-applied changes, things that look broken but aren't).",
@@ -177,10 +202,15 @@ async function callTool(name, args) {
     const file = String(args?.file || "");
     const sessions = (ctx.active_sessions || []).filter((s) => (s.files || []).includes(file));
     const collisions = (ctx.collisions || []).filter((c) => c.includes(file));
+    const claims = (ctx.claims || []).filter(
+      (c) =>
+        c.dev_label !== ctx.you &&
+        (c.paths || []).some((p) => file === p || file.startsWith(String(p).replace(/\*+$/, ""))),
+    );
     return JSON.stringify(
-      sessions.length || collisions.length
-        ? { file, editing_now: sessions, collisions, advice: "Coordinate before editing — someone is active here." }
-        : { file, editing_now: [], collisions: [], advice: "Clear — nobody is on this file right now." },
+      sessions.length || collisions.length || claims.length
+        ? { file, editing_now: sessions, collisions, claimed_by: claims, advice: "Coordinate before editing — someone is active or has claimed this area." }
+        : { file, editing_now: [], collisions: [], claimed_by: [], advice: "Clear — nobody is on this file right now." },
       null, 2,
     );
   }
@@ -261,6 +291,28 @@ async function callTool(name, args) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "complete", id: String(args?.id || "") }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "claim_area") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/claims`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, action: "claim", paths: args?.paths, note: args?.note, hours: args?.hours }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "release_claim") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/claims`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, action: "release", id: args?.id }),
     });
     return JSON.stringify(await res.json());
   }

@@ -4,6 +4,7 @@ import { ActivityFeed } from "@/components/ActivityFeed";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
+import { releaseClaim } from "./claim-actions";
 import { pickupHandoff } from "./handoff-actions";
 import { Live } from "./live";
 import { completeTask } from "./tasks/actions";
@@ -41,7 +42,7 @@ export default async function RepoPage({
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }, { data: tasks }, { data: handoffs }] =
+  const [{ data: prs }, { data: branches }, { data: activity }, { data: restores }, { data: liveSessions }, { data: tasks }, { data: handoffs }, { data: activeClaims }] =
     await Promise.all([
       supabase
         .from("prs")
@@ -89,6 +90,14 @@ export default async function RepoPage({
         .is("picked_up_at", null)
         .order("created_at", { ascending: false })
         .limit(6),
+      supabase
+        .from("claims")
+        .select("id, dev_label, paths, note, expires_at")
+        .eq("repo_id", repo.id)
+        .is("released_at", null)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        .order("created_at", { ascending: false })
+        .limit(8),
     ]);
 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
@@ -326,6 +335,39 @@ export default async function RepoPage({
 
           {/* Rail */}
           <div className="col-span-12 space-y-6 lg:col-span-4">
+            {(activeClaims?.length ?? 0) > 0 && (
+              <section className="card card-pad">
+                <h2 className="card-title mb-3">Claimed areas</h2>
+                <ul className="space-y-3">
+                  {(activeClaims ?? []).map((c) => (
+                    <li key={c.id} className="text-sm">
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="font-medium text-slate-900">{c.dev_label}</span>
+                        {c.note && <span className="text-xs text-slate-500">{c.note}</span>}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {((c.paths as string[]) ?? []).map((pth) => (
+                          <code key={pth} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{pth}</code>
+                        ))}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                        {c.expires_at && (
+                          <span>
+                            expires in {Math.max(1, Math.round((new Date(c.expires_at).getTime() - Date.now()) / 3600_000))}h
+                          </span>
+                        )}
+                        <form action={releaseClaim}>
+                          <input type="hidden" name="repoId" value={repo.id} />
+                          <input type="hidden" name="id" value={c.id} />
+                          <button className="text-slate-400 hover:text-brand-600">Release</button>
+                        </form>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(handoffs?.length ?? 0) > 0 && (
               <section className="card border-l-4 border-l-brand-400 card-pad">
                 <h2 className="card-title mb-3">Open handoffs — unfinished work</h2>

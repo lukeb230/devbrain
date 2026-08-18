@@ -55,9 +55,10 @@ export async function GET(request: Request) {
       .limit(200),
     admin
       .from("claims")
-      .select("dev_label, paths, note, expires_at")
+      .select("id, dev_label, paths, note, expires_at")
       .eq("repo_id", repo.id)
-      .is("released_at", null),
+      .is("released_at", null)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`),
     admin
       .from("policies")
       .select("rule, enabled")
@@ -183,6 +184,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     repo: repo.full_name,
     generated_at: new Date().toISOString(),
+    you: auth.label, // this token's dev — so tools can skip your own claims/sessions
     team_rules,
     open_prs: (prs.data ?? []).map((p) => ({
       number: p.number,

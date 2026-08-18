@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-const TABLES = ["prs", "branches", "activity", "sessions", "events", "tasks", "handoffs", "linked_repos"];
+const TABLES = ["prs", "branches", "activity", "sessions", "events", "tasks", "handoffs", "claims", "linked_repos"];
 
 export function WidgetLive() {
   const router = useRouter();

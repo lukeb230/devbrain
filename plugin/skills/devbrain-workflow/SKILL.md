@@ -63,6 +63,17 @@ STOP and tell your human instead of overriding).
    dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
    merged branch — start fresh from main.
 
+## Claims (intent locks - route around each other)
+
+- Starting wide or multi-session work (a refactor, a migration)? Call
+  `claim_area` with the specific files/dirs and a one-line note - default
+  24h. Teammates' Claudes will steer around it.
+- Respect others' claims: the context digest lists them. Don't suggest or
+  start work inside a teammate's claimed area; if your task requires it,
+  tell your human and coordinate (a broadcast is the right move).
+- ALWAYS `release_claim` when the work lands - stale claims block people.
+  Claims expire automatically as a backstop.
+
 ## Session handoffs (work must survive the session)
 
 - **Ending with unfinished work?** Call `leave_handoff` first - summary,

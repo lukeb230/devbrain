@@ -46,8 +46,10 @@ try {
   const others = (ctx.active_sessions || []).filter(
     (s) => String(s.id || "") !== ownSession && (s.files || []).includes(rel),
   );
-  const claimed = (ctx.claims || []).filter((c) =>
-    (c.paths || []).some((p) => rel === p || rel.startsWith(String(p).replace(/\*+$/, ""))),
+  const claimed = (ctx.claims || []).filter(
+    (c) =>
+      c.dev_label !== ctx.you &&
+      (c.paths || []).some((p) => rel === p || rel.startsWith(String(p).replace(/\*+$/, ""))),
   );
 
   if (others.length === 0 && claimed.length === 0) process.exit(0);

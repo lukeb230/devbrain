@@ -5,14 +5,14 @@ import { SignInButton } from "./sign-in-button";
 export default async function LandingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ denied?: string }>;
+  searchParams: Promise<{ denied?: string; from?: string }>;
 }) {
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) redirect("/dashboard");
-  const { denied } = await searchParams;
+  const { denied, from } = await searchParams;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-8 px-6 text-center">
@@ -35,7 +35,7 @@ export default async function LandingPage({
           any GitHub repo.
         </p>
       </div>
-      <SignInButton />
+      <SignInButton next={from === "widget" ? "/widget" : undefined} />
       <p className="text-xs text-slate-500">
         Sign in with GitHub, install the app on a repo, run{" "}
         <code className="rounded bg-slate-100 px-1.5 py-0.5">

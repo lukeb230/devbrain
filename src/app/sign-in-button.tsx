@@ -2,13 +2,13 @@
 
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-export function SignInButton() {
+export function SignInButton({ next }: { next?: string }) {
   async function signIn() {
     const supabase = supabaseBrowser();
     await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`,
       },
     });
   }

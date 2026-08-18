@@ -78,7 +78,13 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <AppNav live={<LiveAll />} />
+      <AppNav
+        live={<LiveAll />}
+        tabs={(repos ?? []).map((r) => ({
+          label: r.full_name.split("/")[1] ?? r.full_name,
+          href: `/dashboard/${r.id}`,
+        }))}
+      />
       <main className="mx-auto max-w-[1440px] px-6 py-6">
         {/* Stat strip */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

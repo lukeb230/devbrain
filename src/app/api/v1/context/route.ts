@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   const since = new Date(Date.now() - ACTIVE_WINDOW_MIN * 60_000).toISOString();
 
-  const [prs, sessions, activity, claims, policies, decisions, broadcasts] = await Promise.all([
+  const [prs, sessions, activity, claims, policies, decisions] = await Promise.all([
     admin
       .from("prs")
       .select("number, title, author, head_branch, review_state, draft, changed_files, html_url")
@@ -67,14 +67,6 @@ export async function GET(request: Request) {
       .select("payload, at")
       .eq("repo_id", repo.id)
       .eq("kind", "decision")
-      .order("at", { ascending: false })
-      .limit(10),
-    admin
-      .from("events")
-      .select("payload, at")
-      .eq("repo_id", repo.id)
-      .eq("kind", "broadcast")
-      .gte("at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
       .order("at", { ascending: false })
       .limit(10),
   ]);
@@ -149,9 +141,5 @@ export async function GET(request: Request) {
     recent_decisions: (decisions.data ?? []).map(
       (d) => (d.payload as { text?: string; by?: string }),
     ),
-    recent_broadcasts: (broadcasts.data ?? []).map((b) => ({
-      ...(b.payload as { text?: string; by?: string }),
-      at: b.at,
-    })),
   });
 }

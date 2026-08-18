@@ -50,7 +50,7 @@ export function LiveAll() {
 
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-      <span className={"h-2 w-2 rounded-full " + (status === "live" ? "bg-emerald-500 animate-pulse" : status === "connecting" ? "bg-amber-400" : "bg-slate-300")} />
+      <span className={"h-2 w-2 rounded-full " + (status === "live" ? "bg-emerald-400 animate-pulse" : status === "connecting" ? "bg-amber-400" : "bg-slate-600")} />
       {status === "live" ? "live" : status === "connecting" ? "connecting…" : "offline (polling)"}
     </span>
   );

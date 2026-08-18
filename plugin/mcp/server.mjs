@@ -65,28 +65,6 @@ const TOOLS = [
     },
   },
   {
-    name: "update_status",
-    description:
-      "Announce what you're working on right now — one short phrase (e.g. 'refactoring store.ts to support tags'). Shows live on the team dashboard and in every teammate's Claude context. Call when starting a task and when your focus changes.",
-    inputSchema: {
-      type: "object",
-      properties: { status: { type: "string", description: "Current task, one short phrase." } },
-      required: ["status"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "broadcast",
-    description:
-      "Send a live heads-up to every teammate AND their Claudes right now (it reaches active sessions within one turn). Use BEFORE making changes that affect others — breaking an API signature, renaming shared types, force-pushing — or when you discover something blocking. One or two sentences.",
-    inputSchema: {
-      type: "object",
-      properties: { text: { type: "string", description: "The heads-up message." } },
-      required: ["text"],
-      additionalProperties: false,
-    },
-  },
-  {
     name: "log_decision",
     description:
       "Log a team-visible decision to DevBrain (shown to all devs and included in every Claude's context). Use after making a non-obvious choice: 'chose X over Y because Z'. Keep it one sentence.",
@@ -121,36 +99,6 @@ async function callTool(name, args) {
         : { file, editing_now: [], collisions: [], advice: "Clear — nobody is on this file right now." },
       null, 2,
     );
-  }
-  if (name === "update_status") {
-    const cfg = config();
-    const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
-    let session_id = "";
-    try {
-      session_id = readFileSync(
-        join(homedir(), ".devbrain", "session-" + repo.replace("/", "_")),
-        "utf8",
-      ).trim();
-    } catch { /* none */ }
-    if (!session_id) return JSON.stringify({ error: "No active DevBrain session (hooks not running?)." });
-    const res = await fetch(`${cfg.server}/api/v1/ingest`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
-      body: JSON.stringify({ kind: "session_update", repo, session_id, summary: String(args?.status || "") }),
-    });
-    return JSON.stringify(await res.json());
-  }
-  if (name === "broadcast") {
-    const cfg = config();
-    const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
-    const res = await fetch(`${cfg.server}/api/v1/broadcasts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
-      body: JSON.stringify({ repo, text: String(args?.text || "") }),
-    });
-    return JSON.stringify(await res.json());
   }
   if (name === "log_decision") {
     const cfg = config();

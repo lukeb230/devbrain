@@ -25,14 +25,23 @@ export function BrainGraph({
   nodes,
   edges,
   selected,
-  hrefFor,
+  repoId,
+  branch,
 }: {
   nodes: GNode[];
   edges: GEdge[];
   selected: string | null;
-  hrefFor: (slug: string) => string;
+  repoId: string;
+  branch: string | null;
 }) {
   const router = useRouter();
+  // Build note URLs locally — a server component must not pass functions
+  // (like an hrefFor callback) into a client component; only plain data.
+  const hrefFor = (slug: string) =>
+    `/dashboard/${repoId}/brain?${new URLSearchParams({
+      ...(branch ? { branch } : {}),
+      note: slug,
+    }).toString()}`;
   const W = 520, H = 440;
   const [tick, setTick] = useState(0);
   const pos = useRef(new Map<string, { x: number; y: number; vx: number; vy: number }>());

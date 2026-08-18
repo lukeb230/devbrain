@@ -139,7 +139,13 @@ export default async function BrainPage({
               <h2 className="card-title mb-2">
                 {graph.notes.length} notes · {edges.length} connections — click a node
               </h2>
-              <BrainGraph nodes={nodes} edges={edges} selected={current?.slug ?? null} hrefFor={hrefFor} />
+              <BrainGraph
+                nodes={nodes}
+                edges={edges}
+                selected={current?.slug ?? null}
+                repoId={repo.id}
+                branch={branch ?? null}
+              />
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
                 {Object.entries(GRAPH_COLORS).map(([t, c]) => (
                   <span key={t} className="inline-flex items-center gap-1">

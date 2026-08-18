@@ -35,7 +35,7 @@ export default async function DashboardPage() {
       supabase.from("prs").select("repo_id, number, title, author, head_branch, review_state, draft, mergeable_state, changed_files, html_url, updated_at").eq("state", "open").order("updated_at", { ascending: false }),
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),
       supabase.from("activity").select("repo_id, session_id, dev_label, label, branch, file, tool, at").gte("at", new Date(Date.now() - 24 * 3600_000).toISOString()).order("at", { ascending: false }).limit(300),
-      supabase.from("events").select("repo_id, kind, payload, at").in("kind", ["decision", "broadcast", "rule_change"]).order("at", { ascending: false }).limit(12),
+      supabase.from("events").select("repo_id, kind, payload, at").in("kind", ["decision", "broadcast", "rule_change", "bot_write"]).order("at", { ascending: false }).limit(12),
       supabase.from("tasks").select("repo_id, id, title, priority").eq("status", "open").order("priority").order("created_at").limit(8),
     ]);
 
@@ -268,7 +268,9 @@ export default async function DashboardPage() {
                         ? { t: "Broadcast", c: "bg-amber-50 text-amber-700" }
                         : d.kind === "rule_change"
                           ? { t: "Rule", c: "bg-slate-100 text-slate-600" }
-                          : { t: "Decision", c: "bg-brand-50 text-brand-700" };
+                          : d.kind === "bot_write"
+                            ? { t: "Bot", c: "bg-violet-50 text-violet-700" }
+                            : { t: "Decision", c: "bg-brand-50 text-brand-700" };
                     const text =
                       d.kind === "rule_change"
                         ? `"${p.rule}" turned ${p.enabled ? "on" : "off"} by ${p.by ?? "?"}`

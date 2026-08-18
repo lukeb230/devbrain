@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { revertFromHistory } from "./actions";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "../live";
 
@@ -16,6 +18,7 @@ type Entry = {
   kind: "push" | "merge" | "restore_point";
   title: string;
   sha: string | null;
+  before: string | null; // range start — enables one-click revert on pushes
   meta: string;
   files: string[];
   prNumber?: number;
@@ -50,10 +53,23 @@ export default async function HistoryPage({
 
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, full_name, default_branch")
+    .select("id, full_name, default_branch, writer_installation_id")
     .eq("id", repoId)
     .single();
   if (!repo) notFound();
+
+  // Writer (Direction 2): one-click revert is live only when the writer app
+  // is connected AND the repo's writer_revert_pr policy is on.
+  let revertEnabled = false;
+  if (repo.writer_installation_id) {
+    const { data: policy } = await supabaseAdmin()
+      .from("policies")
+      .select("enabled")
+      .eq("repo_id", repo.id)
+      .eq("rule", "writer_revert_pr")
+      .single();
+    revertEnabled = Boolean(policy?.enabled);
+  }
 
   const [{ data: pushes }, { data: mergedBranches }, { data: prs }, { data: restores }] =
     await Promise.all([
@@ -89,13 +105,14 @@ export default async function HistoryPage({
 
   for (const e of pushes ?? []) {
     const p = e.payload as {
-      sha?: string; message?: string; pusher?: string; commit_count?: number; files?: string[];
+      sha?: string; before?: string; message?: string; pusher?: string; commit_count?: number; files?: string[];
     };
     entries.push({
       at: e.at,
       kind: "push",
       title: p.message || "(no commit message)",
       sha: p.sha ?? null,
+      before: p.before ?? null,
       meta: `${p.pusher ?? "?"} · ${p.commit_count ?? 1} commit${(p.commit_count ?? 1) === 1 ? "" : "s"} to ${repo.default_branch}`,
       files: p.files ?? [],
     });
@@ -107,6 +124,7 @@ export default async function HistoryPage({
       kind: "merge",
       title: pr ? `#${pr.number} ${pr.title}` : `Merged branch ${b.name}`,
       sha: b.head_sha,
+      before: null,
       meta: `${pr?.author ?? "?"} · ${b.name} → ${repo.default_branch}`,
       files: ((b.changed_files as string[]) ?? []).slice(0, 40),
       prNumber: pr?.number,
@@ -118,6 +136,7 @@ export default async function HistoryPage({
       kind: "restore_point",
       title: r.tag ?? r.sha.slice(0, 7),
       sha: r.sha,
+      before: null,
       meta: `deploy · ${r.environment}`,
       files: [],
     });
@@ -195,6 +214,20 @@ export default async function HistoryPage({
                         )}
                         {e.sha && (
                           <div className="space-y-2">
+                            {revertEnabled && e.before && (
+                              <form action={revertFromHistory}>
+                                <input type="hidden" name="repoId" value={repo.id} />
+                                <input type="hidden" name="sha" value={e.sha} />
+                                <input type="hidden" name="before" value={e.before} />
+                                <input type="hidden" name="label" value={e.title} />
+                                <button className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700">
+                                  Create revert PR
+                                </button>
+                                <span className="ml-2 text-xs text-slate-400">
+                                  opens a PR restoring the files this change touched — a teammate reviews it
+                                </span>
+                              </form>
+                            )}
                             <div>
                               <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                                 Inspect this point in time

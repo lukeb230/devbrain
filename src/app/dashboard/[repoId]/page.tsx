@@ -4,8 +4,8 @@ import { ActivityFeed } from "@/components/ActivityFeed";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
 import { supabaseServer } from "@/lib/supabase/server";
-import { releaseClaim } from "./claim-actions";
-import { pickupHandoff } from "./handoff-actions";
+import { createClaim, releaseClaim } from "./claim-actions";
+import { leaveHandoff, pickupHandoff, sendBroadcast } from "./handoff-actions";
 import { Live } from "./live";
 import { completeTask } from "./tasks/actions";
 
@@ -410,6 +410,89 @@ export default async function RepoPage({
 
           {/* Rail */}
           <div className="col-span-12 space-y-6 lg:col-span-4">
+            {/* Manual presence — for teammates coding outside Claude Code
+                (Cowork, an IDE). A claim made here reaches every plugin-
+                connected Claude's context and pre-edit guard. */}
+            <section className="card card-pad">
+              <h2 className="card-title mb-1">I&apos;m working on…</h2>
+              <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                Coding outside Claude Code? Claim your area — teammates&apos;
+                Claudes will see it and route around you.
+              </p>
+              <form action={createClaim} className="space-y-2">
+                <input type="hidden" name="repoId" value={repo.id} />
+                <input
+                  name="paths"
+                  required
+                  placeholder="Paths, comma-separated (e.g. src/auth/, README.md)"
+                  className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                />
+                <input
+                  name="note"
+                  placeholder="What you're doing (shown to the team)"
+                  className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                />
+                <div className="flex items-center gap-2">
+                  <select name="hours" defaultValue="4" className="rounded-md border border-slate-200 px-2 py-1.5 text-xs">
+                    <option value="1">1 hour</option>
+                    <option value="2">2 hours</option>
+                    <option value="4">4 hours</option>
+                    <option value="8">8 hours</option>
+                    <option value="24">24 hours</option>
+                  </select>
+                  <button className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700">
+                    Claim it
+                  </button>
+                </div>
+              </form>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-brand-600">
+                  Stopping mid-task? Leave a handoff
+                </summary>
+                <form action={leaveHandoff} className="mt-2 space-y-2">
+                  <input type="hidden" name="repoId" value={repo.id} />
+                  <input
+                    name="summary"
+                    required
+                    placeholder="What the work is (required)"
+                    className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                  />
+                  <input
+                    name="remaining"
+                    placeholder="What's left to do"
+                    className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      name="branch"
+                      placeholder="Branch (optional)"
+                      className="min-w-0 flex-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                    />
+                    <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-500 hover:text-brand-600">
+                      Leave it
+                    </button>
+                  </div>
+                </form>
+              </details>
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-brand-600">
+                  Tell the team something
+                </summary>
+                <form action={sendBroadcast} className="mt-2 flex items-center gap-2">
+                  <input type="hidden" name="repoId" value={repo.id} />
+                  <input
+                    name="text"
+                    required
+                    placeholder="Broadcast — every Claude and the feed see it"
+                    className="min-w-0 flex-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                  />
+                  <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-500 hover:text-brand-600">
+                    Send
+                  </button>
+                </form>
+              </details>
+            </section>
+
             {(activeClaims?.length ?? 0) > 0 && (
               <section className="card card-pad">
                 <h2 className="card-title mb-3">Claimed areas</h2>

@@ -3,9 +3,10 @@ import { AppNav } from "@/components/AppNav";
 import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "../live";
-import { assignTask, completeTask, createTask, reopenTask } from "./actions";
+import { assignTask, braindumpTasks, completeTask, createTask, reopenTask } from "./actions";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // braindump splitter calls Claude from a server action
 
 // Team task board — anyone creates tasks with a priority and tags; the list
 // auto-groups by priority. Claudes see open tasks in their context digest and
@@ -89,6 +90,29 @@ export default async function TasksPage({
           The team&apos;s shared to-do list, auto-sorted by priority. Every dev&apos;s
           Claude sees open tasks live and can suggest, pick up, and complete them.
         </p>
+
+        {/* Braindump — dictation-friendly capture (Wispr Flow etc.) */}
+        <section className="card mb-6 border-l-4 border-l-brand-400 card-pad">
+          <h2 className="card-title mb-1">Braindump</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Talk or type a stream of everything on your mind — DevBrain splits
+            it into scoped, prioritized tasks and skips anything already on the
+            board.
+          </p>
+          <form action={braindumpTasks} className="space-y-2">
+            <input type="hidden" name="repoId" value={repo.id} />
+            <textarea
+              name="dump"
+              required
+              rows={3}
+              placeholder="e.g. okay so the pump calibration math is definitely wrong that's urgent, also we should add dark mode at some point, and someone needs to write docs for the API before Harry starts…"
+              className="w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:border-brand-500 focus:outline-none"
+            />
+            <button className="rounded-md bg-brand-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
+              Turn into tasks
+            </button>
+          </form>
+        </section>
 
         {/* Create */}
         <section className="card mb-6 card-pad">

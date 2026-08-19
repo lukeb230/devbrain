@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
-import { assignTask, completeTask, createTask, reopenTask } from "../dashboard/[repoId]/tasks/actions";
+import { assignTask, braindumpTasks, completeTask, createTask, reopenTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetLive } from "./live";
@@ -298,6 +298,22 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
         {tab === "Tasks" && (
           <div className="space-y-2.5">
+            {data.lastRepo && (
+              <form action={braindumpTasks} className="card border-l-4 border-l-brand-400 px-2.5 py-2">
+                <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-700">Braindump</div>
+                <textarea
+                  name="dump"
+                  required
+                  rows={2}
+                  placeholder="Dictate or type everything on your mind — DevBrain splits it into tasks…"
+                  className="w-full resize-y rounded border border-slate-200 px-2 py-1 text-xs leading-snug focus:border-brand-500 focus:outline-none"
+                />
+                <button className="mt-1 rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
+                  Turn into tasks
+                </button>
+              </form>
+            )}
             {data.lastRepo && (
               <form action={createTask} className="card space-y-1.5 px-2.5 py-2">
                 <input type="hidden" name="repoId" value={data.lastRepo.id} />

@@ -11,6 +11,7 @@ import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // braindump splitter calls Claude from a server action
 
 // /widget — the desktop panel's mini-app. Team-wide glance data plus the
 // last-visited repo's brain, handed to a client tab UI (no scrolling on Home).

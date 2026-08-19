@@ -5,10 +5,18 @@ import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
 import { computeMergePlan } from "@/lib/merge-order";
 import { supabaseServer } from "@/lib/supabase/server";
+import { computeLights } from "@/lib/traffic";
 import { createClaim, releaseClaim } from "./claim-actions";
 import { leaveHandoff, pickupHandoff, sendBroadcast } from "./handoff-actions";
 import { Live } from "./live";
 import { completeTask } from "./tasks/actions";
+
+const LIGHT_CHIP: Record<string, { dot: string; cls: string; label: string }> = {
+  green: { dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700", label: "Cleared to land" },
+  yellow: { dot: "bg-amber-400", cls: "bg-amber-50 text-amber-700", label: "Hold" },
+  red: { dot: "bg-red-500", cls: "bg-red-50 text-red-700", label: "Needs work" },
+  gray: { dot: "bg-slate-300", cls: "bg-slate-100 text-slate-500", label: "Draft" },
+};
 
 const VERDICT_CHIP: Record<string, { label: string; cls: string }> = {
   looks_good: { label: "AI review: looks good", cls: "bg-emerald-50 text-emerald-700" },
@@ -59,7 +67,7 @@ export default async function RepoPage({
         .order("updated_at", { ascending: false }),
       supabase
         .from("branches")
-        .select("name, head_sha, changed_files, last_push_at, merged_at")
+        .select("name, head_sha, changed_files, last_push_at, merged_at, stale_note")
         .eq("repo_id", repo.id)
         .or(`merged_at.is.null,merged_at.gte.${new Date(Date.now() - 48 * 3600_000).toISOString()}`)
         .order("last_push_at", { ascending: false })
@@ -129,18 +137,19 @@ export default async function RepoPage({
   }
   const digest = (digestRows ?? [])[0] ?? null;
 
-  // Merge-order intelligence — deterministic, from webhook-fresh file lists.
-  const mergePlan = computeMergePlan(
-    (prs ?? []).map((p) => ({
-      number: p.number,
-      title: p.title,
-      author: p.author,
-      review_state: p.review_state,
-      mergeable_state: p.mergeable_state,
-      draft: p.draft,
-      changed_files: (p.changed_files as string[]) ?? [],
-    })),
-  );
+  // Merge-order intelligence + traffic lights — deterministic, computed live
+  // from webhook-fresh data (the stored prs.light can lag one tick).
+  const lightPrs = (prs ?? []).map((p) => ({
+    number: p.number,
+    title: p.title,
+    author: p.author,
+    review_state: p.review_state,
+    mergeable_state: p.mergeable_state,
+    draft: p.draft,
+    changed_files: (p.changed_files as string[]) ?? [],
+  }));
+  const mergePlan = computeMergePlan(lightPrs);
+  const lights = computeLights(lightPrs);
 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
   const doneTasks = (tasks ?? [])
@@ -405,6 +414,20 @@ export default async function RepoPage({
                         {((pr.changed_files as string[]) ?? []).length} files
                       </div>
                       {(() => {
+                        const lt = lights.get(pr.number);
+                        if (!lt) return null;
+                        const chip = LIGHT_CHIP[lt.state];
+                        return (
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <span className={`chip inline-flex items-center gap-1.5 ${chip.cls}`}>
+                              <span className={`inline-block h-2 w-2 rounded-full ${chip.dot}`} />
+                              {chip.label}
+                            </span>
+                            <span className="text-xs text-slate-500">{lt.reason}</span>
+                          </div>
+                        );
+                      })()}
+                      {(() => {
                         const rv = pr.head_sha ? reviewFor.get(`${pr.number}:${pr.head_sha}`) : undefined;
                         if (!rv) return null;
                         const chip = VERDICT_CHIP[rv.verdict] ?? VERDICT_CHIP.caution;
@@ -633,6 +656,9 @@ export default async function RepoPage({
                         <span className="text-xs text-slate-500">
                           {((b.changed_files as string[]) ?? []).length} changed vs {repo.default_branch}
                         </span>
+                      )}
+                      {!b.merged_at && b.stale_note && (
+                        <span className="basis-full text-xs text-amber-700">{b.stale_note}</span>
                       )}
                     </li>
                   ))}

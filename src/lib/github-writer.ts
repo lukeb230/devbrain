@@ -51,6 +51,40 @@ export async function findWriterInstallation(fullName: string): Promise<number |
   }
 }
 
+/**
+ * Auto-merge a green-lit PR as the writer app. Only ever called when the
+ * per-repo writer_auto_merge policy is ON and the light is green. Squash by
+ * default (clean one-commit-per-PR history), falling back to a merge commit
+ * if the repo disallows squash. GitHub branch protection is the hard
+ * backstop — if requirements aren't actually met, the API refuses.
+ */
+export async function mergePrAsWriter(
+  installationId: number,
+  fullName: string,
+  prNumber: number,
+): Promise<{ merged: boolean; sha?: string; error?: string }> {
+  const [owner, repo] = fullName.split("/");
+  const octokit = await writerOctokit(installationId);
+  for (const method of ["squash", "merge"] as const) {
+    try {
+      const res = await octokit.request("PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge", {
+        owner,
+        repo,
+        pull_number: prNumber,
+        merge_method: method,
+      });
+      return { merged: true, sha: res.data.sha };
+    } catch (err) {
+      const msg = String(err);
+      // Squash disallowed on this repo → try a merge commit; anything else
+      // (protection unmet, race with a human) → report, don't retry.
+      if (method === "squash" && /squash/i.test(msg)) continue;
+      return { merged: false, error: msg.slice(0, 300) };
+    }
+  }
+  return { merged: false, error: "no allowed merge method" };
+}
+
 export interface RevertResult {
   prNumber: number;
   prUrl: string;

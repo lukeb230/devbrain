@@ -23,6 +23,7 @@ export interface NotifPrefs {
   p1_tasks: boolean;
   handoffs: boolean;
   task_autocomplete: boolean;
+  merge_lights: boolean;
 }
 
 export const DEFAULT_PREFS: NotifPrefs = {
@@ -33,6 +34,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
   p1_tasks: true,
   handoffs: true,
   task_autocomplete: true,
+  merge_lights: true,
 };
 
 export function readPrefs(): NotifPrefs {
@@ -164,6 +166,22 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
             deliver(
               "Task completed by merge",
               `"${row.payload?.task ?? "a task"}" — PR #${row.payload?.pr ?? "?"}`,
+            );
+          }
+          // Cleared-to-land: only the author gets tapped — it's THEIR merge.
+          if (row.kind === "pr_cleared" && p.merge_lights) {
+            const author = (row.payload as { author?: string })?.author;
+            if (author && isSelf(author)) {
+              deliver(
+                `PR #${row.payload?.pr ?? "?"} cleared to land`,
+                "Approved, conflict-free, and it's your turn — press merge.",
+              );
+            }
+          }
+          if (row.kind === "pr_auto_merged" && p.merge_lights) {
+            deliver(
+              `PR #${row.payload?.pr ?? "?"} auto-merged`,
+              `"${(row.payload as { title?: string })?.title ?? ""}" landed on main (writer app).`,
             );
           }
         },

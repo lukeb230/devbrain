@@ -51,4 +51,10 @@ export const WRITER_CATALOG: RuleDef[] = [
     detail:
       "The writer app creates a revert branch + pull request when someone clicks Revert on the History tab. Always a PR — a teammate still reviews and merges it; the bot never touches main directly.",
   },
+  {
+    rule: "writer_auto_merge",
+    label: "Auto-merge green-lit PRs",
+    detail:
+      "When a PR's merge light turns green — approved by a teammate, conflict-free, and its turn in the merge order — the writer app presses merge for you (squash). Off = the author gets a 'cleared to land' notification and presses merge themselves. GitHub branch protection still applies either way.",
+  },
 ];

@@ -6,6 +6,7 @@ import { fetchBrainDocs } from "@/lib/github";
 import { teamMembers } from "@/lib/members";
 import { computeMergePlan } from "@/lib/merge-order";
 import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
+import { computeLights } from "@/lib/traffic";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
@@ -147,6 +148,32 @@ export default async function WidgetPage() {
     if (!reviewFor.has(key)) reviewFor.set(key, { verdict: r.verdict, summary: r.summary });
   }
 
+  // Traffic lights per repo (deterministic, same lib as the dashboard).
+  const lightsByRepo = new Map<string, ReturnType<typeof computeLights>>();
+  {
+    const grouped = new Map<string, NonNullable<typeof prs>>();
+    for (const p of prs ?? []) {
+      if (!grouped.has(p.repo_id)) grouped.set(p.repo_id, []);
+      grouped.get(p.repo_id)!.push(p);
+    }
+    for (const [rid, rows] of grouped) {
+      lightsByRepo.set(
+        rid,
+        computeLights(
+          rows.map((p) => ({
+            number: p.number,
+            title: p.title,
+            author: p.author,
+            review_state: p.review_state,
+            mergeable_state: p.mergeable_state,
+            draft: p.draft,
+            changed_files: (p.changed_files as string[]) ?? [],
+          })),
+        ),
+      );
+    }
+  }
+
   const data: WidgetData = {
     sessions: (sessions ?? []).map((s) => ({
       id: String(s.id),
@@ -168,6 +195,7 @@ export default async function WidgetPage() {
       mergeable_state: p.mergeable_state,
       html_url: p.html_url,
       ai: (p.head_sha && reviewFor.get(`${p.repo_id}#${p.number}#${p.head_sha}`)) || null,
+      light: lightsByRepo.get(p.repo_id)?.get(p.number) ?? null,
     })),
     tasks: (tasks ?? []).map((t) => ({
       id: t.id,

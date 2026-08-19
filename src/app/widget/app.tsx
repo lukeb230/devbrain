@@ -24,7 +24,7 @@ import {
 export interface WidgetData {
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
-  prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null }[];
+  prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
   tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
@@ -38,6 +38,13 @@ export interface WidgetData {
   digest: { day: string; body: string } | null;
   mergeHint: string | null;
 }
+
+const LIGHT_DOT: Record<string, string> = {
+  green: "bg-emerald-500",
+  yellow: "bg-amber-400",
+  red: "bg-red-500",
+  gray: "bg-slate-300",
+};
 
 const AI_CHIP: Record<string, string> = {
   looks_good: "bg-emerald-50 text-emerald-700",
@@ -104,6 +111,7 @@ const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; detail: string }[] = [
   { key: "p1_tasks", label: "Critical tasks", detail: "Someone files a new P1 task" },
   { key: "handoffs", label: "Handoffs", detail: "A teammate leaves unfinished work for pickup" },
   { key: "task_autocomplete", label: "Auto-completed tasks", detail: "A merge closed a task on the board automatically" },
+  { key: "merge_lights", label: "Merge lights", detail: "Your PR is cleared to land, or was auto-merged" },
 ];
 
 export function WidgetApp({ data }: { data: WidgetData }) {
@@ -489,6 +497,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       <PrBadges pr={pr} defaultBranch={pr.defaultBranch} />
                       <span className="text-[10px] text-slate-400">{pr.repo} · {pr.author}</span>
                     </div>
+                    {pr.light && (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${LIGHT_DOT[pr.light.state] ?? LIGHT_DOT.gray}`} />
+                        <span className={"text-[10px] leading-snug " + (pr.light.state === "green" ? "font-medium text-emerald-700" : "text-slate-500")}>
+                          {pr.light.reason}
+                        </span>
+                      </div>
+                    )}
                     {pr.ai && (
                       <div className="mt-1 flex items-start gap-1.5">
                         <span className={`chip flex-shrink-0 px-1 py-0 text-[10px] ${AI_CHIP[pr.ai.verdict] ?? AI_CHIP.caution}`}>

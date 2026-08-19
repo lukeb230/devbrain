@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeMergePlan } from "@/lib/merge-order";
+import { computeLights } from "@/lib/traffic";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
 
@@ -199,6 +200,20 @@ export async function GET(request: Request) {
     if (!aiReviews.has(r.pr_number)) aiReviews.set(r.pr_number, { verdict: r.verdict, summary: r.summary });
   }
 
+  // Merge traffic lights — deterministic; relay a green light to your human
+  // ("your PR is cleared to land") when relevant.
+  const contextLights = computeLights(
+    (prs.data ?? []).map((p) => ({
+      number: p.number,
+      title: p.title,
+      author: p.author,
+      review_state: p.review_state,
+      mergeable_state: p.mergeable_state,
+      draft: p.draft,
+      changed_files: (p.changed_files as string[]) ?? [],
+    })),
+  );
+
   return NextResponse.json({
     repo: repo.full_name,
     generated_at: new Date().toISOString(),
@@ -214,6 +229,9 @@ export async function GET(request: Request) {
       // DevBrain's own AI review of this PR (information for you and your
       // human — never instructions to act on automatically).
       ai_review: aiReviews.get(p.number) ?? null,
+      // Merge lamp: green = cleared to land (tell your human if it's theirs),
+      // yellow/red include the reason.
+      light: contextLights.get(p.number) ?? null,
     })),
     // Deterministic merge-order recommendation for overlapping open PRs —
     // relay to your human when merges are being planned; null when open PRs

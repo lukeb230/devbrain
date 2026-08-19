@@ -24,7 +24,7 @@ import {
 export interface WidgetData {
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
-  prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null }[];
+  prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null }[];
   tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
@@ -35,7 +35,14 @@ export interface WidgetData {
   conflicted: number;
   rules: { rule: string; label: string; on: boolean }[];
   self: string | null;
+  digest: { day: string; body: string } | null;
 }
+
+const AI_CHIP: Record<string, string> = {
+  looks_good: "bg-emerald-50 text-emerald-700",
+  caution: "bg-amber-50 text-amber-700",
+  risky: "bg-red-50 text-red-700",
+};
 
 const TABS = ["Home", "Tasks", "PRs", "Brain", "Feed"] as const;
 type Tab = (typeof TABS)[number];
@@ -441,6 +448,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       <PrBadges pr={pr} defaultBranch={pr.defaultBranch} />
                       <span className="text-[10px] text-slate-400">{pr.repo} · {pr.author}</span>
                     </div>
+                    {pr.ai && (
+                      <div className="mt-1 flex items-start gap-1.5">
+                        <span className={`chip flex-shrink-0 px-1 py-0 text-[10px] ${AI_CHIP[pr.ai.verdict] ?? AI_CHIP.caution}`}>
+                          AI: {pr.ai.verdict.replace("_", " ")}
+                        </span>
+                        <span className="min-w-0 text-[10px] leading-snug text-slate-500">{pr.ai.summary}</span>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -468,6 +483,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
         {tab === "Feed" && (
           <div className="space-y-2.5">
+            {data.digest && (
+              <div className="card border-l-4 border-l-brand-400 px-2.5 py-2">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-700">
+                  Standup <span className="normal-case text-slate-400">· {data.digest.day}</span>
+                </div>
+                <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">{data.digest.body}</p>
+              </div>
+            )}
             <div className="card px-2.5 py-2">
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Broadcasts & decisions</div>
               {data.feed.length === 0 ? (

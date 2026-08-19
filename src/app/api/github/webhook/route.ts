@@ -202,6 +202,7 @@ export async function POST(request: Request) {
           title: pr.title,
           author: pr.user?.login,
           head_branch: pr.head.ref,
+          head_sha: pr.head.sha,
           base_branch: pr.base.ref,
           state: pr.merged ? "merged" : pr.state,
           draft: pr.draft ?? false,

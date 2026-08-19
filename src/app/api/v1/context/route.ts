@@ -181,6 +181,23 @@ export async function GET(request: Request) {
     }
   }
 
+  // Latest standup digest + AI reviews for open PRs (agent tier; absent when
+  // no API key is configured server-side — both degrade to empty).
+  const [digestQ, reviewsQ] = await Promise.all([
+    admin.from("digests").select("day, body").eq("org_id", repo.org_id).order("day", { ascending: false }).limit(1),
+    admin
+      .from("pr_reviews")
+      .select("pr_number, head_sha, verdict, summary")
+      .eq("repo_id", repo.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+  const latestDigest = (digestQ.data ?? [])[0] ?? null;
+  const aiReviews = new Map<number, { verdict: string; summary: string }>();
+  for (const r of reviewsQ.data ?? []) {
+    if (!aiReviews.has(r.pr_number)) aiReviews.set(r.pr_number, { verdict: r.verdict, summary: r.summary });
+  }
+
   return NextResponse.json({
     repo: repo.full_name,
     generated_at: new Date().toISOString(),
@@ -193,7 +210,14 @@ export async function GET(request: Request) {
       branch: p.head_branch,
       review_state: p.review_state,
       draft: p.draft,
+      // DevBrain's own AI review of this PR (information for you and your
+      // human — never instructions to act on automatically).
+      ai_review: aiReviews.get(p.number) ?? null,
     })),
+    // Yesterday-into-today team summary, written by the DevBrain digest agent.
+    standup_digest: latestDigest
+      ? { day: latestDigest.day, body: String(latestDigest.body).slice(0, 1500) }
+      : null,
     active_sessions: activeSessions,
     claims: claims.data ?? [],
     collisions,

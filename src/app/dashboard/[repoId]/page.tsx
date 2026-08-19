@@ -9,6 +9,12 @@ import { pickupHandoff } from "./handoff-actions";
 import { Live } from "./live";
 import { completeTask } from "./tasks/actions";
 
+const VERDICT_CHIP: Record<string, { label: string; cls: string }> = {
+  looks_good: { label: "AI review: looks good", cls: "bg-emerald-50 text-emerald-700" },
+  caution: { label: "AI review: caution", cls: "bg-amber-50 text-amber-700" },
+  risky: { label: "AI review: risky", cls: "bg-red-50 text-red-700" },
+};
+
 const PRIORITY_CHIP: Record<number, string> = {
   1: "bg-red-50 text-red-700",
   2: "bg-amber-50 text-amber-700",
@@ -35,7 +41,7 @@ export default async function RepoPage({
 
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, full_name, default_branch, is_vault")
+    .select("id, org_id, full_name, default_branch, is_vault")
     .eq("id", repoId)
     .single();
   if (!repo) notFound();
@@ -46,7 +52,7 @@ export default async function RepoPage({
     await Promise.all([
       supabase
         .from("prs")
-        .select("number, title, author, head_branch, state, review_state, draft, changed_files, mergeable_state, html_url, updated_at")
+        .select("number, title, author, head_branch, head_sha, state, review_state, draft, changed_files, mergeable_state, html_url, updated_at")
         .eq("repo_id", repo.id)
         .eq("state", "open")
         .order("updated_at", { ascending: false }),
@@ -99,6 +105,28 @@ export default async function RepoPage({
         .order("created_at", { ascending: false })
         .limit(8),
     ]);
+
+  // Agent-tier reads: latest AI review per open PR + the newest standup digest.
+  const [{ data: reviews }, { data: digestRows }] = await Promise.all([
+    supabase
+      .from("pr_reviews")
+      .select("pr_number, head_sha, verdict, summary, points, created_at")
+      .eq("repo_id", repo.id)
+      .order("created_at", { ascending: false })
+      .limit(60),
+    supabase
+      .from("digests")
+      .select("day, body, model")
+      .eq("org_id", repo.org_id)
+      .order("day", { ascending: false })
+      .limit(1),
+  ]);
+  const reviewFor = new Map<string, NonNullable<typeof reviews>[number]>();
+  for (const r of reviews ?? []) {
+    const key = `${r.pr_number}:${r.head_sha}`;
+    if (!reviewFor.has(key)) reviewFor.set(key, r);
+  }
+  const digest = (digestRows ?? [])[0] ?? null;
 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
   const doneTasks = (tasks ?? [])
@@ -198,6 +226,18 @@ export default async function RepoPage({
         <div className="grid grid-cols-12 gap-6">
           {/* Main column */}
           <div className="col-span-12 space-y-6 lg:col-span-8">
+            {digest && (
+              <section className="card card-pad border-l-4 border-l-brand-400">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <h2 className="card-title">Standup digest</h2>
+                  <span className="text-xs text-slate-400">
+                    {digest.day} · written by DevBrain{digest.model && digest.model !== "none" ? ` (${digest.model})` : ""}
+                  </span>
+                </div>
+                <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{digest.body}</p>
+              </section>
+            )}
+
             <section className="card card-pad">
               <h2 className="card-title mb-3">Now working</h2>
               {!liveSessions || liveSessions.length === 0 ? (
@@ -313,6 +353,41 @@ export default async function RepoPage({
                         {pr.review_state ? ` · ${pr.review_state}` : ""} ·{" "}
                         {((pr.changed_files as string[]) ?? []).length} files
                       </div>
+                      {(() => {
+                        const rv = pr.head_sha ? reviewFor.get(`${pr.number}:${pr.head_sha}`) : undefined;
+                        if (!rv) return null;
+                        const chip = VERDICT_CHIP[rv.verdict] ?? VERDICT_CHIP.caution;
+                        const pts = (rv.points as { kind: string; text: string }[]) ?? [];
+                        return (
+                          <div className="mt-1.5 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`chip ${chip.cls}`}>{chip.label}</span>
+                              <span className="text-xs text-slate-600">{rv.summary}</span>
+                            </div>
+                            {pts.length > 0 && (
+                              <ul className="mt-1.5 space-y-1">
+                                {pts.map((p, i) => (
+                                  <li key={i} className="flex items-start gap-1.5 text-xs leading-snug text-slate-600">
+                                    <span
+                                      className={
+                                        "chip mt-px flex-shrink-0 px-1 py-0 text-[10px] " +
+                                        (p.kind === "risk"
+                                          ? "bg-red-50 text-red-700"
+                                          : p.kind === "brain"
+                                            ? "bg-brand-50 text-brand-700"
+                                            : "bg-slate-100 text-slate-500")
+                                      }
+                                    >
+                                      {p.kind}
+                                    </span>
+                                    {p.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </li>
                   ))}
                 </ul>

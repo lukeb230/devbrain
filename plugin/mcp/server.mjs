@@ -19,8 +19,16 @@ import { createInterface } from "node:readline";
 
 const CONFIG_PATH = join(homedir(), ".devbrain", "config.json");
 
+// Auth resolution order:
+//   1. ~/.devbrain/config.json  (written by `devbrain init` — the normal path)
+//   2. DEVBRAIN_URL + DEVBRAIN_TOKEN env vars — for environments with no home
+//      config: Cowork sessions, CI jobs, headless agents.
 function config() {
-  try { return JSON.parse(readFileSync(CONFIG_PATH, "utf8")); } catch { return null; }
+  try { return JSON.parse(readFileSync(CONFIG_PATH, "utf8")); } catch { /* fall through */ }
+  const server = (process.env.DEVBRAIN_URL || "").trim().replace(/\/$/, "");
+  const token = (process.env.DEVBRAIN_TOKEN || "").trim();
+  if (server && token) return { server, token };
+  return null;
 }
 function currentRepo() {
   try {

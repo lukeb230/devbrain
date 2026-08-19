@@ -34,7 +34,7 @@ export default async function WidgetPage() {
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
-      supabase.from("prs").select("repo_id, number, title, author, review_state, draft, mergeable_state, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
+      supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files").is("merged_at", null),
       supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at").order("priority").order("created_at"),
       supabase.from("events").select("kind, payload, at").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
@@ -130,6 +130,21 @@ export default async function WidgetPage() {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const self = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "") || null;
 
+  // Agent tier: AI review per open PR (matched by head sha) + latest digest.
+  const [{ data: reviewRows }, { data: digestRows }] = await Promise.all([
+    supabase
+      .from("pr_reviews")
+      .select("repo_id, pr_number, head_sha, verdict, summary")
+      .order("created_at", { ascending: false })
+      .limit(60),
+    supabase.from("digests").select("day, body").order("day", { ascending: false }).limit(1),
+  ]);
+  const reviewFor = new Map<string, { verdict: string; summary: string }>();
+  for (const r of reviewRows ?? []) {
+    const key = `${r.repo_id}#${r.pr_number}#${r.head_sha}`;
+    if (!reviewFor.has(key)) reviewFor.set(key, { verdict: r.verdict, summary: r.summary });
+  }
+
   const data: WidgetData = {
     sessions: (sessions ?? []).map((s) => ({
       id: String(s.id),
@@ -150,6 +165,7 @@ export default async function WidgetPage() {
       draft: p.draft,
       mergeable_state: p.mergeable_state,
       html_url: p.html_url,
+      ai: (p.head_sha && reviewFor.get(`${p.repo_id}#${p.number}#${p.head_sha}`)) || null,
     })),
     tasks: (tasks ?? []).map((t) => ({
       id: t.id,
@@ -194,6 +210,7 @@ export default async function WidgetPage() {
     conflicted: (prs ?? []).filter((p) => p.mergeable_state === "dirty").length,
     rules,
     self,
+    digest: (digestRows ?? [])[0] ?? null,
   };
 
   return <WidgetApp data={data} />;

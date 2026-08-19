@@ -16,7 +16,16 @@ try {
   const filePath = input?.tool_input?.file_path;
   if (!filePath) process.exit(0);
 
-  const cfg = JSON.parse(readFileSync(join(homedir(), ".devbrain", "config.json"), "utf8"));
+  // Config file first; DEVBRAIN_URL/DEVBRAIN_TOKEN env vars as the headless
+  // fallback (Cowork, CI). No config at all → exit silently (guard is a no-op).
+  let cfg = null;
+  try { cfg = JSON.parse(readFileSync(join(homedir(), ".devbrain", "config.json"), "utf8")); } catch { /* try env */ }
+  if (!cfg) {
+    const server = (process.env.DEVBRAIN_URL || "").trim().replace(/\/$/, "");
+    const token = (process.env.DEVBRAIN_TOKEN || "").trim();
+    if (server && token) cfg = { server, token };
+  }
+  if (!cfg) process.exit(0);
   let repo = null, rel = filePath;
   try {
     const url = execSync("git remote get-url origin", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();

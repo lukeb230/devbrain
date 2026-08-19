@@ -38,7 +38,7 @@ export default async function WidgetPage() {
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files").is("merged_at", null),
-      supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at").order("priority").order("created_at"),
+      supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at, maybe_done_pr").order("priority").order("created_at"),
       supabase.from("events").select("kind, payload, at").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
       supabase.from("activity").select("session_id, dev_label, label, branch, file, tool, at, repo_id").gte("at", daySince).order("at", { ascending: false }).limit(150),
       supabase.from("handoffs").select("id, repo_id, dev_label, branch, summary, remaining, created_at").is("picked_up_at", null).order("created_at", { ascending: false }).limit(4),
@@ -182,6 +182,7 @@ export default async function WidgetPage() {
       done_by: t.done_by,
       created_by: t.created_by,
       created_at: t.created_at,
+      maybe_done_pr: t.maybe_done_pr,
     })),
     feed: (feed ?? []).map((d) => {
       const p = d.payload as { text?: string; by?: string };

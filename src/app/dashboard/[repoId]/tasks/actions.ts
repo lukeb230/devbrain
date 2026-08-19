@@ -184,3 +184,46 @@ export async function braindumpTasks(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
 }
+
+// "Possibly done by PR #N" — human resolves the AI's medium-confidence match.
+export async function confirmMaybeDone(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  if (!repoId || !id) return;
+  const ctx = await authedRepo(repoId);
+  if (!ctx) return;
+  const { data: task } = await supabaseAdmin()
+    .from("tasks")
+    .select("maybe_done_pr")
+    .eq("id", id)
+    .single();
+  await supabaseAdmin()
+    .from("tasks")
+    .update({
+      status: "done",
+      done_by: `${devName(ctx.user)}${task?.maybe_done_pr ? ` · PR #${task.maybe_done_pr}` : ""}`,
+      done_at: new Date().toISOString(),
+      maybe_done_pr: null,
+    })
+    .eq("id", id)
+    .eq("repo_id", ctx.repo.id)
+    .eq("status", "open");
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/widget");
+}
+
+export async function dismissMaybeDone(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  if (!repoId || !id) return;
+  const ctx = await authedRepo(repoId);
+  if (!ctx) return;
+  await supabaseAdmin()
+    .from("tasks")
+    .update({ maybe_done_pr: null })
+    .eq("id", id)
+    .eq("repo_id", ctx.repo.id);
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath("/widget");
+}

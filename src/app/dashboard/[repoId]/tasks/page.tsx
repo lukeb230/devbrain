@@ -3,7 +3,7 @@ import { AppNav } from "@/components/AppNav";
 import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "../live";
-import { assignTask, braindumpTasks, completeTask, createTask, reopenTask } from "./actions";
+import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // braindump splitter calls Claude from a server action
@@ -52,7 +52,7 @@ export default async function TasksPage({
   const [{ data: tasks }, members] = await Promise.all([
     supabase
       .from("tasks")
-      .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to")
+      .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr")
       .eq("repo_id", repo.id)
       .order("priority")
       .order("created_at"),
@@ -206,6 +206,27 @@ export default async function TasksPage({
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-slate-900">{t.title}</div>
                         {t.detail && <div className="text-xs text-slate-500">{t.detail}</div>}
+                        {t.maybe_done_pr && (
+                          <div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1">
+                            <span className="text-xs font-medium text-amber-800">
+                              Possibly done by PR #{t.maybe_done_pr}
+                            </span>
+                            <form action={confirmMaybeDone}>
+                              <input type="hidden" name="repoId" value={repo.id} />
+                              <input type="hidden" name="id" value={t.id} />
+                              <button className="rounded bg-amber-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-amber-700">
+                                Yes, done
+                              </button>
+                            </form>
+                            <form action={dismissMaybeDone}>
+                              <input type="hidden" name="repoId" value={repo.id} />
+                              <input type="hidden" name="id" value={t.id} />
+                              <button className="rounded border border-amber-300 px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100">
+                                Still open
+                              </button>
+                            </form>
+                          </div>
+                        )}
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {t.assigned_to && (
                             <span className="chip bg-brand-50 text-brand-700">→ {t.assigned_to}</span>

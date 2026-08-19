@@ -22,6 +22,7 @@ export interface NotifPrefs {
   pr_approvals: boolean;
   p1_tasks: boolean;
   handoffs: boolean;
+  task_autocomplete: boolean;
 }
 
 export const DEFAULT_PREFS: NotifPrefs = {
@@ -31,6 +32,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
   pr_approvals: true,
   p1_tasks: true,
   handoffs: true,
+  task_autocomplete: true,
 };
 
 export function readPrefs(): NotifPrefs {
@@ -142,18 +144,28 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
 
       channel = supabase.channel("widget-notify");
 
-      // Broadcasts (events INSERT, kind=broadcast)
+      // Broadcasts + auto-completed tasks (events INSERT)
       channel.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "events" },
         (msg) => {
           const p = prefs.current;
-          if (!p.enabled || !p.broadcasts) return;
-          const row = msg.new as { kind?: string; payload?: { text?: string; by?: string } };
-          if (row.kind !== "broadcast") return;
-          const by = row.payload?.by ?? "someone";
-          if (isSelf(by)) return;
-          deliver(`Broadcast from ${by}`, row.payload?.text ?? "");
+          if (!p.enabled) return;
+          const row = msg.new as {
+            kind?: string;
+            payload?: { text?: string; by?: string; task?: string; pr?: number };
+          };
+          if (row.kind === "broadcast" && p.broadcasts) {
+            const by = row.payload?.by ?? "someone";
+            if (isSelf(by)) return;
+            deliver(`Broadcast from ${by}`, row.payload?.text ?? "");
+          }
+          if (row.kind === "task_auto" && p.task_autocomplete) {
+            deliver(
+              "Task completed by merge",
+              `"${row.payload?.task ?? "a task"}" — PR #${row.payload?.pr ?? "?"}`,
+            );
+          }
         },
       );
 

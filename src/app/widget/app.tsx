@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
-import { assignTask, braindumpTasks, completeTask, createTask, reopenTask } from "../dashboard/[repoId]/tasks/actions";
+import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetLive } from "./live";
@@ -25,7 +25,7 @@ export interface WidgetData {
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null }[];
-  tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string }[];
+  tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
   handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
@@ -103,6 +103,7 @@ const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; detail: string }[] = [
   { key: "pr_approvals", label: "PR approvals", detail: "A pull request gets approved" },
   { key: "p1_tasks", label: "Critical tasks", detail: "Someone files a new P1 task" },
   { key: "handoffs", label: "Handoffs", detail: "A teammate leaves unfinished work for pickup" },
+  { key: "task_autocomplete", label: "Auto-completed tasks", detail: "A merge closed a task on the board automatically" },
 ];
 
 export function WidgetApp({ data }: { data: WidgetData }) {
@@ -394,6 +395,23 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                           </div>
                           {t.detail && (
                             <div className="ml-6 truncate text-[10px] text-slate-500">{t.detail}</div>
+                          )}
+                          {t.maybe_done_pr && (
+                            <div className="ml-6 mt-0.5 flex items-center gap-1.5">
+                              <span className="chip bg-amber-50 px-1 py-0 text-[10px] text-amber-800">
+                                possibly done by #{t.maybe_done_pr}
+                              </span>
+                              <form action={confirmMaybeDone}>
+                                <input type="hidden" name="repoId" value={t.repo_id} />
+                                <input type="hidden" name="id" value={t.id} />
+                                <button className="text-[10px] font-medium text-amber-700 hover:underline">Yes, done</button>
+                              </form>
+                              <form action={dismissMaybeDone}>
+                                <input type="hidden" name="repoId" value={t.repo_id} />
+                                <input type="hidden" name="id" value={t.id} />
+                                <button className="text-[10px] text-slate-400 hover:underline">Still open</button>
+                              </form>
+                            </div>
                           )}
                           <div className="ml-6 mt-0.5 flex flex-wrap items-center gap-1">
                             {t.tags.map((tag) => (

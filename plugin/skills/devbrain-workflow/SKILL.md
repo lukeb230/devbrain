@@ -115,6 +115,11 @@ digest includes `open_tasks`; `list_tasks` has the full picture).
 - **When you finish work that matches an open task** — call `complete_task`
   (confirm with your human if the match isn't obvious). It moves to the
   Completed section for 72 hours; it is never deleted silently.
+- **When you open a PR for work that came from the board** — end the PR
+  body with one trailer line per task it finishes:
+  `DevBrain-Task: <task id>`. DevBrain then auto-completes those tasks the
+  moment the PR merges — no bookkeeping for anyone. Untracked work needs no
+  trailer and no task; working off-board is completely normal.
 - **When new work surfaces mid-task** (a bug you can't fix now, missing
   tests, cleanup) — call `add_task` with a sensible priority and tags rather
   than letting it be forgotten.

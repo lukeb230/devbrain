@@ -219,6 +219,58 @@ export async function POST(request: Request) {
             .update({ merged_at: new Date().toISOString() })
             .eq("repo_id", repo.id)
             .eq("name", pr.head.ref);
+
+          // ---- Auto-complete on merge -----------------------------------
+          // Layer 1 (deterministic): "DevBrain-Task: <uuid>" trailers in the
+          // PR body, plus open handoffs whose branch matches — both close
+          // their tasks instantly, no AI involved. Anything unlabeled queues
+          // for the AI matcher on the agent tick.
+          const trailerIds = [
+            ...String(pr.body ?? "").matchAll(/DevBrain-Task:\s*([0-9a-f-]{36})/gi),
+          ].map((m) => m[1].toLowerCase());
+          const { data: branchHandoffs } = await admin
+            .from("handoffs")
+            .select("task_id")
+            .eq("repo_id", repo.id)
+            .eq("branch", pr.head.ref)
+            .not("task_id", "is", null);
+          const taskIds = [
+            ...new Set([...trailerIds, ...(branchHandoffs ?? []).map((h) => String(h.task_id))]),
+          ];
+
+          let closed = 0;
+          if (taskIds.length > 0) {
+            const { data: closedRows } = await admin
+              .from("tasks")
+              .update({
+                status: "done",
+                done_by: `${pr.user?.login ?? "someone"} · PR #${pr.number}`,
+                done_at: new Date().toISOString(),
+                maybe_done_pr: null,
+              })
+              .eq("repo_id", repo.id)
+              .eq("status", "open")
+              .in("id", taskIds)
+              .select("id, title");
+            closed = (closedRows ?? []).length;
+            for (const t of closedRows ?? []) {
+              await admin.from("events").insert({
+                org_id: repo.org_id,
+                repo_id: repo.id,
+                kind: "task_auto",
+                payload: { task: t.title, pr: pr.number, by: pr.user?.login ?? null, via: "trailer" },
+              });
+            }
+          }
+          await admin
+            .from("prs")
+            .update({
+              task_ids: taskIds,
+              // Only unlabeled merges queue for the AI matcher.
+              automatch: closed > 0 ? "done" : "pending",
+            })
+            .eq("repo_id", repo.id)
+            .eq("number", pr.number);
         }
         break;
       }

@@ -5,6 +5,7 @@ import {
   askClaude,
   DIGEST_SYSTEM,
   extractJson,
+  MATCH_SYSTEM,
   prDiff,
   REVIEW_SYSTEM,
 } from "@/lib/agent";
@@ -118,6 +119,107 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     did.review_error = String(err).slice(0, 300);
+  }
+
+  // ---- 1.5 Auto-complete matcher: one unlabeled merged PR per tick --------
+  // Merges with a DevBrain-Task trailer were already handled deterministically
+  // by the webhook. This pass covers the rest. Asymmetric by design: "complete"
+  // auto-closes (except P1 — critical tasks always earn a human click);
+  // "likely" only badges the task as "possibly done — confirm".
+  try {
+    const { data: pendingPrs } = await admin
+      .from("prs")
+      .select("repo_id, org_id, number, title, author, head_branch, changed_files")
+      .eq("automatch", "pending")
+      .order("updated_at", { ascending: true })
+      .limit(1);
+    const merged = (pendingPrs ?? [])[0];
+    if (merged) {
+      const { data: openTasks } = await admin
+        .from("tasks")
+        .select("id, title, detail, priority, tags")
+        .eq("repo_id", merged.repo_id)
+        .eq("status", "open")
+        .limit(50);
+
+      if (!openTasks || openTasks.length === 0) {
+        await admin.from("prs").update({ automatch: "done" }).eq("repo_id", merged.repo_id).eq("number", merged.number);
+      } else {
+        const [{ data: labels }, { data: review }] = await Promise.all([
+          admin
+            .from("activity")
+            .select("dev_label, label")
+            .eq("repo_id", merged.repo_id)
+            .eq("branch", merged.head_branch ?? "")
+            .order("at", { ascending: false })
+            .limit(50),
+          admin
+            .from("pr_reviews")
+            .select("summary")
+            .eq("repo_id", merged.repo_id)
+            .eq("pr_number", merged.number)
+            .order("created_at", { ascending: false })
+            .limit(1),
+        ]);
+        const labelLines = [
+          ...new Set((labels ?? []).map((a) => `${a.dev_label}: ${a.label ?? "working"}`)),
+        ].slice(0, 12);
+
+        const raw = await askClaude(
+          MATCH_SYSTEM,
+          [
+            `MERGED PR #${merged.number}: ${merged.title} (author ${merged.author ?? "unknown"}, branch ${merged.head_branch ?? "?"})`,
+            `FILES CHANGED:\n${((merged.changed_files as string[]) ?? []).slice(0, 60).join("\n") || "(unknown)"}`,
+            `ACTIVITY LABELS ON THAT BRANCH:\n${labelLines.join("\n") || "(none)"}`,
+            `AI REVIEW SUMMARY:\n${(review ?? [])[0]?.summary ?? "(none)"}`,
+            `OPEN TASKS:\n${openTasks.map((t) => `${t.id} [P${t.priority}] ${t.title}${t.detail ? " — " + t.detail : ""}`).join("\n")}`,
+          ].join("\n\n"),
+          600,
+        );
+        const parsed = extractJson(raw);
+        const matches = Array.isArray(parsed?.matches)
+          ? (parsed!.matches as { task_id?: string; confidence?: string }[])
+          : [];
+        const byId = new Map(openTasks.map((t) => [t.id, t]));
+        let completed = 0;
+        let flagged = 0;
+        for (const m of matches.slice(0, 6)) {
+          const task = m.task_id ? byId.get(m.task_id) : undefined;
+          if (!task) continue;
+          const canAutoClose = m.confidence === "complete" && task.priority !== 1;
+          if (canAutoClose) {
+            await admin
+              .from("tasks")
+              .update({
+                status: "done",
+                done_by: `${merged.author ?? "someone"} · PR #${merged.number} · auto`,
+                done_at: new Date().toISOString(),
+                maybe_done_pr: null,
+              })
+              .eq("id", task.id)
+              .eq("status", "open");
+            await admin.from("events").insert({
+              org_id: merged.org_id,
+              repo_id: merged.repo_id,
+              kind: "task_auto",
+              payload: { task: task.title, pr: merged.number, by: merged.author ?? null, via: "agent" },
+            });
+            completed++;
+          } else if (m.confidence === "complete" || m.confidence === "likely") {
+            await admin
+              .from("tasks")
+              .update({ maybe_done_pr: merged.number })
+              .eq("id", task.id)
+              .eq("status", "open");
+            flagged++;
+          }
+        }
+        await admin.from("prs").update({ automatch: "done" }).eq("repo_id", merged.repo_id).eq("number", merged.number);
+        did.automatch = `#${merged.number}: ${completed} completed, ${flagged} flagged`;
+      }
+    }
+  } catch (err) {
+    did.automatch_error = String(err).slice(0, 300);
   }
 
   // ---- 2. Standup digest: once per org per day, after the digest hour -----

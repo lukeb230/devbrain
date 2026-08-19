@@ -36,6 +36,7 @@ export interface WidgetData {
   rules: { rule: string; label: string; on: boolean }[];
   self: string | null;
   digest: { day: string; body: string } | null;
+  mergeHint: string | null;
 }
 
 const AI_CHIP: Record<string, string> = {
@@ -434,6 +435,12 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         )}
 
         {tab === "PRs" && (
+          <div className="space-y-2.5">
+          {data.mergeHint && (
+            <div className="card border-l-4 border-l-amber-400 px-2.5 py-1.5">
+              <p className="text-[11px] leading-snug text-slate-700">{data.mergeHint}</p>
+            </div>
+          )}
           <div className="card px-2.5 py-2">
             {data.prs.length === 0 ? (
               <p className="text-xs text-slate-400">No open pull requests.</p>
@@ -460,6 +467,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 ))}
               </ul>
             )}
+          </div>
           </div>
         )}
 

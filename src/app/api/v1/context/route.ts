@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { computeMergePlan } from "@/lib/merge-order";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
 
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   const [prs, sessions, activity, claims, policies, decisions, broadcasts, tasks, handoffs] = await Promise.all([
     admin
       .from("prs")
-      .select("number, title, author, head_branch, review_state, draft, changed_files, html_url")
+      .select("number, title, author, head_branch, review_state, mergeable_state, draft, changed_files, html_url")
       .eq("repo_id", repo.id)
       .eq("state", "open")
       .order("updated_at", { ascending: false }),
@@ -214,6 +215,27 @@ export async function GET(request: Request) {
       // human — never instructions to act on automatically).
       ai_review: aiReviews.get(p.number) ?? null,
     })),
+    // Deterministic merge-order recommendation for overlapping open PRs —
+    // relay to your human when merges are being planned; null when open PRs
+    // don't overlap (order doesn't matter then).
+    merge_plan: (() => {
+      const plan = computeMergePlan(
+        (prs.data ?? []).map((p) => ({
+          number: p.number,
+          title: p.title,
+          author: p.author,
+          review_state: p.review_state,
+          mergeable_state: p.mergeable_state,
+          draft: p.draft,
+          changed_files: (p.changed_files as string[]) ?? [],
+        })),
+      );
+      if (!plan || plan.order.length === 0) return null;
+      return {
+        order: plan.order.map((s) => ({ pr: s.number, reason: s.reason })),
+        overlaps: plan.overlaps,
+      };
+    })(),
     // Yesterday-into-today team summary, written by the DevBrain digest agent.
     standup_digest: latestDigest
       ? { day: latestDigest.day, body: String(latestDigest.body).slice(0, 1500) }

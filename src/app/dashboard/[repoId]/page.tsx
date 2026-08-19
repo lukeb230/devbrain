@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
+import { computeMergePlan } from "@/lib/merge-order";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createClaim, releaseClaim } from "./claim-actions";
 import { leaveHandoff, pickupHandoff, sendBroadcast } from "./handoff-actions";
@@ -127,6 +128,19 @@ export default async function RepoPage({
     if (!reviewFor.has(key)) reviewFor.set(key, r);
   }
   const digest = (digestRows ?? [])[0] ?? null;
+
+  // Merge-order intelligence — deterministic, from webhook-fresh file lists.
+  const mergePlan = computeMergePlan(
+    (prs ?? []).map((p) => ({
+      number: p.number,
+      title: p.title,
+      author: p.author,
+      review_state: p.review_state,
+      mergeable_state: p.mergeable_state,
+      draft: p.draft,
+      changed_files: (p.changed_files as string[]) ?? [],
+    })),
+  );
 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
   const doneTasks = (tasks ?? [])
@@ -326,6 +340,43 @@ export default async function RepoPage({
                 </div>
               )}
             </section>
+
+            {mergePlan && mergePlan.order.length > 0 && (
+              <section className="card card-pad border-l-4 border-l-amber-400">
+                <h2 className="card-title mb-1">Suggested merge order</h2>
+                <p className="mb-3 text-xs text-slate-500">
+                  These PRs touch some of the same files. Merging in this order
+                  keeps each rebase as small as possible.
+                </p>
+                <ol className="space-y-2">
+                  {mergePlan.order.map((step, i) => (
+                    <li key={step.number} className="flex items-start gap-2.5 text-sm">
+                      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="font-medium text-slate-900">
+                          #{step.number} {step.title}
+                        </span>
+                        <span className="block text-xs text-slate-500">{step.reason}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {mergePlan.overlaps.length > 0 && (
+                  <div className="mt-3 border-t border-slate-100 pt-2.5">
+                    {mergePlan.overlaps.map((o) => (
+                      <div key={`${o.a}-${o.b}`} className="text-xs text-slate-500">
+                        <span className="font-medium text-slate-700">#{o.a} ↔ #{o.b}</span> share{" "}
+                        {o.files.map((f) => (
+                          <code key={f} className="mr-1 rounded bg-slate-100 px-1 py-0.5 text-[11px] text-slate-600">{f}</code>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
 
             <section className="card card-pad">
               <h2 className="card-title mb-3">Open pull requests</h2>

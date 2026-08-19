@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { linkifyBody, parseBrain } from "@/lib/brain";
 import { fetchBrainDocs } from "@/lib/github";
 import { teamMembers } from "@/lib/members";
+import { computeMergePlan } from "@/lib/merge-order";
 import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
@@ -34,7 +35,7 @@ export default async function WidgetPage() {
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
-      supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
+      supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files").is("merged_at", null),
       supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at").order("priority").order("created_at"),
       supabase.from("events").select("kind, payload, at").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
@@ -211,6 +212,25 @@ export default async function WidgetPage() {
     rules,
     self,
     digest: (digestRows ?? [])[0] ?? null,
+    mergeHint: (() => {
+      // One-line merge-order hint for the last-visited repo's overlapping PRs.
+      if (!lastRepo) return null;
+      const plan = computeMergePlan(
+        (prs ?? [])
+          .filter((p) => p.repo_id === lastRepo.id)
+          .map((p) => ({
+            number: p.number,
+            title: p.title,
+            author: p.author,
+            review_state: p.review_state,
+            mergeable_state: p.mergeable_state,
+            draft: p.draft,
+            changed_files: (p.changed_files as string[]) ?? [],
+          })),
+      );
+      if (!plan || plan.order.length === 0) return null;
+      return "Suggested merge order: " + plan.order.map((s) => `#${s.number}`).join(" then ") + " — these PRs share files.";
+    })(),
   };
 
   return <WidgetApp data={data} />;

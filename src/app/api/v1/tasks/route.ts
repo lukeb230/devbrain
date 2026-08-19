@@ -104,7 +104,66 @@ export async function POST(request: Request) {
       .select("id, title, status")
       .single();
     if (!data) return NextResponse.json({ error: "task not found" }, { status: 404 });
+    if (action === "complete") {
+      // Completing a task releases its lane claims automatically.
+      await admin
+        .from("claims")
+        .update({ released_at: new Date().toISOString() })
+        .eq("task_id", id)
+        .is("released_at", null);
+    }
     return NextResponse.json({ ok: true, task: data });
+  }
+
+  // Start a task: take it, and claim its predicted lane so the rest of the
+  // team (and every teammate's Claude) routes around you automatically.
+  if (action === "start") {
+    const id = String(body.id || "");
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+    const { data: task } = await admin
+      .from("tasks")
+      .select("id, title, footprint, started_by, status")
+      .eq("id", id)
+      .eq("repo_id", repo.id)
+      .single();
+    if (!task) return NextResponse.json({ error: "task not found" }, { status: 404 });
+    if (task.status !== "open") return NextResponse.json({ error: "task is not open" }, { status: 400 });
+    if (task.started_by && task.started_by.toLowerCase() !== auth.label.toLowerCase()) {
+      return NextResponse.json({ error: `already started by ${task.started_by}` }, { status: 409 });
+    }
+    await admin
+      .from("tasks")
+      .update({ started_by: auth.label, started_at: new Date().toISOString(), assigned_to: auth.label })
+      .eq("id", id);
+    const footprint = Array.isArray(task.footprint) ? (task.footprint as string[]) : [];
+    let claim_id: string | null = null;
+    if (footprint.length > 0) {
+      const { data: claim } = await admin
+        .from("claims")
+        .insert({
+          org_id: repo.org_id,
+          repo_id: repo.id,
+          user_id: auth.user_id,
+          dev_label: auth.label,
+          paths: footprint,
+          note: `working: ${task.title}`.slice(0, 300),
+          task_id: id,
+          expires_at: new Date(Date.now() + 8 * 3600_000).toISOString(),
+        })
+        .select("id")
+        .single();
+      claim_id = claim?.id ?? null;
+    }
+    return NextResponse.json({
+      ok: true,
+      started: task.title,
+      lane_claimed: footprint,
+      claim_id,
+      note:
+        footprint.length > 0
+          ? "Your lane is claimed — teammates' Claudes will route around these paths for 8h (released automatically when the task completes)."
+          : "No footprint predicted yet — no lane claimed; check who_is_editing before touching shared files.",
+    });
   }
 
   return NextResponse.json({ error: "unknown action" }, { status: 400 });

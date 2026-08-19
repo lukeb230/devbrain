@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { pickSuggestedNext } from "@/lib/lanes";
 import { computeMergePlan } from "@/lib/merge-order";
 import { computeLights } from "@/lib/traffic";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
       .limit(10),
     admin
       .from("tasks")
-      .select("id, title, detail, priority, tags, created_by, created_at, assigned_to")
+      .select("id, title, detail, priority, tags, created_by, created_at, assigned_to, started_by, footprint")
       .eq("repo_id", repo.id)
       .eq("status", "open")
       .order("priority")
@@ -200,6 +201,32 @@ export async function GET(request: Request) {
     if (!aiReviews.has(r.pr_number)) aiReviews.set(r.pr_number, { verdict: r.verdict, summary: r.summary });
   }
 
+  // The dispatcher: lane-safe next task for THIS dev. Others' busy paths =
+  // their active claims + footprints of tasks they've started.
+  const othersBusyPaths: string[] = [];
+  for (const c of claims.data ?? []) {
+    if (c.dev_label?.toLowerCase() === auth.label.toLowerCase()) continue;
+    for (const p of (c.paths as string[]) ?? []) othersBusyPaths.push(p);
+  }
+  for (const t of tasks.data ?? []) {
+    if (!t.started_by || t.started_by.toLowerCase() === auth.label.toLowerCase()) continue;
+    for (const p of (t.footprint as string[]) ?? []) othersBusyPaths.push(p);
+  }
+  const suggestedNext = pickSuggestedNext(
+    (tasks.data ?? []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      priority: t.priority,
+      tags: (t.tags as string[]) ?? [],
+      assigned_to: t.assigned_to,
+      started_by: t.started_by,
+      footprint: (t.footprint as string[] | null) ?? null,
+      created_at: t.created_at,
+    })),
+    auth.label,
+    othersBusyPaths,
+  );
+
   // Merge traffic lights — deterministic; relay a green light to your human
   // ("your PR is cleared to land") when relevant.
   const contextLights = computeLights(
@@ -280,7 +307,14 @@ export async function GET(request: Request) {
       tags: t.tags,
       by: t.created_by,
       assigned_to: t.assigned_to,
+      started_by: t.started_by,
+      footprint: t.footprint,
     })),
+    // The dispatcher's pick: the top task that's lane-safe for YOUR dev —
+    // its predicted paths don't overlap teammates' active claims or started
+    // work. When your human asks "what's next?", lead with this (they can
+    // always choose differently); call start_task when they take it.
+    suggested_next: suggestedNext,
     // Recent merges that changed code without updating .brain/ — the brain
     // is stale for these. Offer your human to repair the affected notes now
     // (small branch + PR); any teammate's Claude may do this.

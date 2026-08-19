@@ -3,7 +3,7 @@ import { AppNav } from "@/components/AppNav";
 import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "../live";
-import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask } from "./actions";
+import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // braindump splitter calls Claude from a server action
@@ -52,7 +52,7 @@ export default async function TasksPage({
   const [{ data: tasks }, members] = await Promise.all([
     supabase
       .from("tasks")
-      .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr")
+      .select("id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr, started_by, footprint")
       .eq("repo_id", repo.id)
       .order("priority")
       .order("created_at"),
@@ -228,15 +228,30 @@ export default async function TasksPage({
                           </div>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          {t.assigned_to && (
+                          {t.started_by && (
+                            <span className="chip bg-emerald-50 text-emerald-700">in progress · {t.started_by}</span>
+                          )}
+                          {t.assigned_to && !t.started_by && (
                             <span className="chip bg-brand-50 text-brand-700">→ {t.assigned_to}</span>
                           )}
                           {((t.tags as string[]) ?? []).map((tag) => (
                             <span key={tag} className="chip bg-slate-100 text-slate-600">{tag}</span>
                           ))}
+                          {((t.footprint as string[]) ?? []).map((fp) => (
+                            <code key={fp} className="rounded bg-slate-50 px-1 py-0.5 text-[11px] text-slate-500 ring-1 ring-slate-200">{fp}</code>
+                          ))}
                           <span className="text-xs text-slate-400">
                             {t.created_by} · {timeAgo(t.created_at)}
                           </span>
+                          {!t.started_by && (
+                            <form action={startTask}>
+                              <input type="hidden" name="repoId" value={repo.id} />
+                              <input type="hidden" name="id" value={t.id} />
+                              <button className="rounded border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:border-brand-500 hover:text-brand-600">
+                                Start — claim lane
+                              </button>
+                            </form>
+                          )}
                         </div>
                       </div>
                       <form action={assignTask} className="flex flex-shrink-0 items-center gap-1">

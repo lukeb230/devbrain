@@ -5,6 +5,7 @@ import {
   askClaude,
   DIGEST_SYSTEM,
   extractJson,
+  FOOTPRINT_SYSTEM,
   MATCH_SYSTEM,
   prDiff,
   REVIEW_SYSTEM,
@@ -226,6 +227,88 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     if (!/skip:/.test(String(err))) did.automatch_error = String(err).slice(0, 300);
+  }
+
+  // ---- 1.55 Task footprints: predict lanes for new tasks (batched) --------
+  // Open tasks with no footprint get one predicted from the repo tree, up to
+  // 5 per tick in a single Claude call. The dispatcher (context route) uses
+  // footprints to hand devs non-overlapping work.
+  try {
+    if (!agentConfigured()) throw new Error("skip: no API key");
+    const { data: bare } = await admin
+      .from("tasks")
+      .select("id, repo_id, title, detail, tags")
+      .eq("status", "open")
+      .is("footprint", null)
+      .order("created_at", { ascending: true })
+      .limit(5);
+    const batch = (bare ?? []).filter((t) => t.repo_id === bare?.[0]?.repo_id);
+    if (batch.length > 0) {
+      const { data: repoRow } = await admin
+        .from("linked_repos")
+        .select("full_name, default_branch, installation_id")
+        .eq("id", batch[0].repo_id)
+        .single();
+      if (repoRow?.installation_id) {
+        const [owner, repoName] = repoRow.full_name.split("/");
+        const octokit = await installationOctokit(repoRow.installation_id);
+        const tree = await octokit.request("GET /repos/{owner}/{repo}/git/trees/{tree_sha}", {
+          owner,
+          repo: repoName,
+          tree_sha: repoRow.default_branch ?? "main",
+          recursive: "1",
+        });
+        // Compress the tree: unique directories (depth ≤ 3) + top-level files.
+        const dirs = new Set<string>();
+        for (const entry of (tree.data.tree ?? []) as { path?: string; type?: string }[]) {
+          if (!entry.path) continue;
+          if (entry.type === "tree") {
+            const depth = entry.path.split("/").length;
+            if (depth <= 3) dirs.add(entry.path + "/");
+          } else if (!entry.path.includes("/")) {
+            dirs.add(entry.path);
+          }
+        }
+        const treeList = [...dirs].sort().slice(0, 300).join("\n");
+        const raw = await askClaude(
+          FOOTPRINT_SYSTEM,
+          `REPO TREE (directories + top-level files):\n${treeList}\n\nTASKS:\n${batch
+            .map((t) => `${t.id} — ${t.title}${t.detail ? " — " + t.detail : ""} [${((t.tags as string[]) ?? []).join(",")}]`)
+            .join("\n")}`,
+          800,
+        );
+        const parsed = extractJson(raw);
+        const results = Array.isArray(parsed?.tasks)
+          ? (parsed!.tasks as { id?: string; paths?: unknown[] }[])
+          : [];
+        const validIds = new Set(batch.map((t) => t.id));
+        let stamped = 0;
+        for (const r of results) {
+          if (!r.id || !validIds.has(r.id)) continue;
+          const paths = Array.isArray(r.paths)
+            ? r.paths.map((x) => String(x).trim()).filter((x) => x && x !== "/" && x !== ".").slice(0, 4)
+            : [];
+          await admin
+            .from("tasks")
+            .update({ footprint: paths, footprint_at: new Date().toISOString() })
+            .eq("id", r.id)
+            .is("footprint", null);
+          stamped++;
+        }
+        // Tasks the model skipped get an empty footprint so we don't retry
+        // them forever (empty = "no lane info", still dispatchable).
+        for (const t of batch) {
+          await admin
+            .from("tasks")
+            .update({ footprint: [], footprint_at: new Date().toISOString() })
+            .eq("id", t.id)
+            .is("footprint", null);
+        }
+        did.footprints = `${stamped}/${batch.length} stamped`;
+      }
+    }
+  } catch (err) {
+    if (!/skip:/.test(String(err))) did.footprint_error = String(err).slice(0, 300);
   }
 
   // ---- 1.6 Merge traffic lights: deterministic, every repo, every tick ----

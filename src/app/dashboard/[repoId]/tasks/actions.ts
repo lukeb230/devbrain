@@ -83,6 +83,12 @@ export async function completeTask(formData: FormData): Promise<void> {
     .update({ status: "done", done_at: new Date().toISOString(), done_by: devName(ctx.user) })
     .eq("id", id)
     .eq("org_id", ctx.repo.org_id);
+  // Completing a task releases its lane claims automatically.
+  await supabaseAdmin()
+    .from("claims")
+    .update({ released_at: new Date().toISOString() })
+    .eq("task_id", id)
+    .is("released_at", null);
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
 }
@@ -225,5 +231,47 @@ export async function dismissMaybeDone(formData: FormData): Promise<void> {
     .eq("id", id)
     .eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath("/widget");
+}
+
+// Start a task from the dashboard: take it + claim its predicted lane (8h,
+// auto-released on completion). Same semantics as the plugin's start_task.
+export async function startTask(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  if (!repoId || !id) return;
+  const ctx = await authedRepo(repoId);
+  if (!ctx) return;
+  const admin = supabaseAdmin();
+  const me = devName(ctx.user);
+
+  const { data: task } = await admin
+    .from("tasks")
+    .select("id, title, footprint, started_by, status")
+    .eq("id", id)
+    .eq("repo_id", ctx.repo.id)
+    .single();
+  if (!task || task.status !== "open") return;
+  if (task.started_by && task.started_by.toLowerCase() !== me.toLowerCase()) return;
+
+  await admin
+    .from("tasks")
+    .update({ started_by: me, started_at: new Date().toISOString(), assigned_to: me })
+    .eq("id", id);
+  const footprint = Array.isArray(task.footprint) ? (task.footprint as string[]) : [];
+  if (footprint.length > 0) {
+    await admin.from("claims").insert({
+      org_id: ctx.repo.org_id,
+      repo_id: ctx.repo.id,
+      user_id: ctx.user.id,
+      dev_label: me,
+      paths: footprint,
+      note: `working: ${task.title}`.slice(0, 300),
+      task_id: id,
+      expires_at: new Date(Date.now() + 8 * 3600_000).toISOString(),
+    });
+  }
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
 }

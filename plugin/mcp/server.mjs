@@ -131,10 +131,21 @@ const TOOLS = [
   {
     name: "complete_task",
     description:
-      "Mark a board task complete (moves to the Completed section for 72h — never deletes). Call when work you just finished matches an open task; confirm with your human first if it's not obviously the same work. Get the id from list_tasks or the open_tasks list in your context.",
+      "Mark a board task complete (moves to the Completed section for 72h — never deletes). Call when work you just finished matches an open task; confirm with your human first if it's not obviously the same work. Get the id from list_tasks or the open_tasks list in your context. Completing also releases the task's lane claim automatically.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "Task id from list_tasks / open_tasks." } },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "start_task",
+    description:
+      "Take a board task and claim its lane. Call when your human picks a task (especially the suggested_next from context). Marks the task started+assigned to your dev and auto-claims its predicted file footprint for 8h, so teammates' Claudes route around you. The claim releases itself when the task completes. If someone else already started it, this refuses — pick something else.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Task id from suggested_next / open_tasks / list_tasks." } },
       required: ["id"],
       additionalProperties: false,
     },
@@ -299,6 +310,17 @@ async function callTool(name, args) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "complete", id: String(args?.id || "") }),
+    });
+    return JSON.stringify(await res.json());
+  }
+  if (name === "start_task") {
+    const cfg = config();
+    const repo = currentRepo();
+    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    const res = await fetch(`${cfg.server}/api/v1/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: JSON.stringify({ repo, action: "start", id: String(args?.id || "") }),
     });
     return JSON.stringify(await res.json());
   }

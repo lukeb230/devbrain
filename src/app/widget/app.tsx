@@ -7,6 +7,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
+import { BrainMark } from "@/components/BrainMark";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
 import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
@@ -165,7 +166,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
         <span className="flex items-center gap-1.5">
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-600 text-[11px] font-bold text-white">D</span>
+          <BrainMark size={18} id="wg" className="flex-shrink-0 text-brand-600" />
           <span className="text-sm font-semibold text-slate-900">DevBrain</span>
           <WidgetLive />
         </span>

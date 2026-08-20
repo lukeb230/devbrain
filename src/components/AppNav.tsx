@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrainMark } from "@/components/BrainMark";
 
 // Global top bar — wordmark, contextual tabs, account actions. Rendered on
 // every authed page so navigation is consistent and no page wastes a header.
@@ -15,9 +16,7 @@ export function AppNav({
     <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 overflow-x-auto px-4 sm:gap-6 sm:px-6">
         <Link href="/dashboard" className="flex flex-shrink-0 items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">
-            D
-          </span>
+          <BrainMark size={26} id="nav" className="flex-shrink-0 text-brand-600" title="DevBrain" />
           <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 sm:inline">
             DevBrain
           </span>

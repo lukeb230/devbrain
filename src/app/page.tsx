@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { BrainMark } from "@/components/BrainMark";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SignInButton } from "./sign-in-button";
 
@@ -26,6 +27,7 @@ export default async function LandingPage({
         <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-xl font-bold text-white">
           D
         </div>
+        <BrainMark size={64} id="signin" className="mb-3 text-brand-600" title="DevBrain" />
         <h1 className="text-4xl font-semibold tracking-tight text-slate-900">
           DevBrain
         </h1>

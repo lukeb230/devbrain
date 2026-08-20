@@ -48,7 +48,14 @@ export function BrainExplorer({
         ...(slug ? { note: slug } : {}),
       });
       const qs = params.toString();
-      window.history.replaceState(null, "", `/dashboard/${repoId}/brain${qs ? `?${qs}` : ""}`);
+      // Deep-link sync must stay on the SURFACE we're embedded in. Inside the
+      // widget, writing a dashboard URL here silently retargeted the panel —
+      // the next background refresh then rendered the dashboard (and, with
+      // WidgetGuard, reloaded to the Home tab). Widget stays on /widget.
+      const base = window.location.pathname.startsWith("/widget")
+        ? "/widget"
+        : `/dashboard/${repoId}/brain`;
+      window.history.replaceState(null, "", `${base}${qs ? `?${qs}` : ""}`);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [repoId, branch, notes],

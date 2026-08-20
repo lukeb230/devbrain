@@ -9,7 +9,10 @@ import {
   MATCH_SYSTEM,
   prDiff,
   REVIEW_SYSTEM,
+  SPEC_ASSESS_SYSTEM,
+  SPEC_EXTRACT_SYSTEM,
 } from "@/lib/agent";
+import { cachedBrainDocs } from "@/lib/brain-cache";
 import { mergePrAsWriter, writerConfigured } from "@/lib/github-writer";
 import { installationOctokit } from "@/lib/github";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -227,6 +230,158 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     if (!/skip:/.test(String(err))) did.automatch_error = String(err).slice(0, 300);
+  }
+
+  // ---- 1.4 Spec analysis: one queued doc per tick -------------------------
+  // Two calls: extract the doc's requirements, then judge each against the
+  // reality corpus (brain notes, repo tree, tasks, merged PRs). Nothing is
+  // auto-created — the review screen turns chosen gaps into tasks.
+  try {
+    if (!agentConfigured()) throw new Error("skip: no API key");
+    const { data: queued } = await admin
+      .from("specs")
+      .select("id, org_id, repo_id, title, body")
+      .eq("status", "new")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    const spec = (queued ?? [])[0];
+    if (spec) {
+      await admin.from("specs").update({ status: "analyzing" }).eq("id", spec.id);
+      try {
+        // --- call 1: what does this document ask for?
+        const rawExtract = await askClaude(
+          SPEC_EXTRACT_SYSTEM,
+          `DOCUMENT (titled "${spec.title}"):\n\n${String(spec.body).slice(0, 120_000)}`,
+          4000,
+        );
+        const extracted = extractJson(rawExtract);
+        const items = Array.isArray(extracted?.items)
+          ? (extracted!.items as { requirement?: string; detail?: string }[])
+              .filter((i) => typeof i.requirement === "string" && i.requirement.trim())
+              .slice(0, 40)
+              .map((i, idx) => ({
+                key: `r${idx}`,
+                requirement: String(i.requirement).trim().slice(0, 300),
+                detail: typeof i.detail === "string" && i.detail.trim() ? i.detail.trim().slice(0, 600) : null,
+              }))
+          : [];
+
+        if (items.length === 0) {
+          await admin
+            .from("specs")
+            .update({ status: "ready", analyzed_at: new Date().toISOString() })
+            .eq("id", spec.id);
+          did.spec = `${spec.title}: no requirements found`;
+        } else {
+          // --- reality corpus (compact: names + excerpts, never whole files)
+          const { data: repoRow } = await admin
+            .from("linked_repos")
+            .select("full_name, default_branch, installation_id")
+            .eq("id", spec.repo_id)
+            .single();
+          let treeList = "(unavailable)";
+          let brainText = "(no brain notes)";
+          if (repoRow?.installation_id) {
+            try {
+              const [owner, repoName] = repoRow.full_name.split("/");
+              const octokit = await installationOctokit(repoRow.installation_id);
+              const tree = await octokit.request("GET /repos/{owner}/{repo}/git/trees/{tree_sha}", {
+                owner, repo: repoName, tree_sha: repoRow.default_branch ?? "main", recursive: "1",
+              });
+              const paths = ((tree.data.tree ?? []) as { path?: string; type?: string }[])
+                .filter((e) => e.type === "blob" && e.path)
+                .map((e) => e.path as string)
+                .filter((p) => !p.startsWith("node_modules/"))
+                .slice(0, 400);
+              treeList = paths.join("\n");
+            } catch { /* tree is best-effort */ }
+            try {
+              const docs = await cachedBrainDocs(
+                repoRow.installation_id, repoRow.full_name, repoRow.default_branch ?? "main",
+              );
+              brainText = docs
+                .map((d) => `### ${d.name}\n${d.content.slice(0, 1200)}`)
+                .join("\n\n")
+                .slice(0, 40_000);
+            } catch { /* brain is best-effort */ }
+          }
+          const [{ data: allTasks }, { data: mergedPrs }] = await Promise.all([
+            admin.from("tasks").select("title, status").eq("repo_id", spec.repo_id).limit(80),
+            admin.from("prs").select("number, title").eq("repo_id", spec.repo_id).eq("state", "merged")
+              .order("updated_at", { ascending: false }).limit(30),
+          ]);
+          const corpus = [
+            `BRAIN NOTES:\n${brainText}`,
+            `REPO FILES:\n${treeList}`,
+            `TASK BOARD:\n${(allTasks ?? []).map((t) => `[${t.status}] ${t.title}`).join("\n") || "(none)"}`,
+            `RECENTLY MERGED PRS:\n${(mergedPrs ?? []).map((p) => `#${p.number} ${p.title}`).join("\n") || "(none)"}`,
+          ].join("\n\n");
+
+          // --- call 2: judge in batches of 15
+          const verdicts = new Map<string, { verdict: string; confidence: string; evidence: string; priority: number; tags: string[] }>();
+          for (let i = 0; i < items.length; i += 15) {
+            const batch = items.slice(i, i + 15);
+            const rawAssess = await askClaude(
+              SPEC_ASSESS_SYSTEM,
+              `${corpus}\n\nREQUIREMENTS TO JUDGE:\n${batch.map((b) => `${b.key}: ${b.requirement}${b.detail ? " — " + b.detail : ""}`).join("\n")}`,
+              3000,
+            );
+            const parsed = extractJson(rawAssess);
+            for (const v of (Array.isArray(parsed?.items) ? parsed!.items : []) as Record<string, unknown>[]) {
+              const id = String(v.id ?? "");
+              if (!id) continue;
+              const verdict = ["done", "partial", "missing", "conflict"].includes(String(v.verdict))
+                ? String(v.verdict) : "missing";
+              verdicts.set(id, {
+                verdict,
+                confidence: String(v.confidence) === "high" ? "high" : "low",
+                evidence: String(v.evidence ?? "").slice(0, 500),
+                priority: Math.min(4, Math.max(1, Number(v.priority) || 3)),
+                tags: Array.isArray(v.tags) ? (v.tags as unknown[]).map((t) => String(t)).slice(0, 4) : [],
+              });
+            }
+          }
+
+          await admin.from("spec_items").delete().eq("spec_id", spec.id); // idempotent re-analysis
+          await admin.from("spec_items").insert(
+            items.map((it) => {
+              const v = verdicts.get(it.key);
+              return {
+                spec_id: spec.id,
+                org_id: spec.org_id,
+                repo_id: spec.repo_id,
+                requirement: it.requirement,
+                detail: it.detail,
+                verdict: v?.verdict ?? "missing",
+                confidence: v?.confidence ?? "low",
+                evidence: v?.evidence ?? null,
+                suggested_priority: v?.priority ?? 3,
+                suggested_tags: v?.tags ?? [],
+                rechecked_at: new Date().toISOString(),
+              };
+            }),
+          );
+          const title = String(extracted?.title ?? "").trim();
+          await admin
+            .from("specs")
+            .update({
+              status: "ready",
+              analyzed_at: new Date().toISOString(),
+              ...(title ? { title: title.slice(0, 120) } : {}),
+            })
+            .eq("id", spec.id);
+          did.spec = `${spec.title}: ${items.length} requirements`;
+        }
+      } catch (err) {
+        await admin
+          .from("specs")
+          .update({ status: "failed", error: String(err).slice(0, 300) })
+          .eq("id", spec.id);
+        did.spec_error = String(err).slice(0, 200);
+      }
+    }
+  } catch (err) {
+    if (!/skip:/.test(String(err))) did.spec_error = String(err).slice(0, 300);
   }
 
   // ---- 1.55 Task footprints: predict lanes for new tasks (batched) --------

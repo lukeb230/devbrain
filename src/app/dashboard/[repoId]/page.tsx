@@ -201,6 +201,7 @@ export default async function RepoPage({
         tabs={[
           { label: "Overview", href: `/dashboard/${repo.id}`, active: true },
           { label: "Tasks", href: `/dashboard/${repo.id}/tasks` },
+          { label: "Specs", href: `/dashboard/${repo.id}/specs` },
           { label: "Brain", href: `/dashboard/${repo.id}/brain` },
           { label: "History", href: `/dashboard/${repo.id}/history` },
           { label: "Rules", href: `/dashboard/${repo.id}/rules` },

@@ -39,6 +39,7 @@ export interface WidgetData {
   rules: { rule: string; label: string; on: boolean }[];
   self: string | null;
   repos: { id: string; name: string }[];
+  scopeAll: boolean;
   digest: { day: string; body: string } | null;
   mergePlan: { repo: string; order: { number: number; title: string; reason: string }[] } | null;
 }
@@ -153,19 +154,19 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         <span className="flex items-center gap-1.5">
           {data.repos.length > 0 && (
             <select
-              value={data.lastRepo?.id ?? ""}
+              value={data.scopeAll ? "all" : (data.lastRepo?.id ?? "all")}
               disabled={switching}
               onChange={(e) => {
                 const id = e.target.value;
                 if (id) startSwitch(() => setWidgetRepo(id));
               }}
-              title="Active repo — drives Brain, task creation, and Settings rules"
+              title="Scope — filters everything in the widget to one repo"
               className={
                 "max-w-[130px] truncate rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-700 focus:border-brand-500 focus:outline-none " +
                 (switching ? "opacity-50" : "")
               }
             >
-              {!data.lastRepo && <option value="">repo…</option>}
+              <option value="all">All repos</option>
               {data.repos.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
@@ -311,9 +312,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               </div>
             )}
 
-            {data.claims.length > 0 && (
-              <div className="card flex-shrink-0 px-2.5 py-1.5">
+            {/* Always visible — an empty lanes card is information too. */}
+            <div className="card flex-shrink-0 px-2.5 py-1.5">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Claimed lanes</div>
+                {data.claims.length === 0 && (
+                  <p className="text-xs text-slate-400">
+                    None active. Start a task (Tasks tab) or claim an area (Settings).
+                  </p>
+                )}
                 {data.claims.slice(0, 3).map((c) => (
                   <div key={c.id} className="flex items-center gap-1.5 text-xs text-slate-700">
                     <span className="font-medium">{c.dev_label}</span>
@@ -335,8 +341,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                     </form>
                   </div>
                 ))}
-              </div>
-            )}
+            </div>
 
             {data.handoffs.length > 0 && (
               <div className="card flex-shrink-0 border-l-4 border-l-brand-400 px-2.5 py-1.5">

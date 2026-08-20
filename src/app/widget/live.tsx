@@ -39,7 +39,9 @@ export function WidgetLive() {
     const { data: authSub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session?.access_token) supabase.realtime.setAuth(session.access_token);
     });
-    const interval = setInterval(() => { if (!document.hidden) router.refresh(); }, 5_000);
+    // Realtime handles instant updates; this poll is only a safety net, so it
+    // can be slow — every render costs a full server pass.
+    const interval = setInterval(() => { if (!document.hidden) router.refresh(); }, 20_000);
     const onVisibility = () => { if (!document.hidden) router.refresh(); };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {

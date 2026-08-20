@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
 import { linkifyBody, parseBrain } from "@/lib/brain";
-import { fetchBrainDocs } from "@/lib/github";
+import { cachedBrainDocs } from "@/lib/brain-cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { BrainExplorer, type NotePayload } from "./explorer";
 
@@ -48,7 +48,7 @@ export default async function BrainPage({
     .limit(15);
 
   const ref = branch || repo.default_branch;
-  const files = await fetchBrainDocs(repo.installation_id, repo.full_name, ref);
+  const files = await cachedBrainDocs(repo.installation_id, repo.full_name, ref);
   const graph = parseBrain(files);
   const byTitle = new Map(graph.notes.map((n) => [n.title.toLowerCase(), n.slug]));
 

@@ -2,7 +2,7 @@ import { marked } from "marked";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { linkifyBody, parseBrain } from "@/lib/brain";
-import { fetchBrainDocs } from "@/lib/github";
+import { cachedBrainDocs } from "@/lib/brain-cache";
 import { teamMembers } from "@/lib/members";
 import { computeMergePlan } from "@/lib/merge-order";
 import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
@@ -38,9 +38,9 @@ export default async function WidgetPage() {
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
-      supabase.from("branches").select("repo_id, name, changed_files").is("merged_at", null),
+      supabase.from("branches").select("repo_id, name, changed_files, last_push_at").is("merged_at", null),
       supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at, maybe_done_pr, started_by, footprint").order("priority").order("created_at"),
-      supabase.from("events").select("kind, payload, at").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
+      supabase.from("events").select("kind, payload, at, repo_id").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
       supabase.from("activity").select("session_id, dev_label, label, branch, file, tool, at, repo_id").gte("at", daySince).order("at", { ascending: false }).limit(150),
       supabase.from("handoffs").select("id, repo_id, dev_label, branch, summary, remaining, created_at").is("picked_up_at", null).order("created_at", { ascending: false }).limit(4),
     ]);
@@ -48,9 +48,21 @@ export default async function WidgetPage() {
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
   const short = (id: string) => repoById.get(id)?.full_name.split("/")[1] ?? "?";
 
+  // The selector is a real filter: "all" (or unset) = team-wide; a repo id
+  // scopes EVERY list below to that repo. Applied post-fetch — volumes are
+  // tiny and it keeps the queries simple.
+  const scopeAll = !lastRepoId || lastRepoId === "all" || !repoById.has(lastRepoId);
+  const inScope = (repoId: string) => scopeAll || repoId === lastRepoId;
+
+  // Collisions: only branches pushed in the last 7 days participate — a
+  // stale branch row must never generate warnings forever.
+  const branchCutoff = Date.now() - 7 * 24 * 3600_000;
+
   const collisions: WidgetData["collisions"] = [];
   const byRepo = new Map<string, Map<string, string[]>>();
   for (const b of branches ?? []) {
+    if (!inScope(b.repo_id)) continue;
+    if (b.last_push_at && new Date(b.last_push_at).getTime() < branchCutoff) continue;
     if (!byRepo.has(b.repo_id)) byRepo.set(b.repo_id, new Map());
     const m = byRepo.get(b.repo_id)!;
     for (const f of (b.changed_files as string[]) ?? []) {
@@ -69,7 +81,7 @@ export default async function WidgetPage() {
   const lastRepo = lastRepoId ? (repoById.get(lastRepoId) ?? (repos ?? [])[0]) : (repos ?? [])[0];
   if (lastRepo) {
     try {
-      const files = await fetchBrainDocs(lastRepo.installation_id, lastRepo.full_name, lastRepo.default_branch);
+      const files = await cachedBrainDocs(lastRepo.installation_id, lastRepo.full_name, lastRepo.default_branch);
       const graph = parseBrain(files);
       if (graph.notes.length > 0) {
         const byTitle = new Map(graph.notes.map((n) => [n.title.toLowerCase(), n.slug]));
@@ -133,6 +145,14 @@ export default async function WidgetPage() {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const self = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "") || null;
 
+  // Apply the repo scope to every list the widget renders.
+  const fSessions = (sessions ?? []).filter((s) => inScope(s.repo_id));
+  const fPrs = (prs ?? []).filter((p) => inScope(p.repo_id));
+  const fTasks = (tasks ?? []).filter((t) => inScope(t.repo_id));
+  const fHandoffs = (handoffs ?? []).filter((h) => inScope(h.repo_id));
+  const fActivity = (activity ?? []).filter((a) => inScope(a.repo_id));
+  const fFeed = (feed ?? []).filter((d) => inScope(d.repo_id));
+
   // Active claims (lanes) across the org — the glance data.
   const { data: claimRows } = await supabase
     .from("claims")
@@ -161,7 +181,7 @@ export default async function WidgetPage() {
   const lightsByRepo = new Map<string, ReturnType<typeof computeLights>>();
   {
     const grouped = new Map<string, NonNullable<typeof prs>>();
-    for (const p of prs ?? []) {
+    for (const p of fPrs) {
       if (!grouped.has(p.repo_id)) grouped.set(p.repo_id, []);
       grouped.get(p.repo_id)!.push(p);
     }
@@ -184,7 +204,7 @@ export default async function WidgetPage() {
   }
 
   const data: WidgetData = {
-    sessions: (sessions ?? []).map((s) => ({
+    sessions: fSessions.map((s) => ({
       id: String(s.id),
       repo: short(s.repo_id),
       dev_label: s.dev_label,
@@ -192,7 +212,7 @@ export default async function WidgetPage() {
       last_seen: s.last_seen,
     })),
     collisions,
-    prs: (prs ?? []).map((p) => ({
+    prs: fPrs.map((p) => ({
       repo_id: p.repo_id,
       repo: short(p.repo_id),
       defaultBranch: repoById.get(p.repo_id)?.default_branch ?? "main",
@@ -206,7 +226,7 @@ export default async function WidgetPage() {
       ai: (p.head_sha && reviewFor.get(`${p.repo_id}#${p.number}#${p.head_sha}`)) || null,
       light: lightsByRepo.get(p.repo_id)?.get(p.number) ?? null,
     })),
-    tasks: (tasks ?? []).map((t) => ({
+    tasks: fTasks.map((t) => ({
       id: t.id,
       repo_id: t.repo_id,
       repo: short(t.repo_id),
@@ -223,7 +243,7 @@ export default async function WidgetPage() {
       started_by: t.started_by,
       footprint: (t.footprint as string[] | null) ?? null,
     })),
-    claims: (claimRows ?? []).map((c) => ({
+    claims: (claimRows ?? []).filter((c) => inScope(c.repo_id)).map((c) => ({
       id: c.id,
       repo_id: c.repo_id,
       repo: short(c.repo_id),
@@ -232,11 +252,11 @@ export default async function WidgetPage() {
       note: c.note,
       expires_at: c.expires_at,
     })),
-    feed: (feed ?? []).map((d) => {
+    feed: fFeed.map((d) => {
       const p = d.payload as { text?: string; by?: string };
       return { kind: d.kind, text: p.text ?? "", by: p.by ?? null, at: d.at };
     }),
-    activity: (activity ?? []).map((a) => ({
+    activity: fActivity.map((a) => ({
       session_id: a.session_id ? String(a.session_id) : null,
       dev_label: a.dev_label,
       label: a.label,
@@ -246,7 +266,7 @@ export default async function WidgetPage() {
       at: a.at,
       repo: repoById.get(a.repo_id)?.full_name ?? null,
     })),
-    handoffs: (handoffs ?? []).map((h) => ({
+    handoffs: fHandoffs.map((h) => ({
       id: h.id,
       repo: short(h.repo_id),
       by: h.dev_label,
@@ -258,10 +278,11 @@ export default async function WidgetPage() {
     members,
     brain,
     lastRepo: lastRepo ? { id: lastRepo.id, name: short(lastRepo.id) } : null,
-    conflicted: (prs ?? []).filter((p) => p.mergeable_state === "dirty").length,
+    conflicted: fPrs.filter((p) => p.mergeable_state === "dirty").length,
     rules,
     self,
     repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id) })),
+    scopeAll,
     digest: (digestRows ?? [])[0] ?? null,
     mergePlan: (() => {
       // Full merge-order plan for the active repo's overlapping PRs.

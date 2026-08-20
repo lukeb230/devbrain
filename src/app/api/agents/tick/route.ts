@@ -651,16 +651,23 @@ export async function POST(request: Request) {
     did.zombie_error = String(err).slice(0, 300);
   }
 
-  // ---- 2. Standup digest: once per org per day, after the digest hour -----
+  // ---- 2. Standup digest: one per REPO per day, after the digest hour -----
+  // Per-repo, never per-org: a digest is shown on a repo's Overview and served
+  // into that repo's Claude context, so blending repos leaked cross-project
+  // work into both. One Claude call per active repo per day; at most one real
+  // call per tick so we always fit the function window.
   try {
     if (agentConfigured() && new Date().getUTCHours() >= DIGEST_HOUR_UTC) {
       const today = new Date().toISOString().slice(0, 10);
-      const { data: orgs } = await admin.from("orgs").select("id").limit(5);
-      for (const org of orgs ?? []) {
+      const { data: repos } = await admin
+        .from("linked_repos")
+        .select("id, org_id, full_name")
+        .limit(25);
+      for (const repo of repos ?? []) {
         const { data: existing } = await admin
           .from("digests")
           .select("id")
-          .eq("org_id", org.id)
+          .eq("repo_id", repo.id)
           .eq("day", today)
           .limit(1);
         if (existing && existing.length > 0) continue;
@@ -668,16 +675,23 @@ export async function POST(request: Request) {
         const since = new Date(Date.now() - 24 * 3600_000).toISOString();
         const [{ data: acts }, { data: evts }, { data: prs }, { data: tasks }, { data: handoffs }] =
           await Promise.all([
-            admin.from("activity").select("dev_label, label, file, at").eq("org_id", org.id).gte("at", since).order("at", { ascending: false }).limit(300),
-            admin.from("events").select("kind, payload, at").eq("org_id", org.id).gte("at", since).in("kind", ["broadcast", "decision", "main_push"]).limit(50),
-            admin.from("prs").select("number, title, author, state, review_state, mergeable_state, updated_at").eq("org_id", org.id).gte("updated_at", since).limit(30),
-            admin.from("tasks").select("title, priority, status, created_by, done_by, assigned_to").eq("org_id", org.id).limit(50),
-            admin.from("handoffs").select("dev_label, summary, picked_up_by").eq("org_id", org.id).is("picked_up_at", null).limit(10),
+            admin.from("activity").select("dev_label, label, file, at").eq("repo_id", repo.id).gte("at", since).order("at", { ascending: false }).limit(300),
+            admin.from("events").select("kind, payload, at").eq("repo_id", repo.id).gte("at", since).in("kind", ["broadcast", "decision", "main_push"]).limit(50),
+            admin.from("prs").select("number, title, author, state, review_state, mergeable_state, updated_at").eq("repo_id", repo.id).gte("updated_at", since).limit(30),
+            admin.from("tasks").select("title, priority, status, created_by, done_by, assigned_to").eq("repo_id", repo.id).limit(50),
+            admin.from("handoffs").select("dev_label, summary, picked_up_by").eq("repo_id", repo.id).is("picked_up_at", null).limit(10),
           ]);
 
         if ((acts ?? []).length === 0 && (evts ?? []).length === 0 && (prs ?? []).length === 0) {
-          // Quiet day — record a stub so we don't re-check every 2 minutes.
-          await admin.from("digests").insert({ org_id: org.id, day: today, body: "Quiet day — no recorded activity in the last 24 hours.", model: "none" });
+          // Nothing happened in THIS repo. Stub it (cheap, no model call) so a
+          // quiet repo never invents activity and we stop re-checking it today.
+          await admin.from("digests").insert({
+            org_id: repo.org_id,
+            repo_id: repo.id,
+            day: today,
+            body: "Quiet day — no recorded activity in this repo in the last 24 hours.",
+            model: "none",
+          });
           continue;
         }
 
@@ -695,6 +709,7 @@ export async function POST(request: Request) {
           .join("\n");
 
         const telemetry = [
+          `REPO: ${repo.full_name} — summarize ONLY this repo's work.`,
           `ACTIVITY (last 24h):\n${actLines || "(none)"}`,
           `EVENTS:\n${(evts ?? []).map((e) => `${e.kind}: ${JSON.stringify(e.payload).slice(0, 200)}`).join("\n") || "(none)"}`,
           `PRS TOUCHED:\n${(prs ?? []).map((p) => `#${p.number} ${p.title} — ${p.state}${p.review_state ? "/" + p.review_state : ""}${p.mergeable_state === "dirty" ? " CONFLICTS" : ""} by ${p.author}`).join("\n") || "(none)"}`,
@@ -703,8 +718,15 @@ export async function POST(request: Request) {
         ].join("\n\n");
 
         const body = (await askClaude(DIGEST_SYSTEM, telemetry, 700)).trim().slice(0, 4000);
-        await admin.from("digests").insert({ org_id: org.id, day: today, body, model: agentModel() });
-        did.digest = today;
+        await admin.from("digests").insert({
+          org_id: repo.org_id,
+          repo_id: repo.id,
+          day: today,
+          body,
+          model: agentModel(),
+        });
+        did.digest = `${repo.full_name} ${today}`;
+        break; // one real digest per tick; the rest land on following ticks
       }
     }
   } catch (err) {

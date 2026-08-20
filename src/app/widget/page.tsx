@@ -169,7 +169,7 @@ export default async function WidgetPage() {
       .select("repo_id, pr_number, head_sha, verdict, summary")
       .order("created_at", { ascending: false })
       .limit(60),
-    supabase.from("digests").select("day, body").order("day", { ascending: false }).limit(1),
+    supabase.from("digests").select("day, body, repo_id").order("day", { ascending: false }).limit(12),
   ]);
   const reviewFor = new Map<string, { verdict: string; summary: string }>();
   for (const r of reviewRows ?? []) {
@@ -283,7 +283,13 @@ export default async function WidgetPage() {
     self,
     repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id) })),
     scopeAll,
-    digest: (digestRows ?? [])[0] ?? null,
+    digest: (() => {
+      // Digests are per-repo. Scoped → that repo's; All repos → the newest,
+      // labelled so it's never mistaken for team-wide.
+      const rows = (digestRows ?? []).filter((d) => inScope(d.repo_id));
+      const row = rows[0];
+      return row ? { day: row.day, body: row.body, repo: short(row.repo_id) } : null;
+    })(),
     mergePlan: (() => {
       // Full merge-order plan for the active repo's overlapping PRs.
       if (!lastRepo) return null;

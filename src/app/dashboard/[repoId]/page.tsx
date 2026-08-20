@@ -126,7 +126,7 @@ export default async function RepoPage({
     supabase
       .from("digests")
       .select("day, body, model")
-      .eq("org_id", repo.org_id)
+      .eq("repo_id", repo.id)
       .order("day", { ascending: false })
       .limit(1),
   ]);

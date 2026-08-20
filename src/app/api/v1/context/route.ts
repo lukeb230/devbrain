@@ -187,7 +187,7 @@ export async function GET(request: Request) {
   // Latest standup digest + AI reviews for open PRs (agent tier; absent when
   // no API key is configured server-side — both degrade to empty).
   const [digestQ, reviewsQ] = await Promise.all([
-    admin.from("digests").select("day, body").eq("org_id", repo.org_id).order("day", { ascending: false }).limit(1),
+    admin.from("digests").select("day, body").eq("repo_id", repo.id).order("day", { ascending: false }).limit(1),
     admin
       .from("pr_reviews")
       .select("pr_number, head_sha, verdict, summary")

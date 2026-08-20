@@ -25,6 +25,10 @@ export interface NotifPrefs {
   task_autocomplete: boolean;
   merge_lights: boolean;
   specs: boolean;
+  /** Which repos may notify: every linked repo, or only the one the widget
+   *  is scoped to. Defaults to "all" — a silent P1 on the repo you're NOT
+   *  looking at is the expensive failure. */
+  scope: "all" | "repo";
 }
 
 export const DEFAULT_PREFS: NotifPrefs = {
@@ -37,6 +41,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
   task_autocomplete: true,
   merge_lights: true,
   specs: true,
+  scope: "all",
 };
 
 export function readPrefs(): NotifPrefs {
@@ -108,7 +113,15 @@ export interface PrSeed {
   review_state: string | null;
 }
 
-export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds: PrSeed[] }) {
+export function WidgetNotifier({
+  self,
+  prSeeds,
+  activeRepoId,
+}: {
+  self: string | null;
+  prSeeds: PrSeed[];
+  activeRepoId: string | null;
+}) {
   const prefs = useRef<NotifPrefs>(DEFAULT_PREFS);
   // Last-known PR states, seeded from server data so already-dirty /
   // already-approved PRs don't fire on their next unrelated update.
@@ -138,6 +151,9 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
 
     const isSelf = (name: unknown) =>
       Boolean(self && typeof name === "string" && name.toLowerCase() === self.toLowerCase());
+    // Repo gate: with scope="repo", only the widget's active repo may notify.
+    const inScope = (repoId: unknown) =>
+      prefs.current.scope !== "repo" || !activeRepoId || repoId === activeRepoId;
 
     (async () => {
       const {
@@ -157,8 +173,10 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
           if (!p.enabled) return;
           const row = msg.new as {
             kind?: string;
+            repo_id?: string;
             payload?: { text?: string; by?: string; task?: string; pr?: number };
           };
+          if (!inScope(row.repo_id)) return;
           if (row.kind === "broadcast" && p.broadcasts) {
             const by = row.payload?.by ?? "someone";
             if (isSelf(by)) return;
@@ -203,7 +221,8 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
         (msg) => {
           const p = prefs.current;
           if (!p.enabled || !p.p1_tasks) return;
-          const row = msg.new as { priority?: number; title?: string; created_by?: string; assigned_to?: string | null };
+          const row = msg.new as { repo_id?: string; priority?: number; title?: string; created_by?: string; assigned_to?: string | null };
+          if (!inScope(row.repo_id)) return;
           if (row.priority !== 1) return;
           if (isSelf(row.created_by)) return;
           const who = row.assigned_to ? ` for ${row.assigned_to}` : "";
@@ -218,7 +237,8 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
         (msg) => {
           const p = prefs.current;
           if (!p.enabled || !p.handoffs) return;
-          const row = msg.new as { dev_label?: string; summary?: string };
+          const row = msg.new as { repo_id?: string; dev_label?: string; summary?: string };
+          if (!inScope(row.repo_id)) return;
           if (isSelf(row.dev_label)) return;
           deliver(`${row.dev_label ?? "A teammate"} left a handoff`, row.summary ?? "");
         },
@@ -240,6 +260,7 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
           review_state?: string | null;
         };
         if (!row.repo_id || !row.number) return;
+        if (!inScope(row.repo_id)) return;
         const key = `${row.repo_id}#${row.number}`;
         const prev = prState.current.get(key) ?? { dirty: false, approved: false };
         const now = {
@@ -266,9 +287,9 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
       window.removeEventListener(PREFS_EVENT, onPrefs);
       if (channel) supabase.removeChannel(channel);
     };
-    // self is stable for the lifetime of the widget page.
+    // self/activeRepoId are stable for a given render of the widget page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [self]);
+  }, [self, activeRepoId]);
 
   return null;
 }

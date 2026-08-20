@@ -42,7 +42,7 @@ export interface WidgetData {
   self: string | null;
   repos: { id: string; name: string }[];
   scopeAll: boolean;
-  digest: { day: string; body: string } | null;
+  digest: { day: string; body: string; repo: string } | null;
   mergePlan: { repo: string; order: { number: number; title: string; reason: string }[] } | null;
 }
 
@@ -111,7 +111,9 @@ function Switch({ on, small }: { on: boolean; small?: boolean }) {
   );
 }
 
-const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; detail: string }[] = [
+type BoolPref = Exclude<keyof NotifPrefs, "scope">;
+
+const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
   { key: "broadcasts", label: "Broadcasts", detail: "A teammate sends a team-wide heads-up" },
   { key: "pr_conflicts", label: "PR conflicts", detail: "An open pull request develops merge conflicts" },
   { key: "pr_approvals", label: "PR approvals", detail: "A pull request gets approved" },
@@ -128,7 +130,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const [capture, setCapture] = useState<"dump" | "spec">("dump");
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   useEffect(() => setPrefs(readPrefs()), []); // localStorage only exists client-side
-  const setPref = (key: keyof NotifPrefs, value: boolean) => {
+  const setPref = (key: BoolPref, value: boolean) => {
     const next = { ...prefs, [key]: value };
     setPrefs(next);
     writePrefs(next);
@@ -141,6 +143,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     <div className="flex h-screen flex-col bg-slate-50">
       <WidgetNotifier
         self={data.self}
+        activeRepoId={data.scopeAll ? null : (data.lastRepo?.id ?? null)}
         prSeeds={data.prs.map((p) => ({
           repo_id: p.repo_id,
           number: p.number,
@@ -203,6 +206,37 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 <button onClick={() => setPref("enabled", !prefs.enabled)} aria-label="Toggle notifications">
                   <Switch on={prefs.enabled} small />
                 </button>
+              </div>
+              <div className={"mb-2 " + (prefs.enabled ? "" : "pointer-events-none opacity-40")}>
+                <div className="mb-1 text-[10px] font-medium text-slate-500">Notify me about</div>
+                <div className="flex gap-1">
+                  {([
+                    { key: "all", label: "All repos" },
+                    { key: "repo", label: "Active repo only" },
+                  ] as const).map((o) => (
+                    <button
+                      key={o.key}
+                      onClick={() => {
+                        const next = { ...prefs, scope: o.key };
+                        setPrefs(next);
+                        writePrefs(next);
+                      }}
+                      className={
+                        "flex-1 rounded border px-1.5 py-1 text-[10px] font-medium " +
+                        (prefs.scope === o.key
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                {prefs.scope === "repo" && data.scopeAll && (
+                  <p className="mt-1 text-[10px] leading-snug text-amber-700">
+                    No repo selected in the header — nothing will notify until you pick one.
+                  </p>
+                )}
               </div>
               <ul className={"space-y-2 " + (prefs.enabled ? "" : "pointer-events-none opacity-40")}>
                 {NOTIF_ROWS.map((r) => (
@@ -742,7 +776,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
             {data.digest && (
               <div className="card border-l-4 border-l-brand-400 px-2.5 py-2">
                 <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-700">
-                  Standup <span className="normal-case text-slate-400">· {data.digest.day}</span>
+                  Standup <span className="normal-case text-slate-400">· {data.digest.repo} · {data.digest.day}</span>
                 </div>
                 <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">{data.digest.body}</p>
               </div>

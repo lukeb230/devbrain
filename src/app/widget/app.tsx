@@ -8,8 +8,9 @@ import { useEffect, useState, useTransition } from "react";
 import { setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
+import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
-import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask } from "../dashboard/[repoId]/tasks/actions";
+import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetLive } from "./live";
@@ -26,7 +27,8 @@ export interface WidgetData {
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
-  tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null }[];
+  tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null; started_by: string | null; footprint: string[] | null }[];
+  claims: { id: string; repo_id: string; repo: string; dev_label: string; paths: string[]; note: string | null; expires_at: string | null }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
   handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
@@ -38,7 +40,7 @@ export interface WidgetData {
   self: string | null;
   repos: { id: string; name: string }[];
   digest: { day: string; body: string } | null;
-  mergeHint: string | null;
+  mergePlan: { repo: string; order: { number: number; title: string; reason: string }[] } | null;
 }
 
 const LIGHT_DOT: Record<string, string> = {
@@ -218,6 +220,42 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               </button>
             </div>
 
+            {data.lastRepo && (
+              <div className="card px-2.5 py-2">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Claim an area <span className="normal-case">· {data.lastRepo.name}</span>
+                </div>
+                <p className="mb-1.5 text-[10px] leading-snug text-slate-400">
+                  Working outside Claude Code? Claim your lane — teammates&apos; Claudes route around it.
+                </p>
+                <form action={createClaim} className="space-y-1.5">
+                  <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                  <input
+                    name="paths"
+                    required
+                    placeholder="Paths, comma-separated (e.g. src/auth/)"
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
+                  />
+                  <div className="flex gap-1.5">
+                    <input
+                      name="note"
+                      placeholder="What you're doing"
+                      className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
+                    />
+                    <select name="hours" defaultValue="4" className="rounded border border-slate-200 px-1 py-1 text-xs">
+                      <option value="1">1h</option>
+                      <option value="2">2h</option>
+                      <option value="4">4h</option>
+                      <option value="8">8h</option>
+                    </select>
+                    <button className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
+                      Claim
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
             {data.lastRepo && data.rules.length > 0 && (
               <div className="card px-2.5 py-2">
                 <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -268,6 +306,33 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <div key={c.repo + c.file} className="truncate text-xs text-slate-700">
                     <code className="text-amber-800">{c.file}</code>
                     <span className="text-slate-400"> · {c.branches.join(" + ")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {data.claims.length > 0 && (
+              <div className="card flex-shrink-0 px-2.5 py-1.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Claimed lanes</div>
+                {data.claims.slice(0, 3).map((c) => (
+                  <div key={c.id} className="flex items-center gap-1.5 text-xs text-slate-700">
+                    <span className="font-medium">{c.dev_label}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {c.paths.slice(0, 2).map((p) => (
+                        <code key={p} className="mr-1 rounded bg-slate-100 px-1 text-[10px] text-slate-600">{p}</code>
+                      ))}
+                      {c.note && <span className="text-[10px] text-slate-400">{c.note}</span>}
+                    </span>
+                    {c.expires_at && (
+                      <span className="flex-shrink-0 text-[10px] text-slate-400">
+                        {Math.max(1, Math.round((new Date(c.expires_at).getTime() - Date.now()) / 3600_000))}h
+                      </span>
+                    )}
+                    <form action={releaseClaim} className="flex-shrink-0">
+                      <input type="hidden" name="repoId" value={c.repo_id} />
+                      <input type="hidden" name="id" value={c.id} />
+                      <button className="text-[10px] text-slate-400 hover:text-brand-600">release</button>
+                    </form>
                   </div>
                 ))}
               </div>
@@ -455,12 +520,29 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                             </div>
                           )}
                           <div className="ml-6 mt-0.5 flex flex-wrap items-center gap-1">
+                            {t.started_by && (
+                              <span className="chip bg-emerald-50 px-1 py-0 text-[10px] text-emerald-700">
+                                in progress · {t.started_by}
+                              </span>
+                            )}
                             {t.tags.map((tag) => (
                               <span key={tag} className="chip bg-slate-100 px-1 py-0 text-[10px] text-slate-500">{tag}</span>
+                            ))}
+                            {(t.footprint ?? []).slice(0, 2).map((fp) => (
+                              <code key={fp} className="rounded bg-slate-50 px-1 text-[10px] text-slate-500 ring-1 ring-slate-200">{fp}</code>
                             ))}
                             <span className="text-[10px] text-slate-400">
                               {t.created_by} · {timeAgo(t.created_at)}
                             </span>
+                            {!t.started_by && (
+                              <form action={startTask}>
+                                <input type="hidden" name="repoId" value={t.repo_id} />
+                                <input type="hidden" name="id" value={t.id} />
+                                <button className="rounded border border-slate-200 px-1.5 py-0 text-[10px] font-medium text-slate-500 hover:border-brand-500 hover:text-brand-600">
+                                  Start
+                                </button>
+                              </form>
+                            )}
                             <form action={assignTask} className="ml-auto flex items-center gap-1">
                               <input type="hidden" name="repoId" value={t.repo_id} />
                               <input type="hidden" name="id" value={t.id} />
@@ -511,9 +593,24 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
         {tab === "PRs" && (
           <div className="space-y-2.5">
-          {data.mergeHint && (
-            <div className="card border-l-4 border-l-amber-400 px-2.5 py-1.5">
-              <p className="text-[11px] leading-snug text-slate-700">{data.mergeHint}</p>
+          {data.mergePlan && (
+            <div className="card border-l-4 border-l-amber-400 px-2.5 py-2">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                Suggested merge order <span className="normal-case text-slate-400">· {data.mergePlan.repo}</span>
+              </div>
+              <ol className="space-y-1">
+                {data.mergePlan.order.map((s, i) => (
+                  <li key={s.number} className="flex items-start gap-1.5 text-[11px] leading-snug">
+                    <span className="mt-px flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-[9px] font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="font-medium text-slate-800">#{s.number} {s.title}</span>
+                      <span className="block text-[10px] text-slate-500">{s.reason}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
           <div className="card px-2.5 py-2">

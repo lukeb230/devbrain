@@ -5,9 +5,94 @@
 // wikilink inside a note) swaps the panel instantly with zero server trips.
 // The URL is kept in sync via history.replaceState so deep links still work.
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { GRAPH_COLORS } from "./colors";
 import { BrainGraph, type GEdge, type GNode } from "./graph";
+
+// Typeahead search over note titles. Prefix matches rank first, then
+// word-boundary matches, then anywhere-substring. Arrow keys + Enter,
+// click to open; selecting a result opens the note AND highlights its node.
+function BrainSearch({
+  notes,
+  onPick,
+}: {
+  notes: { slug: string; title: string; type: string }[];
+  onPick: (slug: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  const results = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    if (!query) return [];
+    const scored: { slug: string; title: string; type: string; score: number }[] = [];
+    for (const n of notes) {
+      const t = n.title.toLowerCase();
+      let score = -1;
+      if (t.startsWith(query)) score = 0;
+      else if (t.split(/[\s-_/]+/).some((w) => w.startsWith(query))) score = 1;
+      else if (t.includes(query)) score = 2;
+      else if (n.slug.includes(query)) score = 3;
+      if (score >= 0) scored.push({ ...n, score });
+    }
+    return scored.sort((a, b) => a.score - b.score || a.title.localeCompare(b.title)).slice(0, 6);
+  }, [q, notes]);
+
+  const pick = (slug: string) => {
+    onPick(slug);
+    setQ("");
+    setOpen(false);
+    setCursor(0);
+  };
+
+  return (
+    <div className="relative mb-2">
+      <input
+        value={q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); setCursor(0); }}
+        onFocus={() => q && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)} // let clicks land
+        onKeyDown={(e) => {
+          if (!open || results.length === 0) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, results.length - 1)); }
+          if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
+          if (e.key === "Enter") { e.preventDefault(); pick(results[Math.min(cursor, results.length - 1)].slug); }
+          if (e.key === "Escape") setOpen(false);
+        }}
+        placeholder="Search notes…"
+        className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+      />
+      {open && results.length > 0 && (
+        <div className="absolute left-0 right-0 top-8 z-20 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+          {results.map((r, i) => (
+            <button
+              key={r.slug}
+              onMouseDown={(e) => { e.preventDefault(); pick(r.slug); }}
+              onMouseEnter={() => setCursor(i)}
+              className={
+                "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs " +
+                (i === cursor ? "bg-brand-50 text-brand-900" : "text-slate-700")
+              }
+            >
+              <span
+                className="h-2 w-2 flex-shrink-0 rounded-full"
+                style={{ background: GRAPH_COLORS[r.type] ?? "#94a3b8" }}
+              />
+              <span className="min-w-0 flex-1 truncate">{r.title}</span>
+              <span className="flex-shrink-0 text-[10px] text-slate-400">{r.type}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && q.trim() && results.length === 0 && (
+        <div className="absolute left-0 right-0 top-8 z-20 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-400 shadow-lg">
+          No notes match &ldquo;{q.trim()}&rdquo;
+        </div>
+      )}
+    </div>
+  );
+}
 
 export interface NotePayload {
   slug: string;
@@ -25,6 +110,7 @@ export function BrainExplorer({
   initialSlug,
   repoId,
   branch,
+  searchable,
 }: {
   notes: NotePayload[];
   nodes: GNode[];
@@ -32,6 +118,7 @@ export function BrainExplorer({
   initialSlug: string;
   repoId: string;
   branch: string | null;
+  searchable?: boolean;
 }) {
   const bySlug = new Map(notes.map((n) => [n.slug, n]));
   const [selected, setSelected] = useState<string | null>(
@@ -80,6 +167,12 @@ export function BrainExplorer({
         <h2 className="card-title mb-2">
           {nodes.length} notes · {edges.length} connections — drag nodes, click to open
         </h2>
+        {searchable && (
+          <BrainSearch
+            notes={notes.map((n) => ({ slug: n.slug, title: n.title, type: n.type }))}
+            onPick={select}
+          />
+        )}
         <BrainGraph nodes={nodes} edges={edges} selected={selected} onSelect={select} />
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
           {Object.entries(GRAPH_COLORS).map(([t, c]) => (

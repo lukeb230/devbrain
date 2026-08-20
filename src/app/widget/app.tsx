@@ -681,6 +681,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 initialSlug="index"
                 repoId={data.brain.repoId}
                 branch={null}
+                searchable
               />
             </div>
           ) : (

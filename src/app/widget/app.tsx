@@ -15,6 +15,7 @@ import { uploadSpec } from "../dashboard/[repoId]/specs/actions";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
+import { WidgetBadge } from "./badge";
 import { WidgetLive } from "./live";
 import {
   DEFAULT_PREFS,
@@ -141,6 +142,16 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
+      <WidgetBadge
+        input={{
+          self: data.self,
+          prs: data.prs.map((p) => ({ author: p.author, number: p.number, mergeable_state: p.mergeable_state, light: p.light })),
+          tasks: data.tasks.map((t) => ({ priority: t.priority, status: t.status, assigned_to: t.assigned_to })),
+          claims: data.claims.map((c) => ({ dev_label: c.dev_label, paths: c.paths })),
+          collisions: data.collisions.map((c) => ({ file: c.file, branches: c.branches })),
+          handoffs: data.handoffs.map((h) => ({ id: h.id, by: h.by })),
+        }}
+      />
       <WidgetNotifier
         self={data.self}
         activeRepoId={data.scopeAll ? null : (data.lastRepo?.id ?? null)}

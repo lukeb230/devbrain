@@ -51,13 +51,14 @@ export function BrainGraph({
   const drag = useRef<{ slug: string; moved: number; px: number; py: number } | null>(null);
   const pan = useRef<{ px: number; py: number; vx0: number; vy0: number; moved: number } | null>(null);
 
-  // World scales with node count: √(n/14) so 14 nodes = the classic box and
-  // 56 nodes = a 2× world. Spacing grows with it.
-  const scale = Math.max(1, Math.sqrt(nodes.length / 14));
+  // World scales with node count — but nodes and labels DON'T scale with it.
+  // That's the whole trick: fixed-size marks in a bigger world means visible
+  // separation at fit zoom, and zooming in makes things bigger, not just
+  // closer. (v1 scaled everything together, which changed nothing on screen.)
+  const scale = Math.max(1, Math.sqrt(nodes.length / 9));
   const WW = W * scale;
   const HH = H * scale;
-  const restLen = 120 * Math.pow(scale, 0.8);
-  const nodeBoost = 1 + (scale - 1) * 0.35; // nodes grow a little in big worlds
+  const restLen = 130 * scale;
 
   // View = zoom/pan state in world coordinates. k=1 shows the whole world.
   const view = useRef({ x: 0, y: 0, k: 1 });
@@ -111,7 +112,7 @@ export function BrainGraph({
   // any interaction. Cheap at this scale (O(n²) with n ≈ dozens).
   useEffect(() => {
     let raf = 0;
-    const repulsion = 3200 * scale * 1.4; // more elbow room, scaled to world
+    const repulsion = 3200 * scale * 2.4; // strong elbow room, scaled to world
     const loop = () => {
       const p = bodies.current;
       const a = alpha.current;
@@ -174,7 +175,10 @@ export function BrainGraph({
       e.preventDefault();
       const r = svg.getBoundingClientRect();
       const v = view.current;
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      // Smooth exponential zoom: trackpads stream small deltas (buttery),
+      // mouse wheels send big steps (~±100 → ~1.25x per notch). Pinch
+      // gestures arrive as ctrlKey wheel events and get a stronger factor.
+      const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022));
       const k2 = Math.max(MIN_K, Math.min(MAX_K, v.k * factor));
       if (k2 === v.k) return;
       // Keep the world point under the cursor stationary.
@@ -302,6 +306,24 @@ export function BrainGraph({
   const p = bodies.current;
   const v = view.current;
 
+  // Label policy: small graphs label everything; dense graphs label only the
+  // hubs (top by degree) until you zoom in past ~1.35x — then everything.
+  // Hover, selection, and the selection's neighbors are ALWAYS labeled.
+  const denseGraph = nodes.length > 18;
+  const zoomedIn = v.k >= 1.35;
+  const hubs = new Set(
+    denseGraph
+      ? [...nodes].sort((a, b) => b.degree - a.degree).slice(0, 6).map((n) => n.slug)
+      : [],
+  );
+  const showLabel = (slug: string) =>
+    !denseGraph ||
+    zoomedIn ||
+    hubs.has(slug) ||
+    slug === hover ||
+    slug === selected ||
+    selNeighbors.has(slug);
+
   return (
     <div className="relative">
       <svg
@@ -314,6 +336,7 @@ export function BrainGraph({
         onPointerMove={onPointerMove}
         onPointerDown={onBgPointerDown}
         onPointerUp={onBgPointerUp}
+        onDoubleClick={zoomFit}
       >
         {edges.map((e, i) => {
           const pa = p.get(e.a), pb = p.get(e.b);
@@ -334,9 +357,9 @@ export function BrainGraph({
           const b = p.get(n.slug);
           if (!b) return null;
           const isHover = hover === n.slug;
-          const r = (5 + Math.min(9, n.degree * 1.4)) * nodeBoost * (isHover ? 1.25 : 1);
+          const r = (5 + Math.min(9, n.degree * 1.4)) * (isHover ? 1.25 : 1);
           const c = GRAPH_COLORS[n.type] ?? "#94a3b8";
-          const fontSize = 9.5 * Math.sqrt(scale);
+          const fontSize = 9.5;
           return (
             <g
               key={n.slug}
@@ -358,15 +381,17 @@ export function BrainGraph({
               {/* generous invisible hit area so grabbing feels easy */}
               <circle r={Math.max(14, r + 6)} fill="transparent" />
               <circle r={r} fill={c} opacity={0.92} />
-              <text
-                y={r + fontSize + 3}
-                textAnchor="middle"
-                fontSize={fontSize}
-                fill={n.slug === focus ? "#0f172a" : "#8b96a5"}
-                style={{ pointerEvents: "none", fontWeight: n.slug === focus ? 600 : 400 }}
-              >
-                {n.title}
-              </text>
+              {showLabel(n.slug) && (
+                <text
+                  y={r + fontSize + 3}
+                  textAnchor="middle"
+                  fontSize={fontSize}
+                  fill={n.slug === focus ? "#0f172a" : "#8b96a5"}
+                  style={{ pointerEvents: "none", fontWeight: n.slug === focus ? 600 : 400 }}
+                >
+                  {n.title}
+                </text>
+              )}
             </g>
           );
         })}

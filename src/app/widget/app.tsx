@@ -11,6 +11,7 @@ import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
 import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
+import { uploadSpec } from "../dashboard/[repoId]/specs/actions";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
@@ -118,11 +119,13 @@ const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; detail: string }[] = [
   { key: "handoffs", label: "Handoffs", detail: "A teammate leaves unfinished work for pickup" },
   { key: "task_autocomplete", label: "Auto-completed tasks", detail: "A merge closed a task on the board automatically" },
   { key: "merge_lights", label: "Merge lights", detail: "Your PR is cleared to land, or was auto-merged" },
+  { key: "specs", label: "Context docs", detail: "A dropped spec finished analyzing and is ready to review" },
 ];
 
 export function WidgetApp({ data }: { data: WidgetData }) {
   const [tab, setTab] = useState<View>("Home");
   const [switching, startSwitch] = useTransition();
+  const [capture, setCapture] = useState<"dump" | "spec">("dump");
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   useEffect(() => setPrefs(readPrefs()), []); // localStorage only exists client-side
   const setPref = (key: keyof NotifPrefs, value: boolean) => {
@@ -412,20 +415,65 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         {tab === "Tasks" && (
           <div className="space-y-2.5">
             {data.lastRepo && (
-              <form action={braindumpTasks} className="card border-l-4 border-l-brand-400 px-2.5 py-2">
-                <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-700">Braindump</div>
-                <textarea
-                  name="dump"
-                  required
-                  rows={2}
-                  placeholder="Dictate or type everything on your mind — DevBrain splits it into tasks…"
-                  className="w-full resize-y rounded border border-slate-200 px-2 py-1 text-xs leading-snug focus:border-brand-500 focus:outline-none"
-                />
-                <button className="mt-1 rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
-                  Turn into tasks
-                </button>
-              </form>
+              <div className="card border-l-4 border-l-brand-400 px-2.5 py-2">
+                <div className="mb-1.5 flex gap-1">
+                  {([
+                    { key: "dump", label: "Braindump" },
+                    { key: "spec", label: "Context doc" },
+                  ] as const).map((m) => (
+                    <button
+                      key={m.key}
+                      onClick={() => setCapture(m.key)}
+                      className={
+                        "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider " +
+                        (capture === m.key
+                          ? "bg-brand-600 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200")
+                      }
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                {capture === "dump" ? (
+                  <form action={braindumpTasks}>
+                    <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                    <textarea
+                      name="dump"
+                      required
+                      rows={2}
+                      placeholder="Dictate or type everything on your mind — DevBrain splits it into tasks…"
+                      className="w-full resize-y rounded border border-slate-200 px-2 py-1 text-xs leading-snug focus:border-brand-500 focus:outline-none"
+                    />
+                    <button className="mt-1 rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
+                      Turn into tasks
+                    </button>
+                  </form>
+                ) : (
+                  <form action={uploadSpec}>
+                    <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                    <input type="hidden" name="stay" value="1" />
+                    <textarea
+                      name="text"
+                      required
+                      rows={3}
+                      placeholder="Paste a spec, brief, or a whole reply from another Claude session — DevBrain works out what's already built and what isn't…"
+                      className="w-full resize-y rounded border border-slate-200 px-2 py-1 text-xs leading-snug focus:border-brand-500 focus:outline-none"
+                    />
+                    <input
+                      name="title"
+                      placeholder="Title (optional)"
+                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
+                    />
+                    <button className="mt-1 rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
+                      Add context
+                    </button>
+                    <p className="mt-1 text-[10px] leading-snug text-slate-400">
+                      Analyzed within ~2 min — you&apos;ll get a notification, then review it on the dashboard.
+                    </p>
+                  </form>
+                )}
+              </div>
             )}
             {data.lastRepo && (
               <form action={createTask} className="card space-y-1.5 px-2.5 py-2">

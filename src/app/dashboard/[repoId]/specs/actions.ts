@@ -96,7 +96,10 @@ export async function uploadSpec(formData: FormData): Promise<void> {
     .single();
 
   revalidatePath(`/dashboard/${repoId}/specs`);
-  if (data?.id) redirect(`/dashboard/${repoId}/specs/${data.id}`);
+  revalidatePath("/widget");
+  // The widget passes stay=1: never navigate the panel to a dashboard URL
+  // (that's what used to strand it on the full site).
+  if (data?.id && !formData.get("stay")) redirect(`/dashboard/${repoId}/specs/${data.id}`);
 }
 
 // Create real tasks from the checked requirements. Footprint prediction picks

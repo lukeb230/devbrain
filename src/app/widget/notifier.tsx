@@ -24,6 +24,7 @@ export interface NotifPrefs {
   handoffs: boolean;
   task_autocomplete: boolean;
   merge_lights: boolean;
+  specs: boolean;
 }
 
 export const DEFAULT_PREFS: NotifPrefs = {
@@ -35,6 +36,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
   handoffs: true,
   task_autocomplete: true,
   merge_lights: true,
+  specs: true,
 };
 
 export function readPrefs(): NotifPrefs {
@@ -177,6 +179,13 @@ export function WidgetNotifier({ self, prSeeds }: { self: string | null; prSeeds
                 "Approved, conflict-free, and it's your turn — press merge.",
               );
             }
+          }
+          if (row.kind === "spec_ready" && p.specs) {
+            const d = (row.payload ?? {}) as { title?: string; total?: number; missing?: number; conflict?: number };
+            const bits = [`${d.total ?? 0} requirements`];
+            if (d.missing) bits.push(`${d.missing} not built`);
+            if (d.conflict) bits.push(`${d.conflict} conflict${d.conflict > 1 ? "s" : ""}`);
+            deliver(`Context analyzed: ${d.title ?? "spec"}`, `${bits.join(" · ")} — review on the dashboard.`);
           }
           if (row.kind === "pr_auto_merged" && p.merge_lights) {
             deliver(

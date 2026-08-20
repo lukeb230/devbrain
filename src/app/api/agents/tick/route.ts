@@ -370,6 +370,24 @@ export async function POST(request: Request) {
               ...(title ? { title: title.slice(0, 120) } : {}),
             })
             .eq("id", spec.id);
+          // Tell the team it's ready to review (widget notification).
+          const counts = { done: 0, partial: 0, missing: 0, conflict: 0 } as Record<string, number>;
+          for (const it of items) {
+            const v = verdicts.get(it.key)?.verdict ?? "missing";
+            counts[v] = (counts[v] ?? 0) + 1;
+          }
+          await admin.from("events").insert({
+            org_id: spec.org_id,
+            repo_id: spec.repo_id,
+            kind: "spec_ready",
+            payload: {
+              spec_id: spec.id,
+              title: title || spec.title,
+              total: items.length,
+              missing: counts.missing,
+              conflict: counts.conflict,
+            },
+          });
           did.spec = `${spec.title}: ${items.length} requirements`;
         }
       } catch (err) {

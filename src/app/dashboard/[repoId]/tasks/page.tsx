@@ -4,6 +4,7 @@ import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Live } from "../live";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "./actions";
+import { TaskMenu } from "./task-menu";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // braindump splitter calls Claude from a server action
@@ -271,6 +272,18 @@ export default async function TasksPage({
                           Set
                         </button>
                       </form>
+                      <TaskMenu
+                        task={{
+                          id: t.id,
+                          repo_id: repo.id,
+                          title: t.title,
+                          detail: t.detail,
+                          priority: t.priority,
+                          tags: (t.tags as string[]) ?? [],
+                          assigned_to: t.assigned_to,
+                        }}
+                        members={members}
+                      />
                     </li>
                   ))}
                 </ul>

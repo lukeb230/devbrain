@@ -9,6 +9,7 @@ import { setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
+import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
@@ -503,6 +504,19 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                               />
                             </form>
                             <span className="min-w-0 flex-1 truncate font-medium text-slate-900">{t.title}</span>
+                            <TaskMenu
+                              compact
+                              task={{
+                                id: t.id,
+                                repo_id: t.repo_id,
+                                title: t.title,
+                                detail: t.detail,
+                                priority: t.priority,
+                                tags: t.tags,
+                                assigned_to: t.assigned_to,
+                              }}
+                              members={data.members}
+                            />
                           </div>
                           {t.detail && (
                             <div className="ml-6 truncate text-[10px] text-slate-500">{t.detail}</div>

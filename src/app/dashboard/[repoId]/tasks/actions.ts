@@ -275,3 +275,73 @@ export async function startTask(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
 }
+
+// Full task edit (from the three-dots menu): title, detail, priority,
+// assignee, tags — everything but status, which has its own flows.
+export async function updateTask(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  const title = String(formData.get("title") || "").trim().slice(0, 200);
+  if (!repoId || !id || !title) return;
+  const ctx = await authedRepo(repoId);
+  if (!ctx) return;
+
+  const detail = String(formData.get("detail") || "").trim().slice(0, 1000) || null;
+  const priority = Math.min(4, Math.max(1, Number(formData.get("priority")) || 3));
+  const assigned = String(formData.get("assignee") || "").trim() || null;
+  const tags = [
+    ...new Set(
+      String(formData.get("tags") || "")
+        .split(",")
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].slice(0, 8);
+
+  const { data: before } = await supabaseAdmin()
+    .from("tasks")
+    .select("title, detail")
+    .eq("id", id)
+    .eq("repo_id", ctx.repo.id)
+    .single();
+
+  await supabaseAdmin()
+    .from("tasks")
+    .update({
+      title,
+      detail,
+      priority,
+      assigned_to: assigned,
+      tags,
+      // Title or detail changed → the predicted footprint may be wrong;
+      // clear it so the footprint agent re-predicts on the next tick.
+      ...(before && (before.title !== title || before.detail !== detail)
+        ? { footprint: null, footprint_at: null }
+        : {}),
+    })
+    .eq("id", id)
+    .eq("repo_id", ctx.repo.id);
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/widget");
+}
+
+// Delete a task outright (junk braindump entries, duplicates). Releases any
+// lane claims tied to it first so nothing lingers.
+export async function deleteTask(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  if (!repoId || !id) return;
+  const ctx = await authedRepo(repoId);
+  if (!ctx) return;
+  const admin = supabaseAdmin();
+  await admin
+    .from("claims")
+    .update({ released_at: new Date().toISOString() })
+    .eq("task_id", id)
+    .is("released_at", null);
+  await admin.from("tasks").delete().eq("id", id).eq("repo_id", ctx.repo.id);
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/widget");
+}

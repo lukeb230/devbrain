@@ -39,8 +39,12 @@ export default async function TokensPage() {
               {newToken}
             </code>
             <p className="mt-2 text-xs text-slate-500">
-              Use it in <code className="rounded bg-slate-100 px-1">devbrain init</code> on
-              your machine.
+              The{" "}
+              <a href="/settings/setup" className="font-medium text-brand-600 hover:underline">
+                Setup page
+              </a>{" "}
+              shows a one-line command with this token already in it — paste it
+              and your machine is connected.
             </p>
           </div>
         )}

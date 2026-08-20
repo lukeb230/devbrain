@@ -50,7 +50,13 @@ export function AppNav({
           >
             Link repo
           </a>
-          <Link href="/settings/tokens" className="text-slate-500 hover:text-slate-900">
+          <Link href="/settings/setup" className="text-slate-500 hover:text-slate-900">
+            Setup
+          </Link>
+          <Link href="/settings/members" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+            Members
+          </Link>
+          <Link href="/settings/tokens" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Tokens
           </Link>
           <form action="/auth/sign-out" method="post">

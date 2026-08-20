@@ -43,12 +43,15 @@ export async function createToken(formData: FormData): Promise<void> {
   // Stash the plaintext once in a short-lived cookie so the page can show it
   // after the redirect, then it exists nowhere server-side except as a hash.
   const { cookies } = await import("next/headers");
+  // Scoped to /settings (not just /tokens) so the Setup page can render the
+  // paste-one connect command with the token already embedded.
   (await cookies()).set("devbrain_new_token", token, {
-    maxAge: 60,
+    maxAge: 120,
     httpOnly: false,
-    path: "/settings/tokens",
+    path: "/settings",
   });
   revalidatePath("/settings/tokens");
+  revalidatePath("/settings/setup");
 }
 
 export async function revokeToken(formData: FormData): Promise<void> {

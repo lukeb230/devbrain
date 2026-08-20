@@ -15,23 +15,28 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
-      // Allowlist: if DEVBRAIN_ALLOWED_LOGINS is set (comma-separated GitHub
-      // usernames), only those accounts may use the app. Unset = open (dev).
-      const allowRaw = process.env.DEVBRAIN_ALLOWED_LOGINS || "";
-      if (allowRaw.trim()) {
-        const allowed = allowRaw
-          .split(",")
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean);
+      const admin = supabaseAdmin();
+
+      // Allowlist = DEVBRAIN_ALLOWED_LOGINS (env) ∪ allowed_members (table).
+      // Additive on purpose: the Members page can add people without a Vercel
+      // redeploy, and adopting the table can never lock out the env list.
+      // Both empty = open instance (dev only).
+      const envAllowed = (process.env.DEVBRAIN_ALLOWED_LOGINS || "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const { data: memberRows } = await admin.from("allowed_members").select("login");
+      const dbAllowed = (memberRows ?? []).map((r) => String(r.login).toLowerCase());
+      const allowed = new Set([...envAllowed, ...dbAllowed]);
+      if (allowed.size > 0) {
         const login = (
           (data.user.user_metadata?.user_name as string | undefined) ?? ""
         ).toLowerCase();
-        if (!allowed.includes(login)) {
+        if (!allowed.has(login)) {
           await supabase.auth.signOut();
           return NextResponse.redirect(`${origin}/?denied=1`);
         }
       }
-      const admin = supabaseAdmin();
       const { data: memberships } = await admin
         .from("org_members")
         .select("org_id")

@@ -241,6 +241,7 @@ export default async function WidgetPage() {
     conflicted: (prs ?? []).filter((p) => p.mergeable_state === "dirty").length,
     rules,
     self,
+    repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id) })),
     digest: (digestRows ?? [])[0] ?? null,
     mergeHint: (() => {
       // One-line merge-order hint for the last-visited repo's overlapping PRs.

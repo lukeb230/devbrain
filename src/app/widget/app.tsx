@@ -4,7 +4,8 @@
 // (tasks + who's working — the glance content), and a bottom tab bar for
 // Tasks / PRs / Brain / Feed. Tab switches are instant (pure client state).
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { PrBadges } from "@/components/PrBadges";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
@@ -35,6 +36,7 @@ export interface WidgetData {
   conflicted: number;
   rules: { rule: string; label: string; on: boolean }[];
   self: string | null;
+  repos: { id: string; name: string }[];
   digest: { day: string; body: string } | null;
   mergeHint: string | null;
 }
@@ -116,6 +118,7 @@ const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; detail: string }[] = [
 
 export function WidgetApp({ data }: { data: WidgetData }) {
   const [tab, setTab] = useState<View>("Home");
+  const [switching, startSwitch] = useTransition();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   useEffect(() => setPrefs(readPrefs()), []); // localStorage only exists client-side
   const setPref = (key: keyof NotifPrefs, value: boolean) => {
@@ -145,12 +148,42 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           <span className="text-sm font-semibold text-slate-900">DevBrain</span>
           <WidgetLive />
         </span>
-        <button
-          onClick={() => setTab(tab === "Settings" ? "Home" : "Settings")}
-          className={"text-[11px] " + (tab === "Settings" ? "font-medium text-brand-700" : "text-slate-400 hover:text-brand-600")}
-        >
-          Settings
-        </button>
+        <span className="flex items-center gap-1.5">
+          {data.repos.length > 0 && (
+            <select
+              value={data.lastRepo?.id ?? ""}
+              disabled={switching}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id) startSwitch(() => setWidgetRepo(id));
+              }}
+              title="Active repo — drives Brain, task creation, and Settings rules"
+              className={
+                "max-w-[130px] truncate rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-700 focus:border-brand-500 focus:outline-none " +
+                (switching ? "opacity-50" : "")
+              }
+            >
+              {!data.lastRepo && <option value="">repo…</option>}
+              {data.repos.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => setTab(tab === "Settings" ? "Home" : "Settings")}
+            aria-label="Settings"
+            title="Settings"
+            className={
+              "rounded-md p-1 " +
+              (tab === "Settings" ? "bg-brand-50 text-brand-700" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700")
+            }
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </span>
       </div>
 
       {/* Content */}

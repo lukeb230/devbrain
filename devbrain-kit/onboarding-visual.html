@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevBrain — Teammate Onboarding Guide</title>
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #898781;
+    --hairline: #e1e0d9; --border: rgba(11,11,11,0.10);
+    --brand: #4f46e5; --brand-dark: #3730a3; --brand-wash: #eef2ff;
+    --good: #0ca30c; --good-text: #006300;
+    --critical: #d03b3b; --warn: #b45309; --warn-wash: #fef3e2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 32px 80px; }
+  section { margin-top: 56px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); margin-bottom: 6px; }
+  h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .sub { font-size: 15px; color: var(--ink-2); max-width: 740px; margin-bottom: 22px; }
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  code.inline { background: #f1f0ec; border: 1px solid var(--hairline); border-radius: 5px; padding: 1px 6px; font-size: 0.9em; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  pre { background: #16161a; color: #e8e8ee; border-radius: 10px; padding: 14px 16px; font-size: 12px; line-height: 1.6; overflow-x: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 10px; }
+  pre .c { color: #8f8fa3; }
+
+  .hero { padding-top: 52px; }
+  .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--brand-wash); color: var(--brand-dark); border: 1px solid #dfe3fb; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px; margin-bottom: 18px; }
+  .hero h1 { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.12; }
+  .hero h1 .accent { color: var(--brand); }
+  .hero p.lede { font-size: 17px; color: var(--ink-2); max-width: 700px; margin-top: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 28px; }
+  .tile { padding: 14px 14px 12px; }
+  .tile .v { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--brand); }
+  .tile .l { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
+  @media (max-width: 800px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+
+  .diagram { padding: 26px 26px 20px; overflow-x: auto; }
+  .diagram svg { display: block; width: 100%; height: auto; min-width: 720px; }
+
+  /* who-does-what strip -->  */
+  .lane-label { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .lane-label .dot { width: 9px; height: 9px; border-radius: 99px; }
+
+  /* steps */
+  .phase { display: flex; gap: 18px; padding: 20px 24px; margin-bottom: 10px; }
+  .phase .num { flex-shrink: 0; width: 34px; height: 34px; border-radius: 999px; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; }
+  .num.admin { background: var(--ink); }
+  .num.mate { background: var(--brand); }
+  .phase .body { min-width: 0; flex: 1; }
+  .phase h3 { font-size: 15.5px; font-weight: 700; }
+  .phase .time { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .phase p { font-size: 13.5px; color: var(--ink-2); }
+  .phase p + p { margin-top: 6px; }
+  .phase .note { margin-top: 10px; background: var(--brand-wash); border: 1px solid #dfe3fb; border-radius: 8px; padding: 9px 13px; font-size: 12.5px; color: var(--brand-dark); }
+  .phase .warnbox { margin-top: 10px; background: var(--warn-wash); border: 1px solid #f3ddb8; border-radius: 8px; padding: 9px 13px; font-size: 12.5px; color: var(--warn); }
+
+  /* gotchas */
+  .gotchas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gotcha { padding: 18px 20px; border-top: 3px solid var(--warn); }
+  .gotcha h4 { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
+  .gotcha p { font-size: 12.5px; color: var(--ink-2); }
+  @media (max-width: 760px) { .gotchas { grid-template-columns: 1fr; } }
+
+  /* checklist */
+  .check { padding: 20px 24px; }
+  .check h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .check ul { list-style: none; }
+  .check li { font-size: 13px; color: var(--ink-2); padding: 5px 0 5px 26px; position: relative; }
+  .check li::before { content: ""; position: absolute; left: 0; top: 8px; width: 13px; height: 13px; border: 1.5px solid var(--ink-3); border-radius: 3px; }
+  .check li strong { color: var(--ink); font-weight: 600; }
+  .checkrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .checkrow { grid-template-columns: 1fr; } }
+
+  footer { margin-top: 60px; padding-top: 18px; border-top: 1px solid var(--hairline); font-size: 12px; color: var(--ink-3); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <span class="hero-badge">Onboarding guide · one page per teammate · Aug 19, 2026</span>
+    <h1>Getting a teammate<br><span class="accent">onto DevBrain.</span></h1>
+    <p class="lede">Four things have to happen: they can <strong>sign in</strong>, their <strong>Claude joins the hive mind</strong>, the <strong>widget lands on their Mac</strong>, and we <strong>prove it works</strong>. Luke does about ten minutes of admin once; each teammate does about fifteen minutes on their own machine.</p>
+    <div class="tiles">
+      <div class="card tile"><div class="v">~10 min</div><div class="l">Admin prep (Luke)</div></div>
+      <div class="card tile"><div class="v">~15 min</div><div class="l">Per teammate</div></div>
+      <div class="card tile"><div class="v">4</div><div class="l">Things to install</div></div>
+      <div class="card tile"><div class="v">0</div><div class="l">Secrets shared in chat</div></div>
+    </div>
+  </section>
+
+  <!-- ============ THE MAP ============ -->
+  <section>
+    <div class="kicker">The route</div>
+    <h2>Seven steps, two lanes.</h2>
+    <p class="sub">Black steps are Luke's (do them once, before inviting anyone). Blue steps are the teammate's — send them this doc and they can self-serve.</p>
+    <div class="card diagram">
+      <svg viewBox="0 0 1000 260" role="img" aria-label="Onboarding steps flow">
+        <defs>
+          <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#898781" stroke-width="1.8"/>
+          </marker>
+        </defs>
+        <!-- lane labels -->
+        <text x="20" y="66" font-size="11" font-weight="700" fill="#0b0b0b" letter-spacing="1">LUKE</text>
+        <text x="20" y="180" font-size="10" font-weight="700" fill="#4f46e5" letter-spacing="0.5">TEAM-</text>
+        <text x="20" y="193" font-size="10" font-weight="700" fill="#4f46e5" letter-spacing="0.5">MATE</text>
+        <line x1="20" y1="120" x2="980" y2="120" stroke="#e1e0d9" stroke-dasharray="4 4"/>
+
+        <!-- Luke lane -->
+        <rect x="90" y="36" width="180" height="56" rx="10" fill="#0b0b0b"/>
+        <text x="180" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1 · Allowlist + redeploy</text>
+        <text x="180" y="77" text-anchor="middle" font-size="10" fill="#c3c2b7">Vercel env var</text>
+
+        <rect x="310" y="36" width="180" height="56" rx="10" fill="#0b0b0b"/>
+        <text x="400" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2 · GitHub collaborators</text>
+        <text x="400" y="77" text-anchor="middle" font-size="10" fill="#c3c2b7">both repos</text>
+
+        <rect x="530" y="36" width="180" height="56" rx="10" fill="#0b0b0b"/>
+        <text x="620" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">3 · Share widget app</text>
+        <text x="620" y="77" text-anchor="middle" font-size="10" fill="#c3c2b7">zip of DevBrain.app</text>
+
+        <!-- Teammate lane -->
+        <rect x="90" y="156" width="180" height="56" rx="10" fill="#4f46e5"/>
+        <text x="180" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">4 · Sign in + token</text>
+        <text x="180" y="197" text-anchor="middle" font-size="10" fill="#dfe3fb">dashboard</text>
+
+        <rect x="310" y="156" width="180" height="56" rx="10" fill="#4f46e5"/>
+        <text x="400" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">5 · Connect machine</text>
+        <text x="400" y="197" text-anchor="middle" font-size="10" fill="#dfe3fb">devbrain init + plugin</text>
+
+        <rect x="530" y="156" width="180" height="56" rx="10" fill="#4f46e5"/>
+        <text x="620" y="180" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">6 · Install widget</text>
+        <text x="620" y="197" text-anchor="middle" font-size="10" fill="#dfe3fb">drag to Applications</text>
+
+        <rect x="750" y="96" width="180" height="56" rx="10" fill="#fcfcfb" stroke="#0ca30c" stroke-width="2"/>
+        <text x="840" y="120" text-anchor="middle" font-size="12" font-weight="700" fill="#006300">7 · Prove it works</text>
+        <text x="840" y="137" text-anchor="middle" font-size="10" fill="#52514e">verification checklist</text>
+
+        <!-- arrows -->
+        <path d="M 270 64 L 306 64" stroke="#898781" stroke-width="1.8" marker-end="url(#arr3)"/>
+        <path d="M 490 64 L 526 64" stroke="#898781" stroke-width="1.8" marker-end="url(#arr3)"/>
+        <path d="M 270 184 L 306 184" stroke="#898781" stroke-width="1.8" marker-end="url(#arr3)"/>
+        <path d="M 490 184 L 526 184" stroke="#898781" stroke-width="1.8" marker-end="url(#arr3)"/>
+        <path d="M 710 64 C 740 64, 740 110, 748 114" fill="none" stroke="#898781" stroke-width="1.8" marker-end="url(#arr3)"/>
+        <path d="M 710 184 C 740 184, 740 140, 748 136" fill="none" stroke="#898781" stroke-width="1.8" marker-end="url(#arr3)"/>
+        <!-- handoff between lanes -->
+        <path d="M 180 92 L 180 152" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr3)"/>
+        <text x="192" y="130" font-size="9.5" fill="#898781">"you're in — go"</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ============ LUKE'S STEPS ============ -->
+  <section>
+    <div class="kicker">Lane one</div>
+    <h2>Luke's prep — do once, ~10 minutes.</h2>
+
+    <div class="card phase">
+      <span class="num admin">1</span>
+      <div class="body">
+        <h3>Add them to the allowlist</h3>
+        <div class="time">Vercel · ~3 min</div>
+        <p>Vercel → the DevBrain project → <strong>Settings → Environment Variables</strong> → edit <code class="inline">DEVBRAIN_ALLOWED_LOGINS</code>. It's a comma-separated list of GitHub usernames — add theirs exactly as it appears on GitHub:</p>
+        <pre>DEVBRAIN_ALLOWED_LOGINS=lukeb230,teammate-one,teammate-two</pre>
+        <p>Then <strong>Deployments → Redeploy</strong> the latest build — env changes don't apply until a redeploy. Until this is done, their sign-in is rejected by design.</p>
+      </div>
+    </div>
+
+    <div class="card phase">
+      <span class="num admin">2</span>
+      <div class="body">
+        <h3>Add them as GitHub collaborators</h3>
+        <div class="time">GitHub · ~3 min</div>
+        <p>Two repos, both under <strong>Settings → Collaborators → Add people</strong>:</p>
+        <p><code class="inline">lukeb230/gear-tracker</code> — the test repo they'll actually code in.<br>
+        <code class="inline">lukeb230/devbrain-test</code> — holds the plugin marketplace and CLI; the plugin install fails without read access.</p>
+        <p>They'll each get an email invite — remind them to accept it before step 5.</p>
+      </div>
+    </div>
+
+    <div class="card phase">
+      <span class="num admin">3</span>
+      <div class="body">
+        <h3>Share the widget app</h3>
+        <div class="time">~3 min</div>
+        <p>The widget is already built on your Mac. Zip it and send it however you like (AirDrop, Drive, Slack):</p>
+        <pre>cd /Applications && zip -r ~/Desktop/DevBrain-widget.zip DevBrain.app</pre>
+        <div class="note">Alternative: teammates can build from source (the <code class="inline">widget-shell-src-v2.zip</code> + Rust + Node + Xcode command-line tools, ~20 min). Sharing the built app is faster and identical.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TEAMMATE STEPS ============ -->
+  <section>
+    <div class="kicker">Lane two</div>
+    <h2>The teammate's setup — ~15 minutes, self-serve.</h2>
+    <p class="sub">Prerequisites: a GitHub account (on the allowlist), Node 18+, and Claude Code installed.</p>
+
+    <div class="card phase">
+      <span class="num mate">4</span>
+      <div class="body">
+        <h3>Sign in and mint your token</h3>
+        <div class="time">Browser · ~3 min</div>
+        <p><strong>a.</strong> Go to <code class="inline">https://devbrain-ebon.vercel.app</code> → <strong>Sign in with GitHub</strong>. You'll land on the team dashboard, already inside the shared org — live presence, tasks, the brain.</p>
+        <p><strong>b.</strong> Dashboard → <strong>Tokens</strong> (top right) → label it after your machine (e.g. <code class="inline">maya-mbp</code>) → <strong>Create token</strong> → copy it now. It's shown once, stored hashed, and revocable any time.</p>
+        <div class="warnbox">Rejected at sign-in? You're not on the allowlist yet — ping Luke (step 1).</div>
+      </div>
+    </div>
+
+    <div class="card phase">
+      <span class="num mate">5</span>
+      <div class="body">
+        <h3>Connect your machine + your Claude</h3>
+        <div class="time">Terminal + Claude Code · ~7 min</div>
+        <p><strong>a.</strong> Clone both repos and run the connector:</p>
+        <pre>git clone https://github.com/lukeb230/gear-tracker.git
+git clone https://github.com/lukeb230/devbrain-test.git
+node devbrain-test/cli/bin/devbrain.mjs init
+<span class="c"># asks for: server URL (https://devbrain-ebon.vercel.app) + your token</span>
+<span class="c"># writes ~/.devbrain/config.json and installs the presence hooks</span></pre>
+        <p><strong>b.</strong> Verify the chain end to end:</p>
+        <pre>cd gear-tracker && node ../devbrain-test/cli/bin/devbrain.mjs doctor
+<span class="c"># every line should be a check mark</span></pre>
+        <p><strong>c.</strong> In any Claude Code session, install the plugin, then restart the session:</p>
+        <pre>/plugin marketplace add lukeb230/devbrain-test
+/plugin install devbrain@devbrain-marketplace</pre>
+        <div class="note">This is the hive-mind step. From now on your Claude sees teammates' live sessions, checks for collisions before every file edit, reads the team rules, task board, and brain — automatically, every session.</div>
+      </div>
+    </div>
+
+    <div class="card phase">
+      <span class="num mate">6</span>
+      <div class="body">
+        <h3>Install the widget</h3>
+        <div class="time">~3 min</div>
+        <p><strong>a.</strong> Unzip <code class="inline">DevBrain-widget.zip</code> and drag <code class="inline">DevBrain.app</code> into <strong>Applications</strong>, then open it. The app is unsigned, so macOS will balk the first time — clear it with:</p>
+        <pre>xattr -dr com.apple.quarantine /Applications/DevBrain.app</pre>
+        <p>(or right-click the app → Open → Open.)</p>
+        <p><strong>b.</strong> A brain icon appears in the <strong>menu bar</strong> (never the Dock — that's intentional). Hover your cursor into the bottom-right corner of the screen: a badge pops up; click it and the panel slides out. Sign in with GitHub inside the panel.</p>
+        <p><strong>c.</strong> In the panel, open <strong>Settings</strong> (top right) → hit <strong>Send test notification</strong> → click Allow when macOS asks. Pick your preferred corner and "Launch at login" from the menu-bar icon's dropdown.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GOTCHAS ============ -->
+  <section>
+    <div class="kicker">Known snags</div>
+    <h2>The four things that actually trip people up.</h2>
+    <div class="gotchas">
+      <div class="card gotcha">
+        <h4>GitHub 2FA inside the widget panel</h4>
+        <p>If your GitHub 2FA is "GitHub Mobile only", the panel's sign-in can dead-end (no email-code option exists for 2FA accounts). Fix once: GitHub → Settings → Password and authentication → add an <strong>authenticator app</strong> — the macOS Passwords app works great. Then any TOTP code signs you in anywhere.</p>
+      </div>
+      <div class="card gotcha">
+        <h4>"App can't be opened" on first launch</h4>
+        <p>That's Gatekeeper objecting to the unsigned build. The <code class="inline">xattr -dr com.apple.quarantine</code> command in step 6 (or right-click → Open) clears it permanently. You only do this once.</p>
+      </div>
+      <div class="card gotcha">
+        <h4>Plugin installed but tools don't answer</h4>
+        <p>Two usual causes: you didn't <strong>restart the Claude Code session</strong> after installing, or <code class="inline">devbrain init</code> was never run so <code class="inline">~/.devbrain/config.json</code> is missing. Run <code class="inline">doctor</code> — it names the broken link.</p>
+      </div>
+      <div class="card gotcha">
+        <h4>Invite not accepted</h4>
+        <p>The <code class="inline">git clone</code> of a private repo fails with "repository not found" until the GitHub collaborator invite (sitting in your email) is accepted. Accept both invites before step 5.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VERIFY ============ -->
+  <section>
+    <div class="kicker">Step seven</div>
+    <h2>Prove it works — both sides check.</h2>
+    <div class="checkrow">
+      <div class="card check">
+        <h3>The teammate confirms</h3>
+        <ul>
+          <li>Open Claude Code in <code class="inline">gear-tracker/</code> and ask <strong>"what's the team up to right now?"</strong> — it answers with live names and files</li>
+          <li>Ask <strong>"what should I work on next?"</strong> — it suggests from the task board with reasoning</li>
+          <li>Widget corner badge pops on hover; panel shows Home with to-dos and who's working</li>
+          <li>Test notification arrived as a native macOS banner</li>
+        </ul>
+      </div>
+      <div class="card check">
+        <h3>Luke confirms</h3>
+        <ul>
+          <li>New teammate appears under <strong>Now working</strong> on the dashboard while their session is open</li>
+          <li>Their edits show in the Activity feed with a readable label</li>
+          <li>Both editing the same file → the second Claude gets a <strong>collision warning</strong> before touching it</li>
+          <li>Their name shows up in task assignee dropdowns</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>DevBrain — teammate onboarding guide · send this page with the invite</span>
+    <span>Aug 19, 2026 · devbrain-ebon.vercel.app</span>
+  </footer>
+</div>
+</body>
+</html>

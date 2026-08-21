@@ -1,0 +1,11 @@
+{
+  "name": "devbrain-marketplace",
+  "owner": { "name": "Veriflush dev team" },
+  "plugins": [
+    {
+      "name": "devbrain",
+      "source": "./plugin",
+      "description": "Connects your Claude to the team's DevBrain: live team context, collision checks, and the shared second brain."
+    }
+  ]
+}

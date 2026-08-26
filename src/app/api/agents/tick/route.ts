@@ -43,9 +43,13 @@ export async function POST(request: Request) {
   // sections (reviews, matcher, digest, zombie summaries) need the key.
   const admin = supabaseAdmin();
   const did: Record<string, unknown> = {};
+  // Kill switch: DEVBRAIN_TICK_DISABLED="review,digest" skips those units on
+  // the next tick with no deploy. Names match the keys below.
+  const off = new Set((process.env.DEVBRAIN_TICK_DISABLED ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+  if (off.size) did.disabled = [...off];
 
   // ---- 1. PR review: pick one unreviewed open PR --------------------------
-  try {
+  if (!off.has("review")) try {
     if (!agentConfigured()) throw new Error("skip: no API key");
     const { data: openPrs } = await admin
       .from("prs")
@@ -135,7 +139,7 @@ export async function POST(request: Request) {
   // by the webhook. This pass covers the rest. Asymmetric by design: "complete"
   // auto-closes (except P1 — critical tasks always earn a human click);
   // "likely" only badges the task as "possibly done — confirm".
-  try {
+  if (!off.has("match")) try {
     if (!agentConfigured()) throw new Error("skip: no API key");
     const { data: pendingPrs } = await admin
       .from("prs")
@@ -236,7 +240,7 @@ export async function POST(request: Request) {
   // Two calls: extract the doc's requirements, then judge each against the
   // reality corpus (brain notes, repo tree, tasks, merged PRs). Nothing is
   // auto-created — the review screen turns chosen gaps into tasks.
-  try {
+  if (!off.has("spec")) try {
     if (!agentConfigured()) throw new Error("skip: no API key");
     const { data: queued } = await admin
       .from("specs")
@@ -406,7 +410,7 @@ export async function POST(request: Request) {
   // Open tasks with no footprint get one predicted from the repo tree, up to
   // 5 per tick in a single Claude call. The dispatcher (context route) uses
   // footprints to hand devs non-overlapping work.
-  try {
+  if (!off.has("footprint")) try {
     if (!agentConfigured()) throw new Error("skip: no API key");
     const { data: bare } = await admin
       .from("tasks")
@@ -489,7 +493,7 @@ export async function POST(request: Request) {
   // event (the author's widget turns it into "press merge"). If the repo's
   // writer_auto_merge policy is ON and the writer app is installed, the
   // writer presses merge itself — GitHub branch protection is the backstop.
-  try {
+  if (!off.has("lights")) try {
     const { data: allOpen } = await admin
       .from("prs")
       .select("repo_id, org_id, number, title, author, review_state, mergeable_state, draft, changed_files, light")
@@ -581,7 +585,7 @@ export async function POST(request: Request) {
   // Unmerged, PR-less, quiet for 7+ days → flag with a summary of what's
   // inside so rescue-or-delete is an informed decision. Detection is
   // deterministic; the summary uses the agent when available.
-  try {
+  if (!off.has("zombie")) try {
     const cutoff = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
     const { data: candidates } = await admin
       .from("branches")
@@ -656,7 +660,7 @@ export async function POST(request: Request) {
   // into that repo's Claude context, so blending repos leaked cross-project
   // work into both. One Claude call per active repo per day; at most one real
   // call per tick so we always fit the function window.
-  try {
+  if (!off.has("digest")) try {
     if (agentConfigured() && new Date().getUTCHours() >= DIGEST_HOUR_UTC) {
       const today = new Date().toISOString().slice(0, 10);
       const { data: repos } = await admin
@@ -732,6 +736,10 @@ export async function POST(request: Request) {
   } catch (err) {
     did.digest_error = String(err).slice(0, 300);
   }
+
+  // Heartbeat — `devbrain doctor` and /api/v1/health read this to prove the
+  // cron schedule is alive (it lives in Supabase, not in a migration).
+  await admin.from("system_state").upsert({ key: "last_tick", value: did, updated_at: new Date().toISOString() });
 
   return NextResponse.json({ ok: true, ...did });
 }

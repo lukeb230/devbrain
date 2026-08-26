@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
+import { PRIORITY_MAP, parseTitle } from "@/lib/reminders";
 
 // ============================================================================
 // Reminders sync — a Mac-side collector posts the contents of a shared Apple
@@ -22,23 +23,6 @@ import { resolveDevToken } from "@/lib/token";
 // Auth: Bearer <dev token> — same as /api/v1/ingest. Idempotent: keyed on
 // (repo_id, external_ref); safe for two Macs to run collectors on one list.
 // ============================================================================
-
-const PRIORITY_MAP: Record<number, number> = { 1: 1, 5: 2, 9: 3, 0: 3 };
-
-function parseTitle(raw: string): { title: string; assignee: string | null; tags: string[] } {
-  let title = String(raw || "").slice(0, 300);
-  // A tag needs at least one letter — "#212" is a PR reference, not a tag.
-  const TAG = /#(?=[\w-]*[a-z])([a-z0-9][\w-]*)/gi;
-  const tags = [...title.matchAll(TAG)].map((m) => m[1].toLowerCase());
-  const at = title.match(/@([a-z0-9][\w-]*)/i);
-  const assignee = at ? at[1].toLowerCase() : null;
-  title = title
-    .replace(TAG, "")
-    .replace(/@[a-z0-9][\w-]*/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  return { title: title.slice(0, 200), assignee, tags: [...new Set(tags)].slice(0, 8) };
-}
 
 interface Item {
   id?: string;

@@ -6,10 +6,12 @@ session — is editing right now), open PRs with collision warnings, a
 git-versioned team vault, restore-point timelines, and a context API that
 briefs every agent session before it writes a line.
 
-**Status: Phase 0 scaffold** — auth, schema, GitHub App linking, webhook
-ingestion, presence/context/restore-point API routes, and the CLI stub.
-See `docs/` in the design doc for Phases 1–4 (dashboard panels, realtime UI,
-vault wiki, drift detection).
+**Status: in daily use.** Dashboard + menu-bar widget, Claude Code plugin
+(14 MCP tools, presence/collision/live-context hooks), task board with
+spec ingest and Apple Reminders sync, AI PR reviews and standup digests,
+merge traffic lights, session handoffs and lane claims. Roadmap: the
+"Hive Mind" plan (session journals → team memory search) — ask Luke for
+the link.
 
 ## Stack
 
@@ -76,24 +78,26 @@ the dashboard.
 
 ## Dev tokens & the CLI
 
-Phase 0 has no token UI yet — mint one manually:
-
-```sql
--- in Supabase SQL editor; replace org/user ids from your tables
-insert into dev_tokens (org_id, user_id, label, token_hash)
-values ('<org_id>', '<user_id>', 'lukes-macbook',
-        encode(digest('YOUR-RANDOM-TOKEN', 'sha256'), 'hex'));
-```
-
-Then on each dev machine:
+Dashboard → **Tokens** → create one per machine (shown once). Then the
+one-line installer on that Mac does the rest (see `ONBOARDING.md`):
 
 ```bash
-node cli/bin/devbrain.mjs init     # stores server URL + token, installs Claude Code hooks
-node cli/bin/devbrain.mjs ctx     # prints the live context digest for the current repo
+curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain-test/main/install.sh | sh
+devbrain doctor        # every line should be a check mark
+devbrain ctx           # print the live context digest for the current repo
 ```
 
-The installed hooks report every Claude Code Edit/Write to `/api/v1/ingest`
-and inject the `/api/v1/context` digest at session start.
+Presence hooks are owned by the Claude Code plugin (`plugin/hooks/`); the CLI
+never installs hooks of its own.
+
+## Agent tick (server-side automation)
+
+`/api/agents/tick` runs every 2 minutes from Supabase `pg_cron` — one bounded
+unit of work per run (PR review, spec analysis, footprints, traffic lights,
+zombie branches, digest). The schedule carries a secret, so it is created
+once per project from `supabase/cron/agent-tick.sql`, not by a migration.
+`devbrain doctor` reports the last heartbeat; `DEVBRAIN_TICK_DISABLED` turns
+individual units off without a deploy.
 
 ## Restore points (from any deploy script)
 
@@ -111,4 +115,3 @@ curl -sS -X POST "$DEVBRAIN_URL/api/v1/restore-points" \
   member's org. No AWS or infra credentials ever touch this app.
 - Hook payloads carry file *paths* only — never file contents.
 
-- ## TEST

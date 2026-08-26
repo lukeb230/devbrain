@@ -507,6 +507,18 @@ if (cmd === "doctor") {
     } catch (e) { bad("server", `unreachable (${e.name === "AbortError" ? "timeout" : e.message})`); }
   }
 
+  if (cfg?.server && cfg?.token) {
+    try {
+      const res = await fetch(`${cfg.server}/api/v1/health`, { headers: { Authorization: `Bearer ${cfg.token}` } });
+      if (res.status === 404) results.push("  · server predates /api/v1/health (tick check skipped)");
+      else {
+        const h = await res.json();
+        if (h.ok) ok("agent tick alive", `last run ${h.tick.age_s}s ago${h.agent_configured ? "" : " (no ANTHROPIC_API_KEY — AI units idle)"}`);
+        else bad("agent tick", h.tick.last_at ? `last heartbeat ${h.tick.age_s}s ago — check the pg_cron job (supabase/cron/agent-tick.sql)` : "never ran — schedule it with supabase/cron/agent-tick.sql");
+      }
+    } catch { bad("agent tick", "health check failed"); }
+  }
+
   if (existsSync(join(SRC_DIR, ".git"))) {
     let head = "?"; try { head = sh("git rev-parse --short HEAD", { cwd: SRC_DIR }); } catch { /* */ }
     ok("source checkout", `${SRC_DIR} @ ${head}`);

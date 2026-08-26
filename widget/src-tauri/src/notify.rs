@@ -15,16 +15,56 @@
 
 #[cfg(target_os = "macos")]
 mod mac {
-    use block2::RcBlock;
+    use block2::{DynBlock, RcBlock};
     use objc2::rc::Retained;
-    use objc2::runtime::Bool;
+    use objc2::runtime::{Bool, NSObject, NSObjectProtocol, ProtocolObject};
+    use objc2::{define_class, AnyThread};
     use objc2_foundation::{NSError, NSString};
     use objc2_user_notifications::{
-        UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent,
-        UNNotificationRequest, UNNotificationSettings, UNNotificationSound, UNUserNotificationCenter,
+        UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent, UNNotification,
+        UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationSettings,
+        UNNotificationSound, UNUserNotificationCenter, UNUserNotificationCenterDelegate,
     };
-    use std::sync::mpsc;
+    use std::sync::{mpsc, OnceLock};
     use std::time::Duration;
+
+    // Without a delegate, macOS files notifications quietly (Notification
+    // Center only, no banner) whenever this app is frontmost — which is
+    // exactly when someone clicks "Send test notification" in the panel.
+    // This delegate asks for banner + sound + list regardless.
+    define_class!(
+        #[unsafe(super(NSObject))]
+        #[name = "DevBrainNotificationDelegate"]
+        struct Delegate;
+
+        unsafe impl NSObjectProtocol for Delegate {}
+
+        unsafe impl UNUserNotificationCenterDelegate for Delegate {
+            #[unsafe(method(userNotificationCenter:willPresentNotification:withCompletionHandler:))]
+            fn will_present(
+                &self,
+                _center: &UNUserNotificationCenter,
+                _notification: &UNNotification,
+                completion: &DynBlock<dyn Fn(UNNotificationPresentationOptions)>,
+            ) {
+                completion.call((UNNotificationPresentationOptions::Banner
+                    | UNNotificationPresentationOptions::Sound
+                    | UNNotificationPresentationOptions::List,));
+            }
+        }
+    );
+
+    static DELEGATE: OnceLock<Retained<Delegate>> = OnceLock::new();
+
+    /// Install the presentation delegate. Call once at startup (main thread).
+    pub fn install_delegate() {
+        let Ok(c) = center() else { return };
+        let d = DELEGATE.get_or_init(|| {
+            // SAFETY: NSObject's init has no requirements.
+            unsafe { objc2::msg_send![Delegate::alloc(), init] }
+        });
+        c.setDelegate(Some(ProtocolObject::from_ref(&**d)));
+    }
 
     fn center() -> Result<Retained<UNUserNotificationCenter>, String> {
         // Throws an ObjC exception when the process has no bundle (e.g. a bare
@@ -111,6 +151,13 @@ pub async fn notify(title: String, body: String) -> String {
     { tauri::async_runtime::spawn_blocking(move || mac::notify(&title, &body)).await.unwrap_or_else(|_| "error: task failed".into()) }
     #[cfg(not(target_os = "macos"))]
     { let _ = (title, body); "unsupported".to_string() }
+}
+
+/// Startup hook: register the delegate that keeps banners visible while the
+/// app is frontmost. No-op off macOS or when not running as a bundle.
+pub fn setup() {
+    #[cfg(target_os = "macos")]
+    mac::install_delegate();
 }
 
 #[tauri::command]

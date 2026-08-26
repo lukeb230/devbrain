@@ -125,7 +125,9 @@ export async function GET(request: Request) {
 
   let relevantHistory: MemoryHit[] | undefined;
   if (q.length >= 12) {
-    const { data } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: 3 });
+    // Prompts are natural language → 'any' mode (OR of terms, ranked by
+    // how many match) so a long question still finds the one relevant note.
+    const { data } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: 3, p_mode: "any" });
     relevantHistory = (data ?? []) as MemoryHit[];
   }
 

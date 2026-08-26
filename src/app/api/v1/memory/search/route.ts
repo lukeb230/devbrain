@@ -30,11 +30,19 @@ export async function GET(request: Request) {
     .single();
   if (!repo) return NextResponse.json({ error: "repo not linked" }, { status: 404 });
 
-  const { data, error } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: limit });
+  // Strict first (every term must match); if nothing, loosen to any-term so a
+  // wordy query still surfaces the closest notes, flagged as such.
+  let mode: "strict" | "any" = "strict";
+  let { data, error } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: limit, p_mode: mode });
+  if (!error && (data ?? []).length === 0) {
+    mode = "any";
+    ({ data, error } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: limit, p_mode: mode }));
+  }
   if (error) return NextResponse.json({ error: "search failed" }, { status: 500 });
 
   return NextResponse.json({
     q,
+    mode,
     hits: ((data ?? []) as MemoryHit[]).map(formatHit),
   });
 }

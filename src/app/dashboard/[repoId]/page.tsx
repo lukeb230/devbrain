@@ -116,7 +116,7 @@ export default async function RepoPage({
     ]);
 
   // Agent-tier reads: latest AI review per open PR + the newest standup digest.
-  const [{ data: reviews }, { data: digestRows }] = await Promise.all([
+  const [{ data: reviews }, { data: digestRows }, { data: journals }] = await Promise.all([
     supabase
       .from("pr_reviews")
       .select("pr_number, head_sha, verdict, summary, points, created_at")
@@ -129,6 +129,12 @@ export default async function RepoPage({
       .eq("repo_id", repo.id)
       .order("day", { ascending: false })
       .limit(1),
+    supabase
+      .from("journals")
+      .select("id, dev_label, branch, summary, learned, decisions, tried_and_failed, remaining, files, dirty, at")
+      .eq("repo_id", repo.id)
+      .order("at", { ascending: false })
+      .limit(8),
   ]);
   const reviewFor = new Map<string, NonNullable<typeof reviews>[number]>();
   for (const r of reviews ?? []) {
@@ -259,6 +265,48 @@ export default async function RepoPage({
                   </span>
                 </div>
                 <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{digest.body}</p>
+              </section>
+            )}
+
+            {journals && journals.length > 0 && (
+              <section className="card card-pad">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <h2 className="card-title">Session journals</h2>
+                  <span className="text-xs text-slate-400">what each session learned · visible to the whole team</span>
+                </div>
+                <ul className="divide-y divide-slate-100">
+                  {journals.map((j) => {
+                    const learned = (j.learned as string[]) ?? [];
+                    const decisions = (j.decisions as string[]) ?? [];
+                    const failed = (j.tried_and_failed as string[]) ?? [];
+                    const files = (j.files as string[]) ?? [];
+                    return (
+                      <li key={j.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="mb-1 flex flex-wrap items-baseline gap-x-2 text-xs text-slate-500">
+                          <span className="font-semibold text-slate-800">{j.dev_label}</span>
+                          {j.branch && <span className="font-mono">{j.branch}</span>}
+                          <span>{new Date(j.at).toLocaleString()}</span>
+                          {j.dirty && <span className="chip bg-amber-50 text-amber-700">ended with uncommitted changes</span>}
+                        </div>
+                        <p className="text-sm leading-relaxed text-slate-700">{j.summary}</p>
+                        {(learned.length + decisions.length + failed.length > 0 || j.remaining) && (
+                          <details className="mt-1.5">
+                            <summary className="cursor-pointer text-xs text-brand-700">
+                              {[learned.length && `${learned.length} learned`, decisions.length && `${decisions.length} decisions`, failed.length && `${failed.length} didn't work`, j.remaining && "remaining"].filter(Boolean).join(" · ")}
+                            </summary>
+                            <ul className="mt-1.5 space-y-1 pl-4 text-xs text-slate-600">
+                              {learned.map((l, i) => <li key={"l" + i} className="list-disc"><span className="font-medium">learned:</span> {l}</li>)}
+                              {decisions.map((l, i) => <li key={"d" + i} className="list-disc"><span className="font-medium">decided:</span> {l}</li>)}
+                              {failed.map((l, i) => <li key={"f" + i} className="list-disc"><span className="font-medium">didn&apos;t work:</span> {l}</li>)}
+                              {j.remaining && <li className="list-disc"><span className="font-medium">remaining:</span> {j.remaining}</li>}
+                              {files.length > 0 && <li className="list-none pt-1 font-mono text-[11px] text-slate-400">{files.join("  ")}</li>}
+                            </ul>
+                          </details>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               </section>
             )}
 

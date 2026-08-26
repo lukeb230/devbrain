@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
 import { writerConfigured } from "@/lib/github-writer";
-import { RULES_CATALOG as CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
+import { FEATURE_CATALOG, RULES_CATALOG as CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { supabaseServer } from "@/lib/supabase/server";
 import { toggleRule } from "./actions";
 import { connectWriter } from "./writer-actions";
@@ -82,6 +82,45 @@ export default async function RulesPage({
                         Enforce on GitHub
                       </a>
                     )}
+                  </div>
+                  <form action={toggleRule}>
+                    <input type="hidden" name="repoId" value={repo.id} />
+                    <input type="hidden" name="rule" value={c.rule} />
+                    <input type="hidden" name="enabled" value={String(!on)} />
+                    <button
+                      className={
+                        "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors " +
+                        (on ? "bg-brand-600" : "bg-slate-200")
+                      }
+                      aria-label={on ? "Turn off" : "Turn on"}
+                    >
+                      <span
+                        className={
+                          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " +
+                          (on ? "translate-x-6" : "translate-x-1")
+                        }
+                      />
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section className="card mt-6">
+          <div className="border-b border-slate-100 p-4">
+            <h2 className="font-semibold text-slate-900">Features</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Off by default. Turn on per repo; takes effect on the next session end.</p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {FEATURE_CATALOG.map((c) => {
+              const on = state.get(c.rule) ?? false;
+              return (
+                <li key={c.rule} className="flex items-start justify-between gap-4 p-4">
+                  <div>
+                    <div className="font-medium text-slate-900">{c.label}</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{c.detail}</div>
                   </div>
                   <form action={toggleRule}>
                     <input type="hidden" name="repoId" value={repo.id} />

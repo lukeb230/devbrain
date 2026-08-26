@@ -35,6 +35,7 @@ export interface WidgetData {
   claims: { id: string; repo_id: string; repo: string; dev_label: string; paths: string[]; note: string | null; expires_at: string | null }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
+  journals: { id: string; repo: string; by: string; branch: string | null; summary: string; learned: string[]; tried_and_failed: string[]; remaining: string | null; at: string }[];
   handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
   activity: ActivityRow[];
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
@@ -791,6 +792,32 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   Standup <span className="normal-case text-slate-400">· {data.digest.repo} · {data.digest.day}</span>
                 </div>
                 <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">{data.digest.body}</p>
+              </div>
+            )}
+            {(data.journals ?? []).length > 0 && (
+              <div className="card px-2.5 py-2">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Session journals</div>
+                <ul className="space-y-2">
+                  {data.journals.map((j) => (
+                    <li key={j.id} className="text-xs leading-snug text-slate-700">
+                      <div className="mb-0.5 text-[10px] text-slate-400">
+                        <span className="font-semibold text-slate-600">{j.by}</span>
+                        {j.branch ? ` · ${j.branch}` : ""} · {j.repo} · {timeAgo(j.at)}
+                      </div>
+                      <p>{j.summary}</p>
+                      {(j.learned.length > 0 || j.tried_and_failed.length > 0 || j.remaining) && (
+                        <details className="mt-0.5">
+                          <summary className="cursor-pointer text-[10px] text-brand-700">details</summary>
+                          <ul className="mt-1 space-y-0.5 pl-3 text-[11px] text-slate-600">
+                            {j.learned.map((l, i) => <li key={"l" + i}>· learned: {l}</li>)}
+                            {j.tried_and_failed.map((l, i) => <li key={"f" + i}>· didn&apos;t work: {l}</li>)}
+                            {j.remaining && <li>· remaining: {j.remaining}</li>}
+                          </ul>
+                        </details>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             <div className="card px-2.5 py-2">

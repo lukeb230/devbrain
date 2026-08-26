@@ -12,10 +12,12 @@
 // ============================================================================
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+
+const CONFIG_DIR = join(homedir(), ".devbrain");
 
 const CONFIG_PATH = join(homedir(), ".devbrain", "config.json");
 
@@ -311,7 +313,12 @@ async function callTool(name, args) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "complete", id: String(args?.id || "") }),
     });
-    return JSON.stringify(await res.json());
+    const out = await res.json();
+    try {
+      const f = join(CONFIG_DIR, "task-" + repo.replace("/", "_"));
+      if (existsSync(f) && readFileSync(f, "utf8").trim() === String(args?.id || "")) unlinkSync(f);
+    } catch { /* non-fatal */ }
+    return JSON.stringify(out);
   }
   if (name === "start_task") {
     const cfg = config();
@@ -322,7 +329,12 @@ async function callTool(name, args) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "start", id: String(args?.id || "") }),
     });
-    return JSON.stringify(await res.json());
+    const out = await res.json();
+    // Remember the task this session is on, so the session journal links to it.
+    if (res.ok && !out?.error) {
+      try { writeFileSync(join(CONFIG_DIR, "task-" + repo.replace("/", "_")), String(args?.id || "")); } catch { /* non-fatal */ }
+    }
+    return JSON.stringify(out);
   }
   if (name === "claim_area") {
     const cfg = config();

@@ -9,15 +9,22 @@
 // they travel with every plugin update and need no second repo at all.
 //
 // Usage (from hooks.json): node presence.mjs <session_start|session_end|activity>
+//   session_end also captures a SESSION JOURNAL: a redacted excerpt of the
+//   transcript (see journal-extract.mjs for exactly what is kept) is written
+//   to a temp file and a DETACHED child (`presence.mjs journal-send <file>`)
+//   posts it to /api/v1/journal — so the 8s hook budget is never at risk.
+//   The server 204s unless the repo's "journals" policy is on.
 //
 // Auth: ~/.devbrain/config.json, else DEVBRAIN_URL + DEVBRAIN_TOKEN env vars.
 // Fail-open everywhere: any error exits 0 and never blocks the session.
 // ============================================================================
 
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { execSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildExcerpt } from "./journal-extract.mjs";
 
 const CONFIG_DIR = join(homedir(), ".devbrain");
 const kind = process.argv[2] || "activity";
@@ -74,7 +81,64 @@ function pruneLegacyHooks() {
   }
 }
 
+function pluginVersion() {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    return JSON.parse(readFileSync(join(here, "..", ".claude-plugin", "plugin.json"), "utf8")).version ?? null;
+  } catch { return null; }
+}
+
+// Build the journal excerpt locally (fast: file read + string work) and hand
+// the slow network call to a detached child so this hook exits immediately.
+function queueJournal({ cfg, repo, session_id, hookInput }) {
+  try {
+    const transcript = hookInput?.transcript_path;
+    if (!transcript || !existsSync(transcript)) return;
+    const excerpt = buildExcerpt(readFileSync(transcript, "utf8"));
+    if (excerpt.length < 200) return; // nothing worth journaling
+    const taskFile = join(CONFIG_DIR, "task-" + repo.replace("/", "_"));
+    const task_id = existsSync(taskFile) ? readFileSync(taskFile, "utf8").trim() || null : null;
+    const dirty = Boolean(git("git status --porcelain"));
+    const payload = {
+      repo,
+      session_id: session_id || null,
+      branch: git("git rev-parse --abbrev-ref HEAD"),
+      task_id,
+      dirty,
+      excerpt,
+      plugin_version: pluginVersion(),
+    };
+    const file = join(tmpdir(), `devbrain-journal-${process.pid}-${Date.now()}.json`);
+    writeFileSync(file, JSON.stringify({ server: cfg.server, token: cfg.token, payload }));
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "journal-send", file], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  } catch { /* fail-open */ }
+}
+
+async function journalSend(file) {
+  try {
+    const { server, token, payload } = JSON.parse(readFileSync(file, "utf8"));
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    await fetch(`${server}/api/v1/journal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    }).catch(() => {});
+    clearTimeout(timer);
+  } catch { /* fail-open */ }
+  try { unlinkSync(file); } catch { /* already gone */ }
+}
+
 async function main() {
+  if (kind === "journal-send") {
+    await journalSend(process.argv[3]);
+    process.exit(0);
+  }
   pruneLegacyHooks();
 
   const cfg = config();
@@ -146,6 +210,7 @@ async function main() {
 
   if (kind === "session_end") {
     if (session_id) await post({ kind: "session_end", repo, session_id });
+    queueJournal({ cfg, repo, session_id, hookInput });
     process.exit(0);
   }
 

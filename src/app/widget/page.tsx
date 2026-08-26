@@ -33,7 +33,7 @@ export default async function WidgetPage() {
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
   const members = await teamMembers();
-  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }] =
+  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
@@ -43,6 +43,7 @@ export default async function WidgetPage() {
       supabase.from("events").select("kind, payload, at, repo_id").in("kind", ["decision", "broadcast"]).order("at", { ascending: false }).limit(8),
       supabase.from("activity").select("session_id, dev_label, label, branch, file, tool, at, repo_id").gte("at", daySince).order("at", { ascending: false }).limit(150),
       supabase.from("handoffs").select("id, repo_id, dev_label, branch, summary, remaining, created_at").is("picked_up_at", null).order("created_at", { ascending: false }).limit(4),
+      supabase.from("journals").select("id, repo_id, dev_label, branch, summary, learned, tried_and_failed, remaining, at").order("at", { ascending: false }).limit(6),
     ]);
 
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
@@ -251,6 +252,17 @@ export default async function WidgetPage() {
       paths: (c.paths as string[]) ?? [],
       note: c.note,
       expires_at: c.expires_at,
+    })),
+    journals: (journals ?? []).filter((j) => inScope(j.repo_id)).map((j) => ({
+      id: j.id,
+      repo: short(j.repo_id),
+      by: j.dev_label,
+      branch: j.branch,
+      summary: j.summary,
+      learned: (j.learned as string[]) ?? [],
+      tried_and_failed: (j.tried_and_failed as string[]) ?? [],
+      remaining: j.remaining,
+      at: j.at,
     })),
     feed: fFeed.map((d) => {
       const p = d.payload as { text?: string; by?: string };

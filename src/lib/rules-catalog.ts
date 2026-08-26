@@ -58,3 +58,13 @@ export const WRITER_CATALOG: RuleDef[] = [
       "When a PR's merge light turns green — approved by a teammate, conflict-free, and its turn in the merge order — the writer app presses merge for you (squash). Off = the author gets a 'cleared to land' notification and presses merge themselves. GitHub branch protection still applies either way.",
   },
 ];
+
+// Feature toggles — DEFAULT OFF, per repo. No writer app needed.
+export const FEATURE_CATALOG: RuleDef[] = [
+  {
+    rule: "journals",
+    label: "Session journals (team memory)",
+    detail:
+      "When a Claude Code session ends, a redacted excerpt (the conversation and which tools/files it used — never file contents or command output) is summarised into a journal: what was tried, learned, decided, and left undone. Journals are visible to the whole team and always labelled with their author.",
+  },
+];

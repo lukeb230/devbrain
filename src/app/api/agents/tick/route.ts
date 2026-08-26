@@ -1,17 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  agentConfigured,
-  agentModel,
-  askClaude,
-  DIGEST_SYSTEM,
-  extractJson,
-  FOOTPRINT_SYSTEM,
-  MATCH_SYSTEM,
-  prDiff,
-  REVIEW_SYSTEM,
-  SPEC_ASSESS_SYSTEM,
-  SPEC_EXTRACT_SYSTEM,
-} from "@/lib/agent";
+import { DIGEST_SYSTEM, FOOTPRINT_SYSTEM, JOURNAL_SYSTEM, MATCH_SYSTEM, REVIEW_SYSTEM, SPEC_ASSESS_SYSTEM, SPEC_EXTRACT_SYSTEM, agentConfigured, agentModel, askClaude, extractJson, prDiff } from "@/lib/agent";
 import { cachedBrainDocs } from "@/lib/brain-cache";
 import { mergePrAsWriter, writerConfigured } from "@/lib/github-writer";
 import { installationOctokit } from "@/lib/github";
@@ -653,6 +641,64 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     did.zombie_error = String(err).slice(0, 300);
+  }
+
+  // ---- 1.8 Session journals: summarise ONE queued excerpt per tick --------
+  // The plugin's SessionEnd hook queues a redacted transcript excerpt; this
+  // turns it into a journal (org-wide, author-labelled) and deletes the raw
+  // row. Parse failures retry up to 3 times, then the row is dropped.
+  if (!off.has("journal")) try {
+    if (agentConfigured()) {
+      const { data: q } = await admin
+        .from("journal_queue")
+        .select("id, org_id, repo_id, session_id, user_id, dev_label, branch, task_id, dirty, excerpt, attempts, at")
+        .lt("attempts", 3)
+        .order("at")
+        .limit(1);
+      const row = (q ?? [])[0];
+      if (row) {
+        const { data: repo } = await admin.from("linked_repos").select("full_name").eq("id", row.repo_id).single();
+        const { data: sess } = row.session_id
+          ? await admin.from("sessions").select("started_at").eq("id", row.session_id).maybeSingle()
+          : { data: null };
+        const prompt = [
+          `REPO: ${repo?.full_name ?? "unknown"}   AUTHOR: ${row.dev_label}   BRANCH: ${row.branch ?? "?"}`,
+          row.dirty ? "NOTE: the session ended with uncommitted changes in the working tree." : "",
+          "TRANSCRIPT EXCERPT (redacted):",
+          row.excerpt,
+        ].filter(Boolean).join("\n\n");
+        const raw = await askClaude(JOURNAL_SYSTEM, prompt, 900);
+        const j = extractJson(raw);
+        const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => String(x).slice(0, 400)).slice(0, 8) : []);
+        if (j && typeof j.summary === "string" && j.summary.trim()) {
+          await admin.from("journals").insert({
+            org_id: row.org_id,
+            repo_id: row.repo_id,
+            session_id: row.session_id,
+            user_id: row.user_id,
+            dev_label: row.dev_label,
+            branch: row.branch,
+            task_id: row.task_id,
+            dirty: row.dirty,
+            summary: String(j.summary).slice(0, 1200),
+            learned: arr(j.learned),
+            decisions: arr(j.decisions),
+            tried_and_failed: arr(j.tried_and_failed),
+            remaining: typeof j.remaining === "string" ? j.remaining.slice(0, 800) || null : null,
+            files: arr(j.files).slice(0, 12),
+            model: agentModel(),
+            session_started_at: sess?.started_at ?? null,
+          });
+          await admin.from("journal_queue").delete().eq("id", row.id);
+          did.journal = `${row.dev_label} @ ${repo?.full_name ?? "?"}`;
+        } else {
+          await admin.from("journal_queue").update({ attempts: (row.attempts ?? 0) + 1 }).eq("id", row.id);
+          did.journal_error = "unparseable summary";
+        }
+      }
+    }
+  } catch (err) {
+    did.journal_error = String(err).slice(0, 300);
   }
 
   // ---- 2. Standup digest: one per REPO per day, after the digest hour -----

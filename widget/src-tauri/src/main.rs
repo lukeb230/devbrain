@@ -88,6 +88,54 @@ fn screen(app: &AppHandle) -> (f64, f64, f64, f64) {
     }
 }
 
+/// The part of the screen NOT covered by the Dock or the menu bar, in logical
+/// points. macOS reports this per monitor and it tracks the user's Dock size,
+/// position, and auto-hide state — so the panel can sit above the Dock
+/// instead of behind it. Falls back to the full screen if unavailable.
+fn work_area(app: &AppHandle) -> (f64, f64, f64, f64) {
+    if let Ok(Some(m)) = app.primary_monitor() {
+        let s = m.scale_factor();
+        let wa = m.work_area();
+        let size = wa.size.to_logical::<f64>(s);
+        let pos = wa.position.to_logical::<f64>(s);
+        (pos.x, pos.y, size.width, size.height)
+    } else {
+        screen(app)
+    }
+}
+
+const PANEL_RADIUS: f64 = 14.0;
+
+/// Round the panel's corners at the native layer. The panel shows a remote
+/// page, so CSS on that page can't clip the window itself; the NSWindow's
+/// content layer can. Needs a transparent, borderless window (set at build).
+#[cfg(target_os = "macos")]
+fn round_corners(win: &tauri::WebviewWindow, radius: f64) {
+    use objc2_app_kit::{NSColor, NSWindow};
+    let Ok(ptr) = win.ns_window() else { return };
+    if ptr.is_null() {
+        return;
+    }
+    // SAFETY: Tauri hands back the live NSWindow for this window; we only
+    // call documented AppKit setters on it from the main thread.
+    unsafe {
+        let ns: &NSWindow = &*(ptr as *const NSWindow);
+        ns.setOpaque(false);
+        ns.setBackgroundColor(Some(&NSColor::clearColor()));
+        if let Some(view) = ns.contentView() {
+            view.setWantsLayer(true);
+            if let Some(layer) = view.layer() {
+                layer.setCornerRadius(radius);
+                layer.setMasksToBounds(true);
+            }
+        }
+        ns.setHasShadow(true);
+        ns.invalidateShadow();
+    }
+}
+#[cfg(not(target_os = "macos"))]
+fn round_corners(_win: &tauri::WebviewWindow, _radius: f64) {}
+
 fn place_badge(app: &AppHandle) {
     let st = app.state::<State>();
     let corner = *st.corner.lock().unwrap();
@@ -108,13 +156,19 @@ fn place_badge(app: &AppHandle) {
 fn place_panel(app: &AppHandle) {
     let st = app.state::<State>();
     let corner = *st.corner.lock().unwrap();
-    let (sx, sy, sw, sh) = screen(app);
-    let h = PANEL_H.min(sh - BADGE_CLEAR - 30.0);
+    let (_, sy, _, sh) = screen(app);
+    let (wx, wy, ww, wh) = work_area(app);
+    // Bottom edge: above the Dock (work area) AND clear of the badge zone at
+    // the true screen corner — whichever is higher. With the Dock hidden the
+    // two coincide and the panel sits where it always did.
+    let bottom = (sy + sh - BADGE_CLEAR).min(wy + wh - MARGIN);
+    let top_limit = wy + MARGIN; // never under the menu bar
+    let h = PANEL_H.min(bottom - top_limit);
     let x = match corner {
-        Corner::BottomLeft => sx + MARGIN,
-        Corner::BottomRight => sx + sw - PANEL_W - MARGIN,
+        Corner::BottomLeft => wx + MARGIN,
+        Corner::BottomRight => wx + ww - PANEL_W - MARGIN,
     };
-    let y = sy + sh - h - BADGE_CLEAR;
+    let y = bottom - h;
     if let Some(panel) = app.get_webview_window("panel") {
         let _ = panel.set_size(LogicalSize::new(PANEL_W, h));
         let _ = panel.set_position(LogicalPosition::new(x, y));
@@ -289,6 +343,8 @@ fn main() {
             })
             .title("DevBrain")
             .decorations(false)
+            .transparent(true)
+            .shadow(true)
             .always_on_top(true)
             .skip_taskbar(true)
             .resizable(false)
@@ -296,6 +352,7 @@ fn main() {
             .inner_size(PANEL_W, PANEL_H)
             .build()?;
             let _ = panel.set_visible_on_all_workspaces(true);
+            round_corners(&panel, PANEL_RADIUS);
 
             let handle = app.handle().clone();
             panel.on_window_event(move |ev| {

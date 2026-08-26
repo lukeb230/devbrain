@@ -1,0 +1,95 @@
+name: Widget release
+
+# Builds the DevBrain menu-bar widget (Tauri, macOS) and publishes it as a
+# GitHub Release named widget-v<version>, where <version> comes from
+# widget/src-tauri/tauri.conf.json. `devbrain update` on every teammate's Mac
+# compares that version against /Applications/DevBrain.app and swaps in the
+# new build.
+#
+# To ship a widget change: edit widget/**, bump "version" in tauri.conf.json,
+# push to main. If the version was NOT bumped the build runs (as a check) but
+# no release is created, so an existing release is never overwritten.
+#
+# The .app is unsigned (no Apple Developer ID yet). The updater strips the
+# quarantine flag after download, so Gatekeeper's "unidentified developer"
+# dialog does not appear. Adding signing/notarization later only touches this
+# file. See docs/PRIVATE-REPO.md for what changes when the repo goes private.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "widget/**"
+      - ".github/workflows/widget-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: widget-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: widget
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: widget/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: widget/src-tauri
+
+      - name: Read version
+        id: ver
+        run: |
+          v=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=widget-v$v" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version is already released
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ steps.ver.outputs.tag }} already exists — building as a check only. Bump the version in widget/src-tauri/tauri.conf.json to publish."
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: npm ci
+
+      - name: Build .app
+        run: npm run tauri build -- --bundles app
+
+      - name: Zip
+        run: |
+          cd src-tauri/target/release/bundle/macos
+          ditto -c -k --sequesterRsrc --keepParent DevBrain.app DevBrain.app.zip
+          shasum -a 256 DevBrain.app.zip > DevBrain.app.zip.sha256
+          cat DevBrain.app.zip.sha256
+
+      - name: Publish release
+        if: steps.exists.outputs.released == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DevBrain widget ${{ steps.ver.outputs.version }}" \
+            --notes "Built from ${GITHUB_SHA::7}. Installed automatically by \`devbrain update\`." \
+            src-tauri/target/release/bundle/macos/DevBrain.app.zip \
+            src-tauri/target/release/bundle/macos/DevBrain.app.zip.sha256

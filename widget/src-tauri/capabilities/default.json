@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Widget windows may use core IPC.",
+  "windows": ["strip", "panel"],
+  "permissions": ["core:default", "opener:default", "autostart:default", "global-shortcut:default"]
+}

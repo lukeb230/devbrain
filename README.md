@@ -16,6 +16,24 @@ vault wiki, drift detection).
 Next.js 15 (app router) · Supabase (Postgres + Auth + Realtime, RLS
 multi-tenant) · GitHub App (webhooks + API) · zero-dependency Node CLI.
 
+## Teammate machines: install & auto-update
+
+Each Mac runs one line (see `ONBOARDING.md`); after that it keeps itself on
+`main` with no action from anyone:
+
+```
+git push main ──▶ ~/.devbrain/src (git pull)   ──▶ devbrain update reconciles:
+                  plugin/  → claude plugin update     (new Claude sessions)
+                  tools/   → launchd jobs re-rendered (Reminders sync, updater)
+                  widget/  → CI builds DevBrain.app → GitHub Release → swapped in
+```
+
+- `install.sh` — bootstrap; `cli/bin/devbrain.mjs` — `setup` / `update` / `doctor`
+- `plugin/hooks/auto-update.mjs` — session-start trigger (throttled, detached)
+- `.github/workflows/widget-release.yml` — builds the widget; **bump the
+  version in `widget/src-tauri/tauri.conf.json` to publish**
+- `docs/PRIVATE-REPO.md` — what to change when this repo goes private
+
 ## Setup (once per deployment)
 
 ### 1. Supabase

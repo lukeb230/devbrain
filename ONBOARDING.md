@@ -16,49 +16,38 @@ PRs, tasks, the brain.
 Dashboard → **Tokens** (top right) → label it after your machine
 (e.g. `maya-mbp`) → **Create token** → copy it immediately (shown once).
 
-## 3. Get the repo + CLI
+## 3. Install everything (one line)
 
 ```bash
-# the test repo we all work in
-git clone https://github.com/lukeb230/gear-tracker.git
-
-# the devbrain repo (has the CLI; keep this clone — hooks point into it)
-git clone https://github.com/lukeb230/devbrain-test.git
+curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain-test/main/install.sh | sh
 ```
 
-(If you can't clone gear-tracker, ask Luke to add you as a collaborator.)
+It asks for the server URL (press Enter for the default) and your token, then
+sets up this Mac end to end:
 
-## 4. Connect your machine
+- Claude Code presence hooks
+- the `devbrain` plugin (marketplace + install)
+- the shared **Reminders → tasks** sync — say yes to "Scorpion One" and
+  click **Allow** when macOS asks for Reminders access
+- the **DevBrain menu-bar widget** in /Applications (launches automatically)
+- a daily self-update job
+
+Open a new terminal afterwards so `devbrain` is on your PATH. Then verify:
 
 ```bash
-node devbrain-test/cli/bin/devbrain.mjs init
+devbrain doctor
 ```
 
-It asks for the server URL (`https://devbrain-ebon.vercel.app`) and your
-token, then installs the Claude Code presence hooks.
+Every line should be a check mark. Restart any open Claude Code session so it
+picks up the plugin.
 
-Verify the whole chain (run it from inside the gear-tracker folder):
+### Staying current
 
-```bash
-cd gear-tracker
-node ../devbrain-test/cli/bin/devbrain.mjs doctor
-```
+You don't do anything. Luke pushes to `main`; your Mac pulls it on the next
+Claude Code session start (at most every 6 h) and daily via launchd — CLI,
+plugin, sync jobs and widget alike. To force it: `devbrain update`.
 
-Every line should be a check mark.
-
-## 5. Install the plugin (this is the hive-mind part)
-
-In a Claude Code session (any folder):
-
-```
-/plugin marketplace add lukeb230/devbrain-test
-/plugin install devbrain@devbrain-marketplace
-```
-
-Then restart the Claude Code session. Check `/plugin` shows devbrain with no
-errors.
-
-## 6. Prove it works
+## 4. Prove it works
 
 Open a Claude Code session in `gear-tracker/` and ask:
 *"What's the team up to right now?"* — your Claude should answer from live

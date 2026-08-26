@@ -128,7 +128,11 @@ export async function GET(request: Request) {
     // Prompts are natural language → 'any' mode (OR of terms, ranked by
     // how many match) so a long question still finds the one relevant note.
     const { data } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: 3, p_mode: "any" });
-    relevantHistory = (data ?? []) as MemoryHit[];
+    // OR-mode ranks by how many terms matched; a hit far below the best one
+    // is usually a single stray word. Keep only hits within 25% of the top.
+    const hits = (data ?? []) as MemoryHit[];
+    const top = hits[0]?.rank ?? 0;
+    relevantHistory = hits.filter((h) => (h.rank ?? 0) >= top * 0.25);
   }
 
   return NextResponse.json(

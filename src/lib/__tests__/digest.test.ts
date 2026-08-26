@@ -135,6 +135,17 @@ describe("buildDigest — PR enrichment", () => {
   });
 });
 
+describe("buildDigest — relevant_history (Phase 2a)", () => {
+  it("is absent when no prompt was sent, present (and author-labelled) when hits are supplied", () => {
+    expect(buildDigest(rows())).not.toHaveProperty("relevant_history");
+    const d = buildDigest(rows({ relevantHistory: [
+      { kind: "journal", source_id: "j1", title: "Export bug", snippet: "date parser", by_label: "ethan", at: "2026-08-20T00:00:00Z" },
+    ] })) as Record<string, any>;
+    expect(d.relevant_history).toEqual([{ kind: "journal", id: "j1", by: "ethan", at: "2026-08-20T00:00:00Z", title: "Export bug", snippet: "date parser" }]);
+    expect(buildDigest(rows({ relevantHistory: [] })).relevant_history).toEqual([]);
+  });
+});
+
 describe("buildDigest — dispatcher lane safety", () => {
   it("skips a task whose footprint overlaps a teammate's claim, never your own", () => {
     const tasks = [

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildDigest } from "@/lib/digest";
+import type { MemoryHit } from "@/lib/memory";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
 
@@ -16,7 +17,11 @@ export async function GET(request: Request) {
   const auth = await resolveDevToken(request.headers.get("authorization"));
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const repoName = new URL(request.url).searchParams.get("repo");
+  const params = new URL(request.url).searchParams;
+  const repoName = params.get("repo");
+  // Optional: the user's current prompt. When present, the top team-memory
+  // hits ride along as relevant_history (Phase 2a). Absent → key absent.
+  const q = (params.get("q") ?? "").trim().slice(0, 500);
   if (!repoName) {
     return NextResponse.json({ error: "repo required" }, { status: 400 });
   }
@@ -118,6 +123,12 @@ export async function GET(request: Request) {
       .limit(20),
   ]);
 
+  let relevantHistory: MemoryHit[] | undefined;
+  if (q.length >= 12) {
+    const { data } = await admin.rpc("memory_search", { p_repo: repo.id, p_q: q, p_limit: 3 });
+    relevantHistory = (data ?? []) as MemoryHit[];
+  }
+
   return NextResponse.json(
     buildDigest({
       repo: repo.full_name,
@@ -135,6 +146,7 @@ export async function GET(request: Request) {
       mergedPrs: mergedPrs ?? [],
       latestDigest: (digestQ.data ?? [])[0] ?? null,
       reviews: reviewsQ.data ?? [],
+      relevantHistory,
     }),
   );
 }

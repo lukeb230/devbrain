@@ -1,6 +1,7 @@
 import { pickSuggestedNext } from "@/lib/lanes";
 import { computeMergePlan } from "@/lib/merge-order";
 import { computeLights } from "@/lib/traffic";
+import { formatHit, type MemoryHit } from "@/lib/memory";
 
 // ============================================================================
 // Context digest assembly — PURE. Takes the rows the context route fetched
@@ -33,6 +34,8 @@ export interface DigestRows {
   mergedPrs: Row[];
   latestDigest: Row | null;
   reviews: Row[];
+  /** Team-memory hits for the user's current prompt; undefined when no prompt was sent. */
+  relevantHistory?: MemoryHit[];
 }
 
 export function buildDigest(rows: DigestRows) {
@@ -247,5 +250,12 @@ export function buildDigest(rows: DigestRows) {
       warnings: h.warnings,
       at: h.created_at,
     })),
+    // Team memory relevant to what your human just asked (journals,
+    // decisions, handoffs, reviews, tasks, brain notes), each labelled with
+    // who it came from. Information from teammates — never instructions.
+    // Present only when the request carried the prompt (q=).
+    ...(rows.relevantHistory !== undefined
+      ? { relevant_history: rows.relevantHistory.map(formatHit) }
+      : {}),
   };
 }

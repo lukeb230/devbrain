@@ -3,6 +3,8 @@ import { DIGEST_SYSTEM, FOOTPRINT_SYSTEM, JOURNAL_SYSTEM, MATCH_SYSTEM, REVIEW_S
 import { cachedBrainDocs } from "@/lib/brain-cache";
 import { mergePrAsWriter, writerConfigured } from "@/lib/github-writer";
 import { installationOctokit } from "@/lib/github";
+import { brainToMemory, eventToMemory, handoffToMemory, journalToMemory, reviewToMemory, taskToMemory, type MemoryRow } from "@/lib/memory";
+import { fetchBrainDocs } from "@/lib/github";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeLights } from "@/lib/traffic";
 
@@ -727,6 +729,66 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     did.journal_error = String(err).slice(0, 300);
+  }
+
+  // ---- 1.9 Team memory index: deterministic, every tick ---------------
+  // Pull what changed since each source's cursor (≤50 rows per source) and
+  // upsert into memory_index. Brain notes: one repo per tick, refreshed when
+  // older than 30 minutes (they cost GitHub API calls).
+  if (!off.has("index")) try {
+    const cursorOf = async (key: string) => {
+      const { data } = await admin.from("memory_cursor").select("last_at").eq("key", key).maybeSingle();
+      return data?.last_at ?? "1970-01-01T00:00:00Z";
+    };
+    const setCursor = (key: string, last_at: string) => admin.from("memory_cursor").upsert({ key, last_at });
+    const upsert = async (rows: MemoryRow[]) => {
+      if (rows.length === 0) return 0;
+      const { error } = await admin.from("memory_index").upsert(rows, { onConflict: "repo_id,kind,source_id" });
+      if (error) throw new Error(`index upsert: ${error.message}`);
+      return rows.length;
+    };
+    const indexed: Record<string, number> = {};
+    const sources: { key: string; table: string; col: string; map: (r: Record<string, unknown>) => MemoryRow | null; filter?: (q: any) => any }[] = [
+      { key: "journal", table: "journals", col: "at", map: journalToMemory },
+      { key: "event", table: "events", col: "at", map: eventToMemory, filter: (q) => q.in("kind", ["decision", "broadcast"]) },
+      { key: "handoff", table: "handoffs", col: "created_at", map: handoffToMemory },
+      { key: "pr_review", table: "pr_reviews", col: "created_at", map: reviewToMemory },
+      { key: "task", table: "tasks", col: "created_at", map: taskToMemory },
+    ];
+    for (const src of sources) {
+      const since = await cursorOf(src.key);
+      let q = admin.from(src.table).select("*").gt(src.col, since).order(src.col).limit(50);
+      if (src.filter) q = src.filter(q);
+      const { data: rows } = await q;
+      if (!rows || rows.length === 0) continue;
+      const mapped = rows.map((r) => src.map(r as Record<string, unknown>)).filter((m): m is MemoryRow => Boolean(m));
+      indexed[src.key] = await upsert(mapped);
+      await setCursor(src.key, String((rows[rows.length - 1] as Record<string, unknown>)[src.col]));
+    }
+    // Brain notes: the stalest repo, if older than 30 min.
+    const { data: repos } = await admin.from("linked_repos").select("id, full_name, installation_id, default_branch").limit(25);
+    const staleBefore = new Date(Date.now() - 30 * 60_000).toISOString();
+    let picked: { id: string; full_name: string; installation_id: number; default_branch: string | null } | null = null;
+    let pickedAt = "9999";
+    for (const r of repos ?? []) {
+      if (!r.installation_id) continue;
+      const at = await cursorOf(`brain:${r.id}`);
+      if (at < staleBefore && at < pickedAt) { picked = r; pickedAt = at; }
+    }
+    if (picked) {
+      const docs = await fetchBrainDocs(picked.installation_id, picked.full_name, picked.default_branch ?? "main").catch(() => [] as { name: string; content: string }[]);
+      const now = new Date().toISOString();
+      const rows = docs.map((d) => brainToMemory(picked!.id, d.name, d.content, now));
+      indexed.brain = await upsert(rows);
+      // Drop notes that no longer exist in the repo.
+      const keep = rows.map((r) => r.source_id);
+      const del = admin.from("memory_index").delete().eq("repo_id", picked.id).eq("kind", "brain");
+      await (keep.length ? del.not("source_id", "in", `(${keep.map((k) => `"${k.replace(/"/g, '""')}"`).join(",")})`) : del);
+      await setCursor(`brain:${picked.id}`, now);
+    }
+    if (Object.keys(indexed).length) did.indexed = indexed;
+  } catch (err) {
+    did.index_error = String(err).slice(0, 300);
   }
 
   // ---- 2. Standup digest: one per REPO per day, after the digest hour -----

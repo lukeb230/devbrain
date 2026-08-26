@@ -36,6 +36,8 @@ export async function askClaude(
   system: string,
   user: string,
   maxTokens = 1200,
+  /** Optional assistant prefill (e.g. "{" to force a JSON reply). Prepended to the returned text. */
+  prefill?: string,
 ): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -48,7 +50,9 @@ export async function askClaude(
       model: agentModel(),
       max_tokens: maxTokens,
       system,
-      messages: [{ role: "user", content: user }],
+      messages: prefill
+        ? [{ role: "user", content: user }, { role: "assistant", content: prefill }]
+        : [{ role: "user", content: user }],
     }),
   });
   if (!res.ok) {
@@ -56,10 +60,11 @@ export async function askClaude(
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
   const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-  return (data.content ?? [])
+  const text = (data.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")
     .join("");
+  return (prefill ?? "") + text;
 }
 
 /** Content-block variant — needed for PDFs (and images), which Claude reads

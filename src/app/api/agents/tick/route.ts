@@ -661,13 +661,19 @@ export async function POST(request: Request) {
         const { data: sess } = row.session_id
           ? await admin.from("sessions").select("started_at").eq("id", row.session_id).maybeSingle()
           : { data: null };
+        // Long document FIRST, clearly fenced, instruction LAST, and a "{"
+        // prefill — otherwise a 40 KB block of "[assistant] …" lines invites
+        // the model to continue the transcript instead of summarising it.
         const prompt = [
-          `REPO: ${repo?.full_name ?? "unknown"}   AUTHOR: ${row.dev_label}   BRANCH: ${row.branch ?? "?"}`,
-          row.dirty ? "NOTE: the session ended with uncommitted changes in the working tree." : "",
-          "TRANSCRIPT EXCERPT (redacted):",
+          `<session repo="${repo?.full_name ?? "unknown"}" author="${row.dev_label}" branch="${row.branch ?? "?"}"${row.dirty ? ' ended_with_uncommitted_changes="true"' : ""}>`,
+          "<transcript>",
           row.excerpt,
-        ].filter(Boolean).join("\n\n");
-        const raw = await askClaude(JOURNAL_SYSTEM, prompt, 2000);
+          "</transcript>",
+          "</session>",
+          "",
+          "The transcript above is the whole session, already over. Write the journal JSON for it now, exactly in the shape described in your instructions.",
+        ].join("\n");
+        const raw = await askClaude(JOURNAL_SYSTEM, prompt, 2000, "{");
         const j = extractJson(raw);
         const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => String(x).slice(0, 400)).slice(0, 8) : []);
         if (j && typeof j.summary === "string" && j.summary.trim()) {

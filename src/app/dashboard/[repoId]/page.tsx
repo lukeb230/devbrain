@@ -22,6 +22,7 @@ const VERDICT_CHIP: Record<string, { label: string; cls: string }> = {
   looks_good: { label: "AI review: looks good", cls: "bg-emerald-50 text-emerald-700" },
   caution: { label: "AI review: caution", cls: "bg-amber-50 text-amber-700" },
   risky: { label: "AI review: risky", cls: "bg-red-50 text-red-700" },
+  skipped: { label: "AI review: too large — review by hand", cls: "bg-slate-100 text-slate-500" },
 };
 
 const PRIORITY_CHIP: Record<number, string> = {

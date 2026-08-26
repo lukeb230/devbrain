@@ -60,6 +60,7 @@ const AI_CHIP: Record<string, string> = {
   looks_good: "bg-emerald-50 text-emerald-700",
   caution: "bg-amber-50 text-amber-700",
   risky: "bg-red-50 text-red-700",
+  skipped: "bg-slate-100 text-slate-500",
 };
 
 const TABS = ["Home", "Tasks", "PRs", "Brain", "Feed"] as const;

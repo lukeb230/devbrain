@@ -70,8 +70,29 @@ export async function POST(request: Request) {
         .eq("id", target.repo_id)
         .single();
       if (repo?.installation_id) {
-        const diff = await prDiff(repo.installation_id, repo.full_name, target.number);
         const files = Array.isArray(target.changed_files) ? (target.changed_files as string[]) : [];
+        let diff: string;
+        try {
+          diff = await prDiff(repo.installation_id, repo.full_name, target.number);
+        } catch (e) {
+          // GitHub caps diffs at 20,000 lines. Record a 'skipped' review so the
+          // tick moves on to other PRs instead of retrying this one forever.
+          if (/too_large|maximum number of lines|diff exceeded/i.test(String(e))) {
+            await admin.from("pr_reviews").insert({
+              org_id: target.org_id,
+              repo_id: target.repo_id,
+              pr_number: target.number,
+              head_sha: target.head_sha,
+              verdict: "skipped",
+              summary: `Too large for an automated review — GitHub won't serve a diff over 20,000 lines (${files.length} files changed). Review this one by hand.`,
+              points: [],
+              model: "none",
+            });
+            did.reviewed = `#${target.number} (skipped: diff too large)`;
+            throw new Error("skip: diff too large");
+          }
+          throw e;
+        }
         const raw = await askClaude(
           REVIEW_SYSTEM,
           `Repo: ${repo.full_name}\nPR #${target.number}: ${target.title}\nAuthor: ${target.author ?? "unknown"}\nBranch: ${target.head_branch} -> ${target.base_branch}\nFiles changed: ${files.join(", ") || "(none listed)"}\n\nDiff:\n${diff}`,

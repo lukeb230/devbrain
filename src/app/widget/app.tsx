@@ -356,7 +356,10 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   {testResult === "sending" ? (
                     <span className="text-slate-400">Sending…</span>
                   ) : testResult.ok ? (
-                    <span className="text-emerald-700">Delivered via {testResult.via} — check the top-right of your screen.</span>
+                    <span className="text-emerald-700">
+                      Delivered via {testResult.via} — check the top-right of your screen.
+                      {testResult.native_error && <span className="block text-amber-700">native path skipped: {testResult.native_error}</span>}
+                    </span>
                   ) : testResult.reason === "denied" ? (
                     <span className="text-amber-700">
                       Notifications are turned off for DevBrain.{" "}

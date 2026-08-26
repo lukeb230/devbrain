@@ -77,7 +77,7 @@ function tauriNotif(): TauriNotification | null {
 }
 
 export type DeliveryResult =
-  | { ok: true; via: "native" | "plugin" | "web" }
+  | { ok: true; via: "native" | "plugin" | "web"; native_error?: string }
   | { ok: false; reason: "denied" | "unsupported" | "error"; detail?: string };
 
 type TauriCore = { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
@@ -93,15 +93,18 @@ function tauriCore(): TauriCore | null {
 //   3. The web Notification API (plain browser).
 async function deliver(title: string, body: string): Promise<DeliveryResult> {
   const core = tauriCore();
+  // Why the native path was skipped (if it was) — shown in the test feedback.
+  let nativeError: string | undefined = core ? undefined : "window.__TAURI__.core missing";
   if (core) {
     try {
       const r = String(await core.invoke("notify", { title, body }));
       if (r === "delivered") return { ok: true, via: "native" };
       if (r === "denied") return { ok: false, reason: "denied" };
-      if (r.startsWith("unsupported")) { /* fall through to the plugin */ }
+      if (r.startsWith("unsupported")) nativeError = r;
       else return { ok: false, reason: "error", detail: r.replace(/^error:\s*/, "") };
-    } catch {
-      /* command missing on an older shell — fall through */
+    } catch (e) {
+      // Command missing on an older shell, or blocked — fall through, but remember why.
+      nativeError = e instanceof Error ? e.message : String(e);
     }
   }
   const tn = tauriNotif();
@@ -109,8 +112,8 @@ async function deliver(title: string, body: string): Promise<DeliveryResult> {
     try {
       let ok = await tn.isPermissionGranted();
       if (!ok) ok = (await tn.requestPermission()) === "granted";
-      if (ok) { tn.sendNotification({ title, body }); return { ok: true, via: "plugin" }; }
-      return { ok: false, reason: "denied" };
+      if (ok) { tn.sendNotification({ title, body }); return { ok: true, via: "plugin", native_error: nativeError }; }
+      return { ok: false, reason: "denied", detail: nativeError };
     } catch {
       /* fall through to web API */
     }

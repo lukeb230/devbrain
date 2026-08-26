@@ -41,8 +41,9 @@ function git(cmd) {
 
 // One-time migration: drop legacy CLI-installed devbrain hooks from the user's
 // settings so presence doesn't double-fire now that the plugin owns it.
+// v6: re-run once more — CLI 0.5.1's updater briefly re-installed them.
 function pruneLegacyHooks() {
-  const marker = join(CONFIG_DIR, "hooks-migrated-v5");
+  const marker = join(CONFIG_DIR, "hooks-migrated-v6");
   if (existsSync(marker)) return;
   const settingsPath = join(homedir(), ".claude", "settings.json");
   try {

@@ -2,7 +2,7 @@
 // ============================================================================
 // devbrain CLI — installer, updater, and hook helper for a teammate's Mac.
 //
-//   devbrain setup       — first run: token, hooks, plugin, jobs, widget
+//   devbrain setup       — first run: token, plugin, jobs, widget
 //   devbrain update      — bring everything on this Mac up to main
 //   devbrain reminders   — add / list / remove synced Reminders lists
 //   devbrain doctor      — verify the whole chain
@@ -99,40 +99,29 @@ function slug(s) {
 }
 
 // ----------------------------------------------------------------------------
-// Claude Code hooks (presence). Idempotent; re-run on every update so the
-// command path follows the checkout.
+// Claude Code hooks. Presence is owned by the PLUGIN (plugin/hooks/presence.mjs)
+// since 0.5.0. Before that, `devbrain init` wrote `devbrain.mjs send …` hooks
+// into ~/.claude/settings.json; if both exist every session is ingested twice.
+// This removes any such legacy entries and never adds any. Idempotent.
 // ----------------------------------------------------------------------------
-function installHooks() {
-  const hookCmd = (kind) => `node ${SELF} send ${kind}`;
-  let settings = {};
-  if (existsSync(CLAUDE_SETTINGS)) {
-    try { settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8")); }
-    catch { log("! Could not parse ~/.claude/settings.json — skipping hook install."); return false; }
-  }
-  settings.hooks = settings.hooks || {};
+function removeLegacyHooks() {
+  if (!existsSync(CLAUDE_SETTINGS)) return false;
+  let settings;
+  try { settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8")); }
+  catch { log("! Could not parse ~/.claude/settings.json — leaving it alone."); return false; }
+  if (!settings.hooks) return false;
   let changed = false;
-  const ensure = (event, matcher, command) => {
-    settings.hooks[event] = settings.hooks[event] || [];
-    const mine = settings.hooks[event].filter((h) => JSON.stringify(h).includes("devbrain.mjs send"));
-    const want = { ...(matcher ? { matcher } : {}), hooks: [{ type: "command", command }] };
-    if (mine.length === 1 && JSON.stringify(mine[0]) === JSON.stringify(want)) return;
-    settings.hooks[event] = settings.hooks[event].filter((h) => !JSON.stringify(h).includes("devbrain.mjs send"));
-    settings.hooks[event].push(want);
-    changed = true;
-  };
-  ensure("PostToolUse", "Edit|Write|MultiEdit", hookCmd("activity"));
-  ensure("SessionStart", undefined, hookCmd("session_start"));
-  ensure("SessionEnd", undefined, hookCmd("session_end"));
-  if (Array.isArray(settings.hooks.Stop)) {
-    const kept = settings.hooks.Stop.filter((h) => !JSON.stringify(h).includes("devbrain"));
-    if (kept.length !== settings.hooks.Stop.length) changed = true;
-    settings.hooks.Stop = kept;
-    if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
+  for (const event of Object.keys(settings.hooks)) {
+    const before = settings.hooks[event];
+    if (!Array.isArray(before)) continue;
+    const after = before.filter((h) => !/devbrain\.mjs send|devbrain[\\/]+bin/i.test(JSON.stringify(h)));
+    if (after.length !== before.length) {
+      changed = true;
+      if (after.length === 0) delete settings.hooks[event];
+      else settings.hooks[event] = after;
+    }
   }
-  if (changed) {
-    mkdirSync(dirname(CLAUDE_SETTINGS), { recursive: true });
-    writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2) + "\n");
-  }
+  if (changed) writeFileSync(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2) + "\n");
   return changed;
 }
 
@@ -353,7 +342,7 @@ async function updateAll({ skipSource = false } = {}) {
     }
   }
   await step("cli", installWrapper);
-  await step("hooks", () => (installHooks() ? "updated" : "ok"));
+  await step("hooks", () => (removeLegacyHooks() ? "legacy CLI hooks removed (plugin owns presence)" : "ok"));
   await step("plugin", updatePlugin);
   await step("reminders", () => updateReminderJobs(cfg));
   await step("updater", updateUpdaterJob);
@@ -542,11 +531,11 @@ if (cmd === "doctor") {
   if (existsSync(CLAUDE_SETTINGS)) {
     try {
       const s = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8"));
-      const missing = ["PostToolUse", "SessionStart", "SessionEnd"].filter((e) => !JSON.stringify(s.hooks?.[e] || []).includes("devbrain"));
-      if (missing.length === 0) ok("presence hooks installed");
-      else bad("presence hooks", `missing on ${missing.join(", ")} — run: devbrain update`);
+      const legacy = Object.values(s.hooks || {}).flat().some((h) => /devbrain\.mjs send/.test(JSON.stringify(h)));
+      if (legacy) bad("legacy CLI presence hooks", "still in ~/.claude/settings.json (double ingest) — run: devbrain update");
+      else ok("presence hooks", "owned by the plugin");
     } catch { bad("~/.claude/settings.json", "unreadable"); }
-  } else bad("~/.claude/settings.json", "missing — run: devbrain update");
+  }
 
   const pl = run("claude", ["plugin", "list"]);
   if (pl.status !== 0) bad("claude CLI", "not found on PATH");

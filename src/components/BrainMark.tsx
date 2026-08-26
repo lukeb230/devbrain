@@ -11,7 +11,7 @@
 const ASPECT = 543 / 440;
 // Bump when the artwork changes: the widget's WKWebView caches /brain.png
 // aggressively, so a same-URL swap can leave the old mark in the header.
-const SRC = "/brain.png?v=2";
+const SRC = "/brain.png?v=3";
 
 export function BrainMark({
   size = 28,

@@ -36,21 +36,18 @@ try {
   process.exit(1);
 }
 
-// JXA (osascript -l JavaScript) reads the list and emits JSON. Reminders'
-// scripting interface is slow on huge lists; a shared working list of
-// tens of items returns in a few seconds.
+// JXA (osascript -l JavaScript) reads the list and emits JSON. Properties
+// are fetched in bulk (one Apple Event per property for the whole list)
+// rather than per reminder — per-item reads cost ~30s each on Reminders,
+// so a 45-item list would take ~25 minutes; bulk takes a few seconds.
 const jxa = `
-  const app = Application("Reminders");
-  const list = app.lists.byName(${JSON.stringify(listName)});
-  const out = list.reminders().map(r => ({
-    id: r.id(),
-    title: r.name(),
-    notes: r.body() || "",
-    priority: r.priority(),
-    completed: r.completed(),
-    due: r.dueDate() ? r.dueDate().toISOString() : null,
-  }));
-  JSON.stringify(out);
+  const rs = Application("Reminders").lists.byName(${JSON.stringify(listName)}).reminders;
+  const ids = rs.id(), names = rs.name(), bodies = rs.body(),
+        pris = rs.priority(), dones = rs.completed(), dues = rs.dueDate();
+  JSON.stringify(ids.map((id, i) => ({
+    id, title: names[i], notes: bodies[i] || "", priority: pris[i],
+    completed: dones[i], due: dues[i] ? dues[i].toISOString() : null,
+  })));
 `;
 
 let items;

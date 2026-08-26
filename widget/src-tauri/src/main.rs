@@ -33,6 +33,7 @@ const PANEL_W: f64 = 440.0;
 const PANEL_H: f64 = 780.0;
 const MARGIN: f64 = 6.0; // gap from screen edges for the panel
 const BADGE_CLEAR: f64 = 64.0; // panel sits above the badge zone
+const BADGE_RETREAT_MS: u64 = 260; // > the badge page's retreat transition
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 enum Corner {
@@ -200,6 +201,8 @@ fn spawn_corner_watcher(app: AppHandle) {
     std::thread::spawn(move || {
         use mouse_position::mouse_position::Mouse;
         let mut visible = false;
+        let mut hide_gen: u64 = 0;
+        let hide_gen_shared = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         loop {
             std::thread::sleep(std::time::Duration::from_millis(80));
             let (mx, my) = match Mouse::get_mouse_position() {
@@ -219,26 +222,57 @@ fn spawn_corner_watcher(app: AppHandle) {
             let dx = (mx - cx).abs();
             let dy = (my - cy).abs();
             let attention = *app.state::<State>().attention.lock().unwrap();
-            // With attention on, the badge is permanently visible — that IS
-            // the signal. Otherwise it's the original hover behaviour.
-            let near = attention || (dx < 32.0 && dy < 32.0);
-            let far = !attention && (dx > 140.0 || dy > 140.0);
+            // While the panel is open the badge stays put — it is the panel's
+            // close button. With attention on it is permanently visible (that
+            // IS the signal). Otherwise it's the hover behaviour.
+            let panel_open = app
+                .get_webview_window("panel")
+                .and_then(|p| p.is_visible().ok())
+                .unwrap_or(false);
+            let hold = attention || panel_open;
+            let near = hold || (dx < 32.0 && dy < 32.0);
+            let far = !hold && (dx > 140.0 || dy > 140.0);
+            // Show: reveal the (transparent) window, then tell the page to
+            // unfurl from the corner. Hide: tell the page to retreat first and
+            // only hide the window once that animation has had time to play.
+            // `gen` cancels a pending hide if the cursor comes straight back.
             if near && !visible {
                 visible = true;
+                hide_gen += 1;
+                hide_gen_shared.store(hide_gen, std::sync::atomic::Ordering::SeqCst);
                 let h = app.clone();
                 let _ = app.run_on_main_thread(move || {
                     place_badge(&h);
                     if let Some(b) = h.get_webview_window("strip") {
                         let _ = b.show();
+                        let _ = b.emit("badge-show", ());
                     }
                 });
             } else if far && visible {
                 visible = false;
+                hide_gen += 1;
+                let my_gen = hide_gen;
+                let gen_ref = hide_gen_shared.clone();
+                gen_ref.store(my_gen, std::sync::atomic::Ordering::SeqCst);
                 let h = app.clone();
                 let _ = app.run_on_main_thread(move || {
                     if let Some(b) = h.get_webview_window("strip") {
-                        let _ = b.hide();
+                        let _ = b.emit("badge-hide", ());
                     }
+                });
+                let h2 = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(BADGE_RETREAT_MS));
+                    // Still the same hide request? (a re-show bumps the gen)
+                    if gen_ref.load(std::sync::atomic::Ordering::SeqCst) != my_gen {
+                        return;
+                    }
+                    let h3 = h2.clone();
+                    let _ = h2.run_on_main_thread(move || {
+                        if let Some(b) = h3.get_webview_window("strip") {
+                            let _ = b.hide();
+                        }
+                    });
                 });
             }
         }
@@ -309,6 +343,9 @@ fn main() {
             .resizable(false)
             .shadow(false)
             .accept_first_mouse(true)
+            // Never becomes the key window: showing the badge must not blur
+            // the panel (which auto-hides on focus loss). Clicks still land.
+            .focusable(false)
             .visible(false)
             .inner_size(ZONE_HOT, ZONE_HOT)
             .build()?;

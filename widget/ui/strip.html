@@ -8,23 +8,32 @@
     background: transparent;
     -webkit-user-select: none; user-select: none; cursor: pointer;
   }
-  /* The badge emerges FROM the screen corner: it starts pushed diagonally
-     off-corner (clipped by the window) and swings into place, so it reads as
-     coming out of the edge rather than fading in on top of it. */
+  /* The badge lives IN the corner. Hidden state: squashed to a sliver and
+     pushed diagonally into the corner point (transform-origin sits there),
+     so showing it unfurls out of the corner with a spring overshoot and
+     hiding sucks it back in — the Dock's unminimize / minimize feel.
+     Transitions (not keyframes) so a cursor that dips out and back mid-way
+     reverses smoothly from wherever it is. */
   #wrap {
     position: absolute; bottom: 4px; width: 48px; height: 48px;
-    animation: emerge 360ms cubic-bezier(.2, 1.35, .35, 1) both;
-    transition: transform 160ms ease;
+    opacity: 0;
+    transform: translate(var(--ox), 30px) scale(.22, .1) rotate(var(--orot));
+    transition: transform 200ms cubic-bezier(.5, 0, .9, .4), opacity 140ms ease-in;
+    will-change: transform, opacity;
   }
-  body.br #wrap { right: 4px; }
-  body.bl #wrap { left: 4px; }
-  @keyframes emerge {
-    from { opacity: 0; transform: translate(var(--ox), 24px) scale(.35) rotate(var(--orot)); }
-    to   { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+  body.shown #wrap {
+    opacity: 1;
+    transform: translate(0, 0) scale(1, 1) rotate(0deg);
+    transition: transform 340ms cubic-bezier(.18, 1.45, .32, 1), opacity 120ms ease-out;
   }
-  body.br { --ox: 24px;  --orot: 22deg; }
-  body.bl { --ox: -24px; --orot: -22deg; }
-  #wrap:hover { transform: scale(1.08); }
+  body.br #wrap { right: 4px; transform-origin: 100% 100%; }
+  body.bl #wrap { left: 4px;  transform-origin: 0% 100%; }
+  body.br { --ox: 26px;  --orot: 18deg; }
+  body.bl { --ox: -26px; --orot: -18deg; }
+  body.shown #wrap:hover { transform: scale(1.08); transition-duration: 160ms; }
+  @media (prefers-reduced-motion: reduce) {
+    #wrap, body.shown #wrap { transition: opacity 120ms ease; transform: none; }
+  }
 
   /* The mark is raster art now (brain.png), so attention colour is a ring
      around it instead of a tint: red = your PR broke or your lane is
@@ -55,7 +64,7 @@
   }
 </style>
 </head>
-<body class="br lvl-idle">
+<body class="br lvl-idle shown">
   <div id="halo"></div>
   <div id="wrap" title="DevBrain">
     <div id="ring"></div>
@@ -66,6 +75,18 @@
       try { return window.__TAURI__.core.invoke(cmd); } catch (e) { return Promise.resolve(); }
     };
     document.addEventListener("click", () => invoke("toggle_panel").catch(() => {}));
+    // Rust tells us when the cursor enters/leaves the corner; the window is
+    // shown before "badge-show" and hidden ~260ms after "badge-hide".
+    try {
+      window.__TAURI__.event.listen("badge-show", () => {
+        // Force a frame at the hidden state first so a fresh show always
+        // plays from the corner (the window was hidden, transitions froze).
+        document.body.classList.remove("shown");
+        void document.body.offsetWidth;
+        requestAnimationFrame(() => document.body.classList.add("shown"));
+      });
+      window.__TAURI__.event.listen("badge-hide", () => document.body.classList.remove("shown"));
+    } catch (e) {}
     invoke("get_corner").then((c) => {
       document.body.classList.remove("br", "bl");
       document.body.classList.add(c === "bl" ? "bl" : "br");

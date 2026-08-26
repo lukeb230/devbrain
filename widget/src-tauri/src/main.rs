@@ -25,6 +25,8 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
+mod notify;
+
 const SITE_PANEL: &str = "https://devbrain-ebon.vercel.app/widget";
 const SITE_FULL: &str = "https://devbrain-ebon.vercel.app/dashboard";
 
@@ -315,7 +317,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner])
+        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

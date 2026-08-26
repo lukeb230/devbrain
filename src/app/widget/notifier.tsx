@@ -76,14 +76,41 @@ function tauriNotif(): TauriNotification | null {
   return t?.notification ?? null;
 }
 
-async function deliver(title: string, body: string) {
+export type DeliveryResult =
+  | { ok: true; via: "native" | "plugin" | "web" }
+  | { ok: false; reason: "denied" | "unsupported" | "error"; detail?: string };
+
+type TauriCore = { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
+function tauriCore(): TauriCore | null {
+  const t = (window as unknown as { __TAURI__?: { core?: TauriCore } }).__TAURI__;
+  return t?.core ?? null;
+}
+
+// Delivery order:
+//   1. The shell's native `notify` command (UNUserNotificationCenter) —
+//      the only path that works on macOS 26; shells ≥0.2.11 have it.
+//   2. Tauri's notification plugin (older shells; dead on macOS 26).
+//   3. The web Notification API (plain browser).
+async function deliver(title: string, body: string): Promise<DeliveryResult> {
+  const core = tauriCore();
+  if (core) {
+    try {
+      const r = String(await core.invoke("notify", { title, body }));
+      if (r === "delivered") return { ok: true, via: "native" };
+      if (r === "denied") return { ok: false, reason: "denied" };
+      if (r.startsWith("unsupported")) { /* fall through to the plugin */ }
+      else return { ok: false, reason: "error", detail: r.replace(/^error:\s*/, "") };
+    } catch {
+      /* command missing on an older shell — fall through */
+    }
+  }
   const tn = tauriNotif();
   if (tn) {
     try {
       let ok = await tn.isPermissionGranted();
       if (!ok) ok = (await tn.requestPermission()) === "granted";
-      if (ok) tn.sendNotification({ title, body });
-      return;
+      if (ok) { tn.sendNotification({ title, body }); return { ok: true, via: "plugin" }; }
+      return { ok: false, reason: "denied" };
     } catch {
       /* fall through to web API */
     }
@@ -91,17 +118,24 @@ async function deliver(title: string, body: string) {
   if (typeof Notification !== "undefined") {
     try {
       if (Notification.permission === "default") await Notification.requestPermission();
-      if (Notification.permission === "granted") new Notification(title, { body });
+      if (Notification.permission === "granted") { new Notification(title, { body }); return { ok: true, via: "web" }; }
+      return { ok: false, reason: "denied" };
     } catch {
-      /* no delivery channel — silent */
+      /* no delivery channel */
     }
   }
+  return { ok: false, reason: "unsupported" };
+}
+
+/** Deep-link to System Settings → Notifications (shell ≥0.2.11); no-op elsewhere. */
+export function openNotificationSettings() {
+  void tauriCore()?.invoke("open_notification_settings").catch(() => {});
 }
 
 // Fired from the Settings view so users can confirm delivery end to end
-// (shell permission included) with one click.
-export async function testNotification() {
-  await deliver("DevBrain", "Notifications are working.");
+// (shell permission included) with one click — and learn why if it fails.
+export async function testNotification(): Promise<DeliveryResult> {
+  return deliver("DevBrain", "Notifications are working.");
 }
 
 // ---------------------------------------------------------------------------

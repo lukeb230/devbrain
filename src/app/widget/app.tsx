@@ -23,6 +23,8 @@ import {
   DEFAULT_PREFS,
   readPrefs,
   testNotification,
+  openNotificationSettings,
+  type DeliveryResult,
   WidgetNotifier,
   writePrefs,
   type NotifPrefs,
@@ -206,6 +208,11 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const [switching, startSwitch] = useTransition();
   const [capture, setCapture] = useState<"dump" | "spec">("dump");
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
+  const [testResult, setTestResult] = useState<DeliveryResult | "sending" | null>(null);
+  const runTest = async () => {
+    setTestResult("sending");
+    setTestResult(await testNotification());
+  };
   useEffect(() => setPrefs(readPrefs()), []); // localStorage only exists client-side
   const setPref = (key: BoolPref, value: boolean) => {
     const next = { ...prefs, [key]: value };
@@ -339,11 +346,29 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 ))}
               </ul>
               <button
-                onClick={() => void testNotification()}
+                onClick={() => void runTest()}
                 className="mt-2 rounded border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:border-brand-500 hover:text-brand-600"
               >
                 Send test notification
               </button>
+              {testResult && (
+                <div className="mt-1.5 text-[11px]">
+                  {testResult === "sending" ? (
+                    <span className="text-slate-400">Sending…</span>
+                  ) : testResult.ok ? (
+                    <span className="text-emerald-700">Delivered — check the top-right of your screen.</span>
+                  ) : testResult.reason === "denied" ? (
+                    <span className="text-amber-700">
+                      Notifications are turned off for DevBrain.{" "}
+                      <button onClick={openNotificationSettings} className="underline">Open System Settings → Notifications</button>
+                    </span>
+                  ) : testResult.reason === "unsupported" ? (
+                    <span className="text-slate-500">No notification channel here — use the desktop widget.</span>
+                  ) : (
+                    <span className="text-red-700">Couldn&apos;t deliver: {testResult.detail || "unknown error"}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {data.lastRepo && (

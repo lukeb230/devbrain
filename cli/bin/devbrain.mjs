@@ -313,10 +313,12 @@ async function updateWidget() {
   if (!existsSync(app)) return "zip did not contain DevBrain.app";
   run("xattr", ["-dr", "com.apple.quarantine", app]);
 
-  const wasRunning = run("pgrep", ["-x", "DevBrain"]).status === 0;
+  // The bundle's binary is devbrain-widget, not DevBrain — match on the
+  // bundle path so the check survives renames.
+  const wasRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
   if (wasRunning) {
     run("osascript", ["-e", 'tell application "DevBrain" to quit']);
-    run("pkill", ["-x", "DevBrain"]);
+    run("pkill", ["-f", `${WIDGET_APP}/Contents/MacOS/`]);
   }
   rmSync(WIDGET_APP, { recursive: true, force: true });
   if (run("ditto", [app, WIDGET_APP]).status !== 0) return "could not copy into /Applications";
@@ -564,7 +566,7 @@ if (cmd === "doctor") {
   const wv = installedWidgetVersion();
   let wantW = null; try { wantW = JSON.parse(readFileSync(join(REPO_ROOT, "widget", "src-tauri", "tauri.conf.json"), "utf8")).version; } catch { /* */ }
   if (!wv) bad("widget", "not installed — run: devbrain update (needs a published widget release)");
-  else if (wv === wantW) ok("widget", `${wv}${run("pgrep", ["-x", "DevBrain"]).status === 0 ? " (running)" : " (not running)"}`);
+  else if (wv === wantW) ok("widget", `${wv}${run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0 ? " (running)" : " (not running)"}`);
   else bad("widget", `${wv} installed, ${wantW} on main — run: devbrain update`);
 
   console.log("devbrain doctor\n" + results.join("\n"));

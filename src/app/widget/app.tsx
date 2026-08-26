@@ -4,7 +4,7 @@
 // (tasks + who's working — the glance content), and a bottom tab bar for
 // Tasks / PRs / Brain / Feed. Tab switches are instant (pure client state).
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { TaskBody } from "@/components/TaskBody";
@@ -29,6 +29,7 @@ import {
 } from "./notifier";
 
 export interface WidgetData {
+  deploy: string;
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
@@ -194,6 +195,14 @@ const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
 
 export function WidgetApp({ data }: { data: WidgetData }) {
   const [tab, setTab] = useState<View>("Home");
+  // Self-update: a new deployment changes `data.deploy` on the next refresh;
+  // reload so the bundle (icons, components, styles) matches the server.
+  const bootDeploy = useRef(data.deploy);
+  useEffect(() => {
+    if (data.deploy && bootDeploy.current && data.deploy !== bootDeploy.current) {
+      window.location.reload();
+    }
+  }, [data.deploy]);
   const [switching, startSwitch] = useTransition();
   const [capture, setCapture] = useState<"dump" | "spec">("dump");
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);

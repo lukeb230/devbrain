@@ -205,6 +205,10 @@ export default async function WidgetPage() {
   }
 
   const data: WidgetData = {
+    // Deployment stamp. The panel is a long-lived webview: data refreshes
+    // via router.refresh(), but the JS bundle does not. The client compares
+    // this against the value it booted with and hard-reloads on change.
+    deploy: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? "dev",
     sessions: fSessions.map((s) => ({
       id: String(s.id),
       repo: short(s.repo_id),

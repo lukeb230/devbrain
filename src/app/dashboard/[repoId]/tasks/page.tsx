@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { TaskBody } from "@/components/TaskBody";
 import { AppNav } from "@/components/AppNav";
 import { teamMembers } from "@/lib/members";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -206,8 +207,7 @@ export default async function TasksPage({
                         />
                       </form>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-slate-900">{t.title}</div>
-                        {t.detail && <div className="text-xs text-slate-500">{t.detail}</div>}
+                        <TaskBody title={t.title} detail={t.detail} />
                         {t.maybe_done_pr && (
                           <div className="mt-1 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1">
                             <span className="text-xs font-medium text-amber-800">

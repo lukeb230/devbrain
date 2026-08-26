@@ -7,6 +7,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
+import { TaskBody } from "@/components/TaskBody";
 import { BrainMark } from "@/components/BrainMark";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
@@ -85,8 +86,8 @@ function timeAgo(iso: string) {
 
 function TaskRow({ t, compact }: { t: WidgetData["tasks"][number]; compact?: boolean }) {
   return (
-    <li className="flex items-center gap-2">
-      <form action={completeTask} className="flex-shrink-0">
+    <li className="flex items-start gap-2">
+      <form action={completeTask} className="mt-0.5 flex-shrink-0">
         <input type="hidden" name="repoId" value={t.repo_id} />
         <input type="hidden" name="id" value={t.id} />
         <button
@@ -95,8 +96,8 @@ function TaskRow({ t, compact }: { t: WidgetData["tasks"][number]; compact?: boo
           style={{ height: 14, width: 14 }}
         />
       </form>
-      <span className={`chip flex-shrink-0 px-1 py-0 text-[10px] ${PRIO[t.priority] ?? PRIO[4]}`}>P{t.priority}</span>
-      <span className="min-w-0 flex-1 truncate text-xs text-slate-800">{t.title}</span>
+      <span className={`chip mt-0.5 flex-shrink-0 px-1 py-0 text-[10px] ${PRIO[t.priority] ?? PRIO[4]}`}>P{t.priority}</span>
+      <TaskBody size="sm" title={t.title} detail={t.detail} />
       {!compact && t.assigned_to && <span className="flex-shrink-0 text-[10px] text-brand-600">{t.assigned_to}</span>}
     </li>
   );
@@ -589,8 +590,8 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                     <ul className="space-y-2">
                       {group.map((t) => (
                         <li key={t.id} className="text-xs">
-                          <div className="flex items-center gap-2">
-                            <form action={completeTask} className="flex-shrink-0">
+                          <div className="flex items-start gap-2">
+                            <form action={completeTask} className="mt-0.5 flex-shrink-0">
                               <input type="hidden" name="repoId" value={t.repo_id} />
                               <input type="hidden" name="id" value={t.id} />
                               <button
@@ -599,7 +600,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                                 style={{ height: 14, width: 14 }}
                               />
                             </form>
-                            <span className="min-w-0 flex-1 truncate font-medium text-slate-900">{t.title}</span>
+                            <TaskBody size="sm" title={t.title} detail={t.detail} />
                             <TaskMenu
                               compact
                               task={{
@@ -614,9 +615,6 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                               members={data.members}
                             />
                           </div>
-                          {t.detail && (
-                            <div className="ml-6 truncate text-[10px] text-slate-500">{t.detail}</div>
-                          )}
                           {t.maybe_done_pr && (
                             <div className="ml-6 mt-0.5 flex items-center gap-1.5">
                               <span className="chip bg-amber-50 px-1 py-0 text-[10px] text-amber-800">

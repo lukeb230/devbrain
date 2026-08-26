@@ -41,7 +41,7 @@ returns table (kind text, source_id text, title text, snippet text, by_label tex
 language sql stable as $$
   select m.kind, m.source_id, m.title,
          ts_headline('english', m.body, websearch_to_tsquery('english', p_q),
-                     'MaxFragments=2, MaxWords=28, MinWords=10, FragmentDelimiter= … , StartSel=, StopSel=') as snippet,
+                     'MaxFragments=2, MaxWords=28, MinWords=10, FragmentDelimiter=" … ", StartSel="", StopSel=""') as snippet,
          m.by_label, m.at,
          ts_rank_cd(m.tsv, websearch_to_tsquery('english', p_q)) as rank
   from memory_index m

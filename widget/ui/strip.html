@@ -26,14 +26,15 @@
   body.bl { --ox: -24px; --orot: -22deg; }
   #wrap:hover { transform: scale(1.08); }
 
-  svg { display: block; width: 48px; height: 48px;
-        filter: drop-shadow(0 2px 8px rgba(15, 23, 42, .45)); }
-  .brain { fill: currentColor; transition: fill 260ms ease; }
-  .fiss  { stroke: #241b5e; stroke-width: 3.7; fill: none; stroke-linecap: round; }
-
-  /* Colour carries the signal: red = your PR broke or your lane is
+  /* The mark is raster art now (brain.png), so attention colour is a ring
+     around it instead of a tint: red = your PR broke or your lane is
      contested, green = cleared to land, amber = something waits on you. */
-  body            { color: #4f46e5; }
+  #wrap img { display: block; width: 48px; height: 48px; object-fit: contain;
+              filter: drop-shadow(0 2px 8px rgba(15, 23, 42, .45)); }
+  #ring { position: absolute; inset: -3px; border-radius: 50%; border: 3px solid currentColor;
+          opacity: 0; transition: opacity 260ms ease; pointer-events: none; }
+  body:not(.lvl-idle) #ring { opacity: 1; }
+  body            { color: #e88078; }
   body.lvl-red    { color: #d03b3b; }
   body.lvl-green  { color: #0ca30c; }
   body.lvl-amber  { color: #d98514; }
@@ -57,11 +58,8 @@
 <body class="br lvl-idle">
   <div id="halo"></div>
   <div id="wrap" title="DevBrain">
-    <svg viewBox="-3 -3 70 70" aria-label="DevBrain">
-      <defs><clipPath id="bclip"><path d="M32 6 C27.5 3 21 3.5 18.5 7.5 C13 6.5 8.5 10 8.5 15 C3.5 17 1.5 23.5 4.5 28 C1 32.5 2.5 39.5 7.5 42 C7.5 47.5 12.5 51.5 18 50.5 C20.5 54 26 55.5 30 53 C31 54.5 33 54.5 34 53 C38 55.5 43.5 54 46 50.5 C51.5 51.5 56.5 47.5 56.5 42 C61.5 39.5 63 32.5 59.5 28 C62.5 23.5 60.5 17 55.5 15 C55.5 10 51 6.5 45.5 7.5 C43 3.5 36.5 3 32 6 Z"/></clipPath></defs>
-      <path class="brain" d="M32 6 C27.5 3 21 3.5 18.5 7.5 C13 6.5 8.5 10 8.5 15 C3.5 17 1.5 23.5 4.5 28 C1 32.5 2.5 39.5 7.5 42 C7.5 47.5 12.5 51.5 18 50.5 C20.5 54 26 55.5 30 53 C31 54.5 33 54.5 34 53 C38 55.5 43.5 54 46 50.5 C51.5 51.5 56.5 47.5 56.5 42 C61.5 39.5 63 32.5 59.5 28 C62.5 23.5 60.5 17 55.5 15 C55.5 10 51 6.5 45.5 7.5 C43 3.5 36.5 3 32 6 Z" stroke="#241b5e" stroke-width="3.6" stroke-linejoin="round"/>
-      <g clip-path="url(#bclip)" class="fiss"><path d="M32 10 C32 17 25 18 25 24 C25 30 32 31 32 38 C32 44 27 45 27.5 49.5"/><path d="M17.5 12.5 C12.5 16 15.5 21 11 24 C14.5 26.5 12 31 15 33"/><path d="M46.5 12.5 C51.5 16 48.5 21 53 24 C49.5 26.5 52 31 49 33"/><path d="M10 37 C16 37.5 19 41 17 46.5"/><path d="M54 37 C48 37.5 45 41 47 46.5"/><path d="M24 9 C20.5 13 23 16.5 19.5 19.5"/><path d="M40 9 C43.5 13 41 16.5 44.5 19.5"/><path d="M38.5 26 C44 26.5 45 32 41 35 C43.5 38 42 42 38.5 43"/><path d="M25.5 26 C20 26.5 19 32 23 35 C20.5 38 22 42 25.5 43"/></g>
-    </svg>
+    <div id="ring"></div>
+    <img src="brain.png" alt="DevBrain" draggable="false" />
   </div>
   <script>
     const invoke = (cmd) => {

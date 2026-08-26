@@ -7,13 +7,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Coral, sampled from the brain mark (#e88078 = brand-500). Hand-tuned
+        // so the deeper steps stay coral rather than sliding into error red.
         brand: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          400: "#818cf8",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
+          50: "#fdf1ef",
+          100: "#fadfdb",
+          200: "#f5c5bf",
+          300: "#f0a59d",
+          400: "#ec8b82",
+          500: "#e88078",
+          600: "#d9645b",
+          700: "#bf4d44",
+          800: "#9c3d36",
+          900: "#7a2f2a",
         },
       },
       boxShadow: {

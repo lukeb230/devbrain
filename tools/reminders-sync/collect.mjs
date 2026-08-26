@@ -1,0 +1,81 @@
+#!/usr/bin/env node
+// ============================================================================
+// DevBrain Reminders collector — reads a shared Apple Reminders list on this
+// Mac and posts it to DevBrain, where each reminder becomes a task.
+//
+//   node collect.mjs "<List Name>" "<owner/repo>"
+//   e.g. node collect.mjs "Scorpion One" "flow-sync-dev/Scorpion-One"
+//
+// Auth comes from ~/.devbrain/config.json (written by `devbrain init`).
+// Runs fine from launchd every few minutes; the server is idempotent, so
+// re-posting the same list — even from two Macs — never duplicates a task.
+//
+// Conventions typed into a reminder's title:
+//   @ethan  → assigns the task        #export → tags it
+//   Priority Low/Medium/High in Reminders → P3/P2/P1 in DevBrain.
+//
+// First run: macOS will ask to allow access to Reminders — click Allow.
+// ============================================================================
+
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const [listName, repo] = process.argv.slice(2);
+if (!listName || !repo) {
+  console.error('usage: node collect.mjs "<List Name>" "<owner/repo>"');
+  process.exit(1);
+}
+
+let cfg;
+try {
+  cfg = JSON.parse(readFileSync(join(homedir(), ".devbrain", "config.json"), "utf8"));
+} catch {
+  console.error("No ~/.devbrain/config.json — run `devbrain init` first.");
+  process.exit(1);
+}
+
+// JXA (osascript -l JavaScript) reads the list and emits JSON. Reminders'
+// scripting interface is slow on huge lists; a shared working list of
+// tens of items returns in a few seconds.
+const jxa = `
+  const app = Application("Reminders");
+  const list = app.lists.byName(${JSON.stringify(listName)});
+  const out = list.reminders().map(r => ({
+    id: r.id(),
+    title: r.name(),
+    notes: r.body() || "",
+    priority: r.priority(),
+    completed: r.completed(),
+    due: r.dueDate() ? r.dueDate().toISOString() : null,
+  }));
+  JSON.stringify(out);
+`;
+
+let items;
+try {
+  items = JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e", jxa], {
+    encoding: "utf8",
+    timeout: 60_000,
+  }).trim());
+} catch (err) {
+  console.error("Could not read Reminders list " + JSON.stringify(listName) + ":", String(err.message || err).slice(0, 200));
+  console.error("Check the list name, and System Settings → Privacy & Security → Reminders.");
+  process.exit(1);
+}
+
+const res = await fetch(`${cfg.server.replace(/\/$/, "")}/api/v1/reminders`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+  body: JSON.stringify({ repo, items }),
+});
+const out = await res.json().catch(() => ({}));
+if (!res.ok) {
+  console.error("DevBrain rejected the sync:", res.status, JSON.stringify(out));
+  process.exit(1);
+}
+console.log(
+  `[${new Date().toISOString()}] ${listName} → ${repo}: ` +
+  `${items.length} reminders, ${out.created ?? 0} created, ${out.updated ?? 0} updated, ${out.completed ?? 0} completed`,
+);

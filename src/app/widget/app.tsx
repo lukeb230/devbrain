@@ -918,9 +918,8 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               key={t}
               onClick={() => setTab(t)}
               aria-label={t}
-              title={t}
               aria-current={active ? "page" : undefined}
-              className="group flex flex-1 items-center justify-center py-1"
+              className="group relative flex flex-1 items-center justify-center py-1"
             >
               <span
                 className={
@@ -929,6 +928,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 }
               >
                 <TabIcon tab={t} active={active} />
+              </span>
+              {/* Delayed label: appears after a deliberate hover (1.2s), gone
+                  instantly on leave — no native title tooltip. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-md bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 shadow transition-opacity duration-150 group-hover:opacity-100 group-hover:[transition-delay:1200ms]"
+              >
+                {t}
               </span>
             </button>
           );

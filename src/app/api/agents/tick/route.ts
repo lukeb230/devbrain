@@ -667,7 +667,7 @@ export async function POST(request: Request) {
           "TRANSCRIPT EXCERPT (redacted):",
           row.excerpt,
         ].filter(Boolean).join("\n\n");
-        const raw = await askClaude(JOURNAL_SYSTEM, prompt, 900);
+        const raw = await askClaude(JOURNAL_SYSTEM, prompt, 2000);
         const j = extractJson(raw);
         const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => String(x).slice(0, 400)).slice(0, 8) : []);
         if (j && typeof j.summary === "string" && j.summary.trim()) {
@@ -692,7 +692,8 @@ export async function POST(request: Request) {
           await admin.from("journal_queue").delete().eq("id", row.id);
           did.journal = `${row.dev_label} @ ${repo?.full_name ?? "?"}`;
         } else {
-          await admin.from("journal_queue").update({ attempts: (row.attempts ?? 0) + 1 }).eq("id", row.id);
+          // Keep the raw reply on the row so a failure can be diagnosed from SQL.
+          await admin.from("journal_queue").update({ attempts: (row.attempts ?? 0) + 1, last_reply: raw.slice(0, 4000) }).eq("id", row.id);
           did.journal_error = "unparseable summary";
         }
       }

@@ -103,6 +103,69 @@ function TaskRow({ t, compact }: { t: WidgetData["tasks"][number]; compact?: boo
   );
 }
 
+// Tab icons — hand-drawn stroke glyphs so the widget stays dependency-free.
+// 22px box, 1.75 stroke; the active state is expressed by colour from the
+// parent, plus a filled accent on a couple of glyphs where it reads better.
+function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.75,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  switch (tab) {
+    case "Home":
+      return (
+        <svg {...common}>
+          <path d="M3.5 11.2 12 4l8.5 7.2" />
+          <path d="M6 10v9.5h4.5v-5h3v5H18V10" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
+        </svg>
+      );
+    case "Tasks":
+      // Reminders-style: bullet dots with lines beside them.
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="7" r="1.6" fill="currentColor" stroke="none" />
+          <circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          <circle cx="6" cy="17" r="1.6" fill="currentColor" stroke="none" />
+          <path d="M10.5 7h8.5M10.5 12h8.5M10.5 17h8.5" />
+        </svg>
+      );
+    case "PRs":
+      // Git pull-request glyph: a branch from one commit merging into another.
+      return (
+        <svg {...common}>
+          <circle cx="6.5" cy="5.5" r="2.2" />
+          <circle cx="6.5" cy="18.5" r="2.2" />
+          <circle cx="17.5" cy="18.5" r="2.2" />
+          <path d="M6.5 7.7v8.6" />
+          <path d="M11.5 5.5h3.5a2.5 2.5 0 0 1 2.5 2.5v8.3" />
+          <path d="M13.8 3.2 11.5 5.5l2.3 2.3" />
+        </svg>
+      );
+    case "Brain":
+      return (
+        <svg {...common}>
+          <path d="M9.5 4.5a2.6 2.6 0 0 0-2.6 2.2A2.7 2.7 0 0 0 5 9.4a2.7 2.7 0 0 0 .5 4.3A2.7 2.7 0 0 0 7.2 17.6 2.5 2.5 0 0 0 12 18V6.8a2.5 2.5 0 0 0-2.5-2.3Z" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
+          <path d="M14.5 4.5a2.6 2.6 0 0 1 2.6 2.2A2.7 2.7 0 0 1 19 9.4a2.7 2.7 0 0 1-.5 4.3 2.7 2.7 0 0 1-1.7 3.9A2.5 2.5 0 0 1 12 18V6.8a2.5 2.5 0 0 1 2.5-2.3Z" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
+          <path d="M12 9.5h-1.5M12 13h2M9 8.2c-.8.3-1.2 1-1.2 1.8M15 13.8c.8.3 1.2 1 1.2 1.8" />
+        </svg>
+      );
+    case "Feed":
+      // Live pulse: the feed is what just happened across the team.
+      return (
+        <svg {...common}>
+          <path d="M3 12h3.2l2.3-6 3.4 12 2.6-8.5 1.7 2.5H21" />
+        </svg>
+      );
+  }
+}
+
 function Switch({ on, small }: { on: boolean; small?: boolean }) {
   const h = small ? "h-5 w-9" : "h-6 w-11";
   const knob = small ? "h-3.5 w-3.5" : "h-4 w-4";
@@ -845,20 +908,31 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         )}
       </div>
 
-      {/* Bottom tab bar */}
-      <div className="flex flex-shrink-0 border-t border-slate-200 bg-white">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={
-              "flex-1 py-2 text-[11px] font-medium " +
-              (tab === t ? "border-t-2 border-brand-600 text-brand-700" : "border-t-2 border-transparent text-slate-400 hover:text-slate-700")
-            }
-          >
-            {t}
-          </button>
-        ))}
+      {/* Bottom tab bar — icons only; the active tab takes the accent colour
+          and a soft tint pill. Labels stay as aria-label/title. */}
+      <div className="flex flex-shrink-0 items-stretch border-t border-slate-200 bg-white px-1 py-1.5">
+        {TABS.map((t) => {
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              aria-label={t}
+              title={t}
+              aria-current={active ? "page" : undefined}
+              className="group flex flex-1 items-center justify-center py-1"
+            >
+              <span
+                className={
+                  "flex h-8 w-11 items-center justify-center rounded-lg transition-colors " +
+                  (active ? "bg-brand-50 text-brand-600" : "text-slate-400 group-hover:bg-slate-50 group-hover:text-slate-600")
+                }
+              >
+                <TabIcon tab={t} active={active} />
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

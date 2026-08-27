@@ -5,7 +5,7 @@
 // Tasks / PRs / Brain / Feed. Tab switches are instant (pure client state).
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { setWidgetRepo } from "./actions";
+import { mintDeviceToken, setWidgetRepo } from "./actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { TaskBody } from "@/components/TaskBody";
 import { BrainMark } from "@/components/BrainMark";
@@ -47,7 +47,7 @@ export interface WidgetData {
   conflicted: number;
   rules: { rule: string; label: string; on: boolean }[];
   self: string | null;
-  repos: { id: string; name: string }[];
+  repos: { id: string; name: string; full_name: string }[];
   scopeAll: boolean;
   digest: { day: string; body: string; repo: string } | null;
   mergePlan: { repo: string; order: { number: number; title: string; reason: string }[] } | null;
@@ -103,6 +103,131 @@ function TaskRow({ t, compact }: { t: WidgetData["tasks"][number]; compact?: boo
       <TaskBody size="sm" title={t.title} detail={t.detail} />
       {!compact && t.assigned_to && <span className="flex-shrink-0 text-[10px] text-brand-600">{t.assigned_to}</span>}
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// First-run setup, shown inside the desktop app until ~/.devbrain/config.json
+// exists. Mints a device token for the signed-in member, then asks the shell
+// to bootstrap (source, CLI, plugin, hooks, updater), request notification
+// permission, and take a first Reminders pass (which triggers the macOS
+// Reminders prompt) — all attributed to DevBrain.app.
+// ---------------------------------------------------------------------------
+interface SetupState {
+  configured: boolean;
+  node: string;
+  node_ok: boolean;
+  hostname: string;
+  app_version: string;
+  source_present: boolean;
+  reminders: { list: string; repo: string }[];
+}
+
+function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: WidgetData["repos"]; onDone: () => void }) {
+  const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
+  const [syncReminders, setSyncReminders] = useState(true);
+  const [list, setList] = useState("Scorpion One");
+  const [repo, setRepo] = useState(repos[0]?.full_name ?? "");
+  const [busy, setBusy] = useState(false);
+  const [lines, setLines] = useState<string[]>([]);
+  const [done, setDone] = useState<null | "ok" | "fail">(null);
+  const say = (l: string) => setLines((xs) => [...xs, l]);
+  const core = () => (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
+
+  const run = async () => {
+    setBusy(true); setLines([]); setDone(null);
+    try {
+      const c = core();
+      if (!c) throw new Error("not running inside the DevBrain app");
+      say("Creating a token for this Mac…");
+      const minted = await mintDeviceToken(label);
+      if ("error" in minted) throw new Error(minted.error);
+      say(`Token "${minted.label}" created.`);
+      say("Installing the CLI, Claude Code plugin, hooks and updater…");
+      const r = (await c.invoke("bootstrap", {
+        server: window.location.origin,
+        token: minted.token,
+        remindersList: syncReminders ? list : null,
+        remindersRepo: syncReminders ? repo : null,
+      })) as { ok: boolean; log: string };
+      for (const l of r.log.split("\n").filter(Boolean)) say("  " + l);
+      if (!r.ok) throw new Error("setup failed — see above");
+      say("Asking for notification permission (click Allow)…");
+      const n = String(await c.invoke("notify", { title: "DevBrain is set up", body: "You'll get team notifications here." }));
+      say(n === "delivered" ? "Notifications on." : `Notifications: ${n}.`);
+      if (syncReminders && list && repo) {
+        say(`Reading Reminders list "${list}" (click Allow if macOS asks)…`);
+        const out = (await c.invoke("run_collector_now")) as string[];
+        for (const l of out) say("  " + l);
+      }
+      say("Done. Restart any open Claude Code sessions to load the plugin.");
+      setDone("ok");
+    } catch (e) {
+      say("✗ " + (e instanceof Error ? e.message : String(e)));
+      setDone("fail");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen flex-col bg-slate-50">
+      <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-slate-200 bg-white px-3 py-2">
+        <BrainMark size={18} className="flex-shrink-0" />
+        <span className="text-sm font-semibold text-slate-900">Set up DevBrain on this Mac</span>
+        <span className="ml-auto text-[10px] text-slate-400">v{state.app_version}</span>
+      </div>
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+        <p className="text-xs leading-relaxed text-slate-600">
+          One click installs the Claude Code plugin, the CLI, presence hooks, the daily updater and — if you want — Reminders sync.
+          macOS will ask for two permissions along the way (Notifications, Reminders). Nothing else to install
+          {state.node_ok ? " — Node is bundled with the app." : "."}
+        </p>
+        {!state.node_ok && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+            Bundled Node isn&apos;t runnable ({state.node}). This build may be incomplete — tell Luke.
+          </div>
+        )}
+        <label className="block text-xs">
+          <span className="mb-1 block font-medium text-slate-700">Name for this Mac (shows on the team board)</span>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} disabled={busy}
+            className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none" />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-slate-700">
+          <input type="checkbox" checked={syncReminders} onChange={(e) => setSyncReminders(e.target.checked)} disabled={busy} />
+          Sync a shared Apple Reminders list into the task board
+        </label>
+        {syncReminders && (
+          <div className="ml-5 grid grid-cols-2 gap-2">
+            <label className="block text-xs">
+              <span className="mb-1 block text-slate-500">Reminders list</span>
+              <input value={list} onChange={(e) => setList(e.target.value)} disabled={busy}
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none" />
+            </label>
+            <label className="block text-xs">
+              <span className="mb-1 block text-slate-500">Repo it feeds</span>
+              <select value={repo} onChange={(e) => setRepo(e.target.value)} disabled={busy}
+                className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none">
+                {repos.length === 0 && <option value="">(no linked repos)</option>}
+                {repos.map((r) => <option key={r.id} value={r.full_name}>{r.full_name}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+        <button onClick={() => void run()} disabled={busy || done === "ok"}
+          className="w-full rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+          {busy ? "Setting up…" : done === "ok" ? "All set" : "Set up this Mac"}
+        </button>
+        {lines.length > 0 && (
+          <pre className="max-h-64 overflow-auto rounded-md bg-slate-900 p-2.5 text-[10px] leading-relaxed text-slate-100">{lines.join("\n")}</pre>
+        )}
+        {done === "ok" && (
+          <button onClick={onDone} className="w-full rounded-md border border-brand-300 px-3 py-1.5 text-sm text-brand-700 hover:bg-brand-50">
+            Open DevBrain
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -197,6 +322,13 @@ const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
 
 export function WidgetApp({ data }: { data: WidgetData }) {
   const [tab, setTab] = useState<View>("Home");
+  // First-run: inside the desktop app with no ~/.devbrain/config.json yet.
+  const [setup, setSetup] = useState<SetupState | null>(null);
+  useEffect(() => {
+    const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
+    if (!core) return;
+    core.invoke("setup_state").then((s) => setSetup(s as SetupState)).catch(() => {});
+  }, []);
   // Self-update: a new deployment changes `data.deploy` on the next refresh;
   // reload so the bundle (icons, components, styles) matches the server.
   const bootDeploy = useRef(data.deploy);
@@ -222,6 +354,10 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   };
   const open = data.tasks.filter((t) => t.status === "open");
   const done = data.tasks.filter((t) => t.status === "done").slice(0, 5);
+
+  if (setup && !setup.configured) {
+    return <SetupScreen state={setup} repos={data.repos} onDone={() => window.location.reload()} />;
+  }
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-run-collector-now"
+description = "Enables the run_collector_now command without any pre-configured scope."
+commands.allow = ["run_collector_now"]
+
+[[permission]]
+identifier = "deny-run-collector-now"
+description = "Denies the run_collector_now command without any pre-configured scope."
+commands.deny = ["run_collector_now"]

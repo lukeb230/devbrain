@@ -297,7 +297,7 @@ export default async function WidgetPage() {
     conflicted: fPrs.filter((p) => p.mergeable_state === "dirty").length,
     rules,
     self,
-    repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id) })),
+    repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id), full_name: r.full_name })),
     scopeAll,
     digest: (() => {
       // Digests are per-repo. Scoped → that repo's; All repos → the newest,

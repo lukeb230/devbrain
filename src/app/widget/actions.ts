@@ -1,8 +1,10 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { hashToken } from "@/lib/token";
 
 // Widget repo switcher — sets the same cookie the middleware writes when you
 // visit a repo on the dashboard, so the widget and dashboard stay in sync on
@@ -33,4 +35,35 @@ export async function setWidgetRepo(repoId: string): Promise<void> {
     path: "/",
   });
   revalidatePath("/widget");
+}
+
+// First-run setup inside the desktop app: mint a dev token for THIS device on
+// behalf of the signed-in member and return the plaintext once. The app
+// writes it to ~/.devbrain/config.json; the server only ever keeps the hash.
+// Same rules as the Tokens page — a member can only mint for themselves.
+export async function mintDeviceToken(labelRaw: string): Promise<{ token: string; label: string } | { error: string }> {
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "not signed in" };
+  const admin = supabaseAdmin();
+  const { data: membership } = await admin
+    .from("org_members")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return { error: "not a member of any org" };
+  const label = String(labelRaw || "").trim().slice(0, 60) || "devbrain-app";
+  const token = "dbk_" + randomBytes(24).toString("hex");
+  const { error } = await admin.from("dev_tokens").insert({
+    org_id: membership.org_id,
+    user_id: user.id,
+    label,
+    token_hash: hashToken(token),
+  });
+  if (error) return { error: "could not create token" };
+  revalidatePath("/settings/tokens");
+  return { token, label };
 }

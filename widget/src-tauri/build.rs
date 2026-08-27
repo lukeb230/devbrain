@@ -13,6 +13,9 @@ fn main() {
                 "notify",
                 "notification_status",
                 "open_notification_settings",
+                "setup_state",
+                "bootstrap",
+                "run_collector_now",
             ]),
         ),
     )

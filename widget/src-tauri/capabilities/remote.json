@@ -14,6 +14,9 @@
     "notification:default",
     "allow-notify",
     "allow-notification-status",
-    "allow-open-notification-settings"
+    "allow-open-notification-settings",
+    "allow-setup-state",
+    "allow-bootstrap",
+    "allow-run-collector-now"
   ]
 }

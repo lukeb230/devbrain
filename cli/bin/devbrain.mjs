@@ -27,7 +27,7 @@
 import { execSync, spawnSync, spawn } from "node:child_process";
 import {
   existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync,
-  rmSync, chmodSync, statSync,
+  rmSync, chmodSync, renameSync, symlinkSync, readlinkSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
@@ -49,6 +49,11 @@ const BIN_DIR = join(CONFIG_DIR, "bin");
 const AGENTS_DIR = join(HOME, "Library", "LaunchAgents");
 const CLAUDE_SETTINGS = join(HOME, ".claude", "settings.json");
 const WIDGET_APP = "/Applications/DevBrain.app";
+// Node shipped inside the widget bundle (widget/scripts/fetch-node.sh). When
+// present it is the ONLY runtime a teammate needs; ~/.devbrain/bin/node links
+// to it so hooks, the MCP server and launchd jobs all find "node".
+const BUNDLED_NODE = join(WIDGET_APP, "Contents", "Resources", "node", "bin", "node");
+const SRC_SHA_FILE = join(SRC_DIR, ".devbrain-sha");
 const SELF = fileURLToPath(import.meta.url);
 // The checkout this CLI is running from (~/.devbrain/src, or a dev clone).
 const REPO_ROOT = resolve(dirname(SELF), "..", "..");
@@ -168,43 +173,89 @@ function removeJob(label) {
 // Parts. Each returns a short status string for the update summary.
 // ----------------------------------------------------------------------------
 
-// 1. Source checkout: ~/.devbrain/src tracks main. If this CLI is running
-//    from somewhere else (a dev clone), that clone is left alone.
+// 1. Source checkout: ~/.devbrain/src tracks main.
+//    Two modes: a git clone (terminal installs, dev machines) is pulled;
+//    otherwise — no git required — the tarball of main is downloaded and
+//    swapped in atomically, tracked by commit sha in .devbrain-sha. The app's
+//    first-run flow uses the tarball mode so Xcode tools are never needed.
+function headSha() {
+  const r = run("curl", ["-fsSL", "-H", "Accept: application/vnd.github+json",
+    `https://api.github.com/repos/${SOURCE_REPO}/commits/main`], { timeout: 20000 });
+  if (r.status !== 0) return null;
+  try { return JSON.parse(r.stdout).sha || null; } catch { return null; }
+}
+export function fetchSourceTarball(sha) {
+  const tmp = join(tmpdir(), `devbrain-src-${process.pid}`);
+  rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  const tgz = join(tmp, "src.tgz");
+  const dl = run("curl", ["-fsSL", "-o", tgz, `https://codeload.github.com/${SOURCE_REPO}/tar.gz/${sha || "main"}`], { timeout: 120000 });
+  if (dl.status !== 0) throw new Error(`download failed: ${dl.stderr.trim().split("\n").pop()}`);
+  const ex = run("tar", ["-xzf", tgz, "-C", tmp]);
+  if (ex.status !== 0) throw new Error(`extract failed: ${ex.stderr.trim()}`);
+  const dir = readdirSync(tmp).map((n) => join(tmp, n)).find((d) => existsSync(join(d, "cli", "bin", "devbrain.mjs")));
+  if (!dir) throw new Error("tarball did not contain the CLI");
+  // Swap atomically; keep the old tree one step for rollback.
+  const old = SRC_DIR + ".old";
+  rmSync(old, { recursive: true, force: true });
+  if (existsSync(SRC_DIR)) renameSync(SRC_DIR, old);
+  renameSync(dir, SRC_DIR);
+  rmSync(old, { recursive: true, force: true });
+  rmSync(tmp, { recursive: true, force: true });
+  if (sha) writeFileSync(SRC_SHA_FILE, sha);
+}
 function updateSource() {
-  if (!existsSync(join(SRC_DIR, ".git"))) {
-    log(`→ cloning ${SOURCE_REPO} into ${SRC_DIR}`);
-    mkdirSync(CONFIG_DIR, { recursive: true });
-    const r = run("git", ["clone", "--depth", "1", "--quiet", `https://github.com/${SOURCE_REPO}.git`, SRC_DIR]);
-    if (r.status !== 0) throw new Error(`git clone failed: ${r.stderr.trim()}`);
-    return "cloned";
+  if (existsSync(join(SRC_DIR, ".git"))) {
+    const before = sh("git rev-parse HEAD", { cwd: SRC_DIR });
+    const r = run("git", ["pull", "--ff-only", "--quiet"], { cwd: SRC_DIR });
+    if (r.status !== 0) return `pull failed (${r.stderr.trim().split("\n").pop()})`;
+    const after = sh("git rev-parse HEAD", { cwd: SRC_DIR });
+    return before === after ? "up to date" : `updated ${before.slice(0, 7)} → ${after.slice(0, 7)}`;
   }
-  const before = sh("git rev-parse HEAD", { cwd: SRC_DIR });
-  const r = run("git", ["pull", "--ff-only", "--quiet"], { cwd: SRC_DIR });
-  if (r.status !== 0) return `pull failed (${r.stderr.trim().split("\n").pop()})`;
-  const after = sh("git rev-parse HEAD", { cwd: SRC_DIR });
-  return before === after ? "up to date" : `updated ${before.slice(0, 7)} → ${after.slice(0, 7)}`;
+  const sha = headSha();
+  if (!sha) return existsSync(SRC_DIR) ? "offline — kept current source" : "offline — cannot fetch source";
+  const have = existsSync(SRC_SHA_FILE) ? readFileSync(SRC_SHA_FILE, "utf8").trim() : null;
+  if (have === sha && existsSync(join(SRC_DIR, "cli", "bin", "devbrain.mjs"))) return "up to date";
+  fetchSourceTarball(sha);
+  return have ? `updated ${have.slice(0, 7)} → ${sha.slice(0, 7)}` : `installed ${sha.slice(0, 7)}`;
 }
 
-// 2. `devbrain` on PATH.
+// 2. `devbrain` (and `node`) on PATH. Prefers the Node bundled in the widget;
+//    ~/.devbrain/bin/node is a symlink to it so everything that says "node"
+//    (plugin hooks, MCP server, launchd jobs) works on a Mac with no Node.
+function bundledNode() {
+  return existsSync(BUNDLED_NODE) ? BUNDLED_NODE : null;
+}
 function installWrapper() {
   mkdirSync(BIN_DIR, { recursive: true });
+  let changed = false;
+  const nodeLink = join(BIN_DIR, "node");
+  const bundled = bundledNode();
+  if (bundled) {
+    let current = null;
+    try { current = readlinkSync(nodeLink); } catch { /* absent or not a link */ }
+    if (current !== bundled) {
+      rmSync(nodeLink, { force: true });
+      symlinkSync(bundled, nodeLink);
+      changed = true;
+    }
+  }
   const wrapper = join(BIN_DIR, "devbrain");
   const content = `#!/bin/sh
-# DevBrain CLI wrapper — installed by devbrain setup. Prefers the node on
-# PATH, falls back to the one that ran setup (nvm installs are not on PATH
-# for launchd or non-login shells).
-NODE="$(command -v node 2>/dev/null || true)"
+# DevBrain CLI wrapper — installed by devbrain setup. Order: the Node bundled
+# with the DevBrain app, then the node on PATH, then the one that ran setup.
+NODE="$HOME/.devbrain/bin/node"
+[ -x "$NODE" ] || NODE="$(command -v node 2>/dev/null || true)"
 [ -x "$NODE" ] || NODE="${process.execPath}"
 exec "$NODE" "${join(SRC_DIR, "cli", "bin", "devbrain.mjs")}" "$@"
 `;
   const same = existsSync(wrapper) && readFileSync(wrapper, "utf8") === content;
-  if (!same) { writeFileSync(wrapper, content); chmodSync(wrapper, 0o755); }
-  // PATH line in the shell rc — once, with a marker.
+  if (!same) { writeFileSync(wrapper, content); chmodSync(wrapper, 0o755); changed = true; }
   const rc = join(HOME, process.env.SHELL?.endsWith("zsh") ? ".zshrc" : ".bash_profile");
   const line = 'export PATH="$HOME/.devbrain/bin:$PATH"  # devbrain';
   const rcText = existsSync(rc) ? readFileSync(rc, "utf8") : "";
   if (!rcText.includes("# devbrain")) writeFileSync(rc, rcText + (rcText.endsWith("\n") || !rcText ? "" : "\n") + line + "\n");
-  return same ? "ok" : "installed";
+  return changed ? `installed${bundled ? " (node → bundled)" : ""}` : "ok";
 }
 
 // 3. Claude Code plugin via the marketplace in this repo.
@@ -232,35 +283,28 @@ function updatePlugin() {
     : `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
 }
 
-// 4. Reminders sync jobs — one launchd job per configured list, all pointing
-//    at the collector in the checkout, using the node that runs this CLI.
+// 4. Reminders sync is run by the DevBrain app itself (every 3 min while it
+//    runs) — that keeps the macOS Reminders permission attached to the app,
+//    so the first-run prompt is the only one anyone ever sees. The CLI just
+//    manages the list in config.json and retires the old launchd jobs.
 function updateReminderJobs(cfg) {
-  const collect = join(SRC_DIR, "tools", "reminders-sync", "collect.mjs");
   const lists = Array.isArray(cfg.reminders) ? cfg.reminders : [];
-  const want = new Set(lists.map((l) => `com.devbrain.reminders.${slug(l.list)}`));
-  const out = [];
-  for (const l of lists) {
-    const label = `com.devbrain.reminders.${slug(l.list)}`;
-    const xml = plistXml(label, [process.execPath, collect, l.list, l.repo], `  <key>StartInterval</key><integer>180</integer>
-  <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>/tmp/devbrain-reminders.log</string>
-  <key>StandardErrorPath</key><string>/tmp/devbrain-reminders.log</string>`);
-    out.push(`${l.list} → ${l.repo}: ${ensureJob(label, xml)}`);
-  }
-  // Retire jobs for lists no longer configured, and the pre-CLI hand-installed job.
+  let retired = 0;
   for (const f of existsSync(AGENTS_DIR) ? readdirSync(AGENTS_DIR) : []) {
     const label = f.replace(/\.plist$/, "");
-    if ((label.startsWith("com.devbrain.reminders.") && !want.has(label)) || label === "com.devbrain.reminders") {
-      removeJob(label); out.push(`${label}: removed`);
-    }
+    if (label === "com.devbrain.reminders" || label.startsWith("com.devbrain.reminders.")) { removeJob(label); retired++; }
   }
-  return out.length ? out.join("; ") : "none configured";
+  const appOk = existsSync(WIDGET_APP);
+  const base = lists.length
+    ? `${lists.map((l) => `${l.list} → ${l.repo}`).join("; ")} (run by the DevBrain app${appOk ? "" : " — app not installed!"})`
+    : "none configured";
+  return retired ? `${base}; retired ${retired} launchd job(s)` : base;
 }
 
 // 5. Daily self-update job (also fires on wake if a run was missed).
 function updateUpdaterJob() {
   const xml = plistXml("com.devbrain.update",
-    [process.execPath, join(SRC_DIR, "cli", "bin", "devbrain.mjs"), "update", "--quiet"],
+    [bundledNode() ?? process.execPath, join(SRC_DIR, "cli", "bin", "devbrain.mjs"), "update", "--quiet"],
     `  <key>StartInterval</key><integer>86400</integer>
   <key>RunAtLoad</key><false/>
   <key>StandardOutPath</key><string>/tmp/devbrain-update.log</string>
@@ -333,7 +377,7 @@ async function updateAll({ skipSource = false } = {}) {
     // If the CLI itself changed, hand off to the new one so the rest of this
     // run uses current code. Guarded against loops.
     const runningFromSrc = SELF.startsWith(SRC_DIR + "/");
-    if (runningFromSrc && /updated|cloned/.test(results.source) && !process.env.DEVBRAIN_REEXEC) {
+    if (runningFromSrc && /updated|cloned|installed/.test(results.source) && !process.env.DEVBRAIN_REEXEC) {
       const r = spawnSync(process.execPath, [SELF, "update", "--no-source", ...(QUIET ? ["--quiet"] : [])], {
         stdio: "inherit", env: { ...process.env, DEVBRAIN_REEXEC: "1" },
       });
@@ -355,8 +399,9 @@ async function updateAll({ skipSource = false } = {}) {
   if (failed && !QUIET) process.exit(1);
 }
 
-// One-off collector run in the foreground so macOS shows the Reminders
-// permission prompt to a human (launchd never triggers it).
+// One-off collector run in the foreground (terminal installs). The app owns
+// the sync and asks for Reminders access itself on first run; this just
+// checks the list name resolves and the server accepts the post.
 function primeRemindersPermission(list, repo) {
   const collect = join(existsSync(SRC_DIR) ? SRC_DIR : REPO_ROOT, "tools", "reminders-sync", "collect.mjs");
   console.log(`\n→ Reading "${list}" once. If macOS asks to allow access to Reminders, click Allow.`);
@@ -391,7 +436,8 @@ if (cmd === "setup" || cmd === "init") {
     if (list !== "-") {
       const repo = (await rl.question(`GitHub repo that list feeds [flow-sync-dev/Scorpion-One]: `)).trim() || "flow-sync-dev/Scorpion-One";
       rl.close();
-      if (primeRemindersPermission(list, repo)) { cfg.reminders.push({ list, repo }); saveConfig(cfg); }
+      cfg.reminders.push({ list, repo }); saveConfig(cfg);
+      primeRemindersPermission(list, repo);
     } else rl.close();
   } else rl.close();
 
@@ -401,6 +447,23 @@ if (cmd === "setup" || cmd === "init") {
 ✓ Done. Open a NEW terminal (or run: source ~/.zshrc) so \`devbrain\` is on your PATH.
   Everything updates itself from main daily and whenever a Claude Code session starts.
   Check any time with:  devbrain doctor`);
+  process.exit(0);
+}
+
+// Non-interactive first-run used by the DevBrain app: writes config, then
+// reconciles everything. Prints the per-part summary like `update`.
+//   devbrain bootstrap --server URL --token TOKEN [--reminders "List" --repo owner/name]
+if (cmd === "bootstrap") {
+  const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
+  const cfg = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, "utf8")) : {};
+  cfg.server = (arg("--server") || cfg.server || DEFAULT_SERVER).replace(/\/$/, "");
+  if (arg("--token")) cfg.token = arg("--token");
+  if (!cfg.token) { console.error("bootstrap: --token required"); process.exit(1); }
+  cfg.reminders = Array.isArray(cfg.reminders) ? cfg.reminders : [];
+  const list = arg("--reminders"), repo = arg("--repo");
+  if (list && repo && !cfg.reminders.some((l) => l.list === list)) cfg.reminders.push({ list, repo });
+  saveConfig(cfg);
+  await updateAll();
   process.exit(0);
 }
 
@@ -416,7 +479,6 @@ if (cmd === "reminders") {
   if (sub === "add") {
     const [list, repo] = process.argv.slice(4);
     if (!list || !repo) { console.error('usage: devbrain reminders add "<List Name>" "<owner/repo>"'); process.exit(1); }
-    if (!primeRemindersPermission(list, repo)) process.exit(1);
     cfg.reminders = cfg.reminders.filter((l) => l.list !== list);
     cfg.reminders.push({ list, repo });
     saveConfig(cfg);
@@ -432,8 +494,8 @@ if (cmd === "reminders") {
   }
   if (cfg.reminders.length === 0) console.log("No Reminders lists configured. Add one: devbrain reminders add \"<List>\" \"<owner/repo>\"");
   for (const l of cfg.reminders) {
-    const loaded = run("launchctl", ["list", `com.devbrain.reminders.${slug(l.list)}`]).status === 0;
-    console.log(`  ${loaded ? "✓" : "✗"} "${l.list}" → ${l.repo}  (every 3 min, log: /tmp/devbrain-reminders.log)`);
+    const appRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
+    console.log(`  ${appRunning ? "✓" : "✗"} "${l.list}" → ${l.repo}  (every 3 min while the DevBrain app runs; log: /tmp/devbrain-reminders.log)`);
   }
   process.exit(0);
 }
@@ -560,10 +622,11 @@ if (cmd === "doctor") {
   }
 
   for (const l of cfg?.reminders || []) {
-    const label = `com.devbrain.reminders.${slug(l.list)}`;
-    if (run("launchctl", ["list", label]).status === 0) ok(`reminders sync "${l.list}"`, `→ ${l.repo}`);
-    else bad(`reminders sync "${l.list}"`, "job not loaded — run: devbrain update");
+    const appRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
+    if (appRunning) ok(`reminders sync "${l.list}"`, `→ ${l.repo} (run by the DevBrain app)`);
+    else bad(`reminders sync "${l.list}"`, "the DevBrain app isn't running — open it (it syncs every 3 min while running)");
   }
+  if (bundledNode()) ok("node", "bundled with the DevBrain app"); else results.push(`  · node — using ${process.execPath}`);
   const wv = installedWidgetVersion();
   let wantW = null; try { wantW = JSON.parse(readFileSync(join(REPO_ROOT, "widget", "src-tauri", "tauri.conf.json"), "utf8")).version; } catch { /* */ }
   if (!wv) bad("widget", "not installed — run: devbrain update (needs a published widget release)");
@@ -590,6 +653,7 @@ console.log(`devbrain — team second brain CLI
 Usage:
   devbrain setup              First-time setup on this Mac (token, hooks, plugin, jobs, widget)
   devbrain update             Bring everything on this Mac up to main (runs automatically too)
+  devbrain bootstrap          Non-interactive first run (used by the DevBrain app)
   devbrain reminders          Show synced Reminders lists
   devbrain reminders add "<List>" "<owner/repo>"
   devbrain reminders remove "<List>"

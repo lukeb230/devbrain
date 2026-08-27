@@ -26,6 +26,7 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tauri_plugin_opener::OpenerExt;
 
 mod notify;
+mod setup;
 
 const SITE_PANEL: &str = "https://devbrain-ebon.vercel.app/widget";
 const SITE_FULL: &str = "https://devbrain-ebon.vercel.app/dashboard";
@@ -317,7 +318,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings])
+        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -410,6 +411,7 @@ fn main() {
 
             place_badge(app.handle());
             place_panel(app.handle());
+            setup::spawn_collector(app.handle().clone());
             // --- attention state from the panel ---------------------------
             // The panel is authenticated and knows what needs the user; it
             // emits {level, reason}. The badge window listens for the same

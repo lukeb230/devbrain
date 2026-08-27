@@ -16,36 +16,37 @@ PRs, tasks, the brain.
 Dashboard → **Tokens** (top right) → label it after your machine
 (e.g. `maya-mbp`) → **Create token** → copy it immediately (shown once).
 
-## 3. Install everything (one line)
+## 3. Install the app (that's the whole install)
+
+Download **DevBrain.dmg** from the latest widget release
+(https://github.com/lukeb230/devbrain-test/releases/latest), drag DevBrain to
+Applications, and open it (first time: right-click → Open, it's not notarized).
+
+It's a menu-bar app — no Dock icon. Move your mouse into the bottom-right
+corner and click the brain, or press **Alt+Space**. Sign in with GitHub in
+the panel, then click **Set up this Mac**. That one click:
+
+- creates a dev token for this Mac (you never see or paste it)
+- installs the `devbrain` CLI, the Claude Code plugin, presence hooks and
+  the daily self-updater
+- asks macOS for **Notifications** and **Reminders** access — click Allow
+- starts syncing the shared Reminders list into the task board
+
+Nothing else to install: Node is bundled inside the app. Open a new
+terminal afterwards and run `devbrain doctor` — every line should be a
+check mark. Restart any open Claude Code session so it loads the plugin.
+
+Prefer a terminal? The one-liner still works (needs Node 18+ and git):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain-test/main/install.sh | sh
 ```
 
-It asks for the server URL (press Enter for the default) and your token, then
-sets up this Mac end to end:
-
-- Claude Code presence hooks
-- the `devbrain` plugin (marketplace + install)
-- the shared **Reminders → tasks** sync — say yes to "Scorpion One" and
-  click **Allow** when macOS asks for Reminders access
-- the **DevBrain menu-bar widget** in /Applications (launches automatically)
-- a daily self-update job
-
-Open a new terminal afterwards so `devbrain` is on your PATH. Then verify:
-
-```bash
-devbrain doctor
-```
-
-Every line should be a check mark. Restart any open Claude Code session so it
-picks up the plugin.
-
 ### Staying current
 
 You don't do anything. Luke pushes to `main`; your Mac pulls it on the next
 Claude Code session start (at most every 6 h) and daily via launchd — CLI,
-plugin, sync jobs and widget alike. To force it: `devbrain update`.
+plugin, sync and the app itself. To force it: `devbrain update`.
 
 ## 4. Prove it works
 

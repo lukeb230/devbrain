@@ -259,25 +259,56 @@ exec "$NODE" "${join(SRC_DIR, "cli", "bin", "devbrain.mjs")}" "$@"
 }
 
 // 3. Claude Code plugin via the marketplace in this repo.
+//    The `claude` CLI is not always on PATH for background processes (launchd,
+//    the desktop app's hooks), so look in the usual install spots too.
+function findClaude() {
+  const candidates = [
+    "claude",
+    join(HOME, ".local", "bin", "claude"),
+    join(HOME, ".claude", "local", "bin", "claude"),
+    join(HOME, ".claude", "local", "claude"),
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude",
+  ];
+  // Newest version installed by the native installer, if the symlink is gone.
+  const versions = join(HOME, ".local", "share", "claude", "versions");
+  if (existsSync(versions)) {
+    for (const v of readdirSync(versions).sort().reverse()) candidates.push(join(versions, v));
+  }
+  // CLI embedded in a desktop app bundle.
+  for (const app of ["/Applications/Claude Code.app", "/Applications/Claude.app"]) {
+    for (const rel of ["Contents/Resources/bin/claude", "Contents/Resources/claude", "Contents/MacOS/claude"]) {
+      candidates.push(join(app, rel));
+    }
+  }
+  for (const c of candidates) {
+    if (c !== "claude" && !existsSync(c)) continue;
+    if (run(c, ["--version"]).status === 0) return c;
+  }
+  return null;
+}
+let CLAUDE = null;
+function claude(args) { return run(CLAUDE, args); }
 function updatePlugin() {
-  if (run("claude", ["--version"]).status !== 0) return "claude not found — skipped";
-  const mp = run("claude", ["plugin", "marketplace", "list"]);
+  CLAUDE = findClaude();
+  if (!CLAUDE) return "claude CLI not found (PATH, ~/.local/bin, ~/.claude/local, app bundle) — skipped";
+  const mp = claude(["plugin", "marketplace", "list"]);
   if (!(mp.stdout + mp.stderr).includes(MARKETPLACE)) {
-    const a = run("claude", ["plugin", "marketplace", "add", SOURCE_REPO]);
+    const a = claude(["plugin", "marketplace", "add", SOURCE_REPO]);
     if (a.status !== 0) return `marketplace add failed: ${(a.stderr || a.stdout).trim().split("\n").pop()}`;
   } else {
-    run("claude", ["plugin", "marketplace", "update", MARKETPLACE]);
+    claude(["plugin", "marketplace", "update", MARKETPLACE]);
   }
-  const installed = run("claude", ["plugin", "list"]).stdout;
+  const installed = claude(["plugin", "list"]).stdout;
   const wantVer = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", ".claude-plugin", "plugin.json"), "utf8")).version;
   const m = installed.match(new RegExp(`${PLUGIN}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
   const haveVer = m ? m[1] : null;
   if (!haveVer) {
-    const r = run("claude", ["plugin", "install", `${PLUGIN}@${MARKETPLACE}`]);
+    const r = claude(["plugin", "install", `${PLUGIN}@${MARKETPLACE}`]);
     return r.status === 0 ? `installed ${wantVer}` : `install failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
   }
   if (haveVer === wantVer) return `${haveVer} up to date`;
-  const r = run("claude", ["plugin", "update", `${PLUGIN}@${MARKETPLACE}`, "-y"]);
+  const r = claude(["plugin", "update", `${PLUGIN}@${MARKETPLACE}`, "-y"]);
   return r.status === 0
     ? `${haveVer} → ${wantVer} (applies to new Claude sessions)`
     : `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
@@ -614,8 +645,9 @@ if (cmd === "doctor") {
     } catch { bad("~/.claude/settings.json", "unreadable"); }
   }
 
-  const pl = run("claude", ["plugin", "list"]);
-  if (pl.status !== 0) bad("claude CLI", "not found on PATH");
+  CLAUDE = CLAUDE || findClaude();
+  const pl = CLAUDE ? claude(["plugin", "list"]) : { status: 1, stdout: "" };
+  if (pl.status !== 0) bad("claude CLI", "not found (PATH, ~/.local/bin, ~/.claude/local, app bundle)");
   else {
     const m = pl.stdout.match(new RegExp(`${PLUGIN}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
     let want = "?"; try { want = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", ".claude-plugin", "plugin.json"), "utf8")).version; } catch { /* */ }

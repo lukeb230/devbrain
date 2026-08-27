@@ -87,6 +87,17 @@ jobs:
             src-tauri/target/release/bundle/macos/DevBrain.app
           codesign -dv src-tauri/target/release/bundle/macos/DevBrain.app 2>&1 | grep -E "Identifier|flags"
 
+      - name: Free runner disk before packaging
+        # The Rust intermediates run to several GB; with Node bundled the
+        # runner hit "No space left on device" while hdiutil built the DMG.
+        # The .app is complete at this point, so drop the intermediates.
+        run: |
+          df -h / | tail -1
+          rm -rf src-tauri/target/release/deps src-tauri/target/release/build \
+                 src-tauri/target/release/incremental src-tauri/target/release/.fingerprint \
+                 ~/.cargo/registry/src ~/.cargo/git
+          df -h / | tail -1
+
       - name: Zip + DMG
         # The zip feeds `devbrain update`; the DMG is the thing you send a new
         # teammate (drag to Applications, open, sign in, click "Set up").

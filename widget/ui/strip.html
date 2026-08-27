@@ -14,8 +14,9 @@
      hiding sucks it back in — the Dock's unminimize / minimize feel.
      Transitions (not keyframes) so a cursor that dips out and back mid-way
      reverses smoothly from wherever it is. */
+  :root { --size: 48px; }
   #wrap {
-    position: absolute; bottom: 4px; width: 48px; height: 48px;
+    position: absolute; bottom: 4px; width: var(--size); height: var(--size);
     opacity: 0;
     transform: translate(var(--ox), 30px) scale(.22, .1) rotate(var(--orot));
     transition: transform 200ms cubic-bezier(.5, 0, .9, .4), opacity 140ms ease-in;
@@ -38,7 +39,7 @@
   /* The mark is raster art now (brain.png), so attention colour is a ring
      around it instead of a tint: red = your PR broke or your lane is
      contested, green = cleared to land, amber = something waits on you. */
-  #wrap img { display: block; width: 48px; height: 48px; object-fit: contain;
+  #wrap img { display: block; width: var(--size); height: var(--size); object-fit: contain;
               filter: drop-shadow(0 2px 8px rgba(15, 23, 42, .45)); }
   #ring { position: absolute; inset: -3px; border-radius: 50%; border: 3px solid currentColor;
           opacity: 0; transition: opacity 260ms ease; pointer-events: none; }
@@ -51,7 +52,7 @@
   /* A slow halo instead of a flashing dot — legible in peripheral vision,
      not the kind of thing you want to kill after ten minutes. */
   #halo {
-    position: absolute; bottom: 8px; width: 40px; height: 40px; border-radius: 50%;
+    position: absolute; bottom: 8px; width: calc(var(--size) - 8px); height: calc(var(--size) - 8px); border-radius: 50%;
     opacity: 0; pointer-events: none; background: currentColor;
   }
   body.br #halo { right: 8px; }
@@ -75,6 +76,12 @@
       try { return window.__TAURI__.core.invoke(cmd); } catch (e) { return Promise.resolve(); }
     };
     document.addEventListener("click", () => invoke("toggle_panel").catch(() => {}));
+    // The badge fills its window (minus margins): the shell resizes the
+    // window for the chosen badge size and pings "badge-scale".
+    const fit = () => document.documentElement.style.setProperty("--size", Math.max(20, window.innerWidth - 10) + "px");
+    fit();
+    window.addEventListener("resize", fit);
+    try { window.__TAURI__.event.listen("badge-scale", () => setTimeout(fit, 50)); } catch (e) {}
     // Rust tells us when the cursor enters/leaves the corner; the window is
     // shown before "badge-show" and hidden ~260ms after "badge-hide".
     try {

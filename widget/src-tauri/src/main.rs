@@ -15,7 +15,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{
     AppHandle, Emitter, Listener, LogicalPosition, LogicalSize, Manager, WebviewUrl,
@@ -49,10 +49,15 @@ enum Corner {
 #[derive(Serialize, Deserialize)]
 struct Settings {
     corner: Corner,
+    /// Badge size as a fraction of ZONE_HOT (0.5 small · 0.75 medium · 1.0 large).
+    #[serde(default = "default_badge_scale")]
+    badge_scale: f64,
 }
+fn default_badge_scale() -> f64 { 0.75 }
 
 struct State {
     corner: Mutex<Corner>,
+    badge_scale: Mutex<f64>,
     /// Something wants the user: the badge stays visible instead of only
     /// appearing on corner-hover. Set from the panel's "badge-state" event.
     attention: Mutex<bool>,
@@ -67,17 +72,21 @@ fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     Some(dir.join("settings.json"))
 }
 
-fn load_corner(app: &AppHandle) -> Corner {
+fn load_settings(app: &AppHandle) -> Settings {
     settings_path(app)
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str::<Settings>(&s).ok())
-        .map(|s| s.corner)
-        .unwrap_or(Corner::BottomRight)
+        .unwrap_or(Settings { corner: Corner::BottomRight, badge_scale: default_badge_scale() })
 }
 
-fn save_corner(app: &AppHandle, corner: Corner) {
+fn save_settings(app: &AppHandle) {
+    let st = app.state::<State>();
+    let settings = Settings {
+        corner: *st.corner.lock().unwrap(),
+        badge_scale: *st.badge_scale.lock().unwrap(),
+    };
     if let Some(p) = settings_path(app) {
-        let _ = std::fs::write(p, serde_json::to_string(&Settings { corner }).unwrap_or_default());
+        let _ = std::fs::write(p, serde_json::to_string(&settings).unwrap_or_default());
     }
 }
 
@@ -145,7 +154,7 @@ fn place_badge(app: &AppHandle) {
     let corner = *st.corner.lock().unwrap();
     let (sx, sy, sw, sh) = screen(app);
     *st.screen.lock().unwrap() = (sx, sy, sw, sh); // refresh the poller's cache
-    let w = ZONE_HOT;
+    let w = (ZONE_HOT * *st.badge_scale.lock().unwrap()).round();
     let x = match corner {
         Corner::BottomLeft => sx,
         Corner::BottomRight => sx + sw - w,
@@ -184,7 +193,7 @@ fn set_corner(app: &AppHandle, corner: Corner) {
         let st = app.state::<State>();
         *st.corner.lock().unwrap() = corner;
     }
-    save_corner(app, corner);
+    save_settings(app);
     place_badge(app);
     place_panel(app);
     let _ = app.emit(
@@ -194,6 +203,19 @@ fn set_corner(app: &AppHandle, corner: Corner) {
             Corner::BottomRight => "br",
         },
     );
+}
+
+fn set_badge_scale(app: &AppHandle, scale: f64) {
+    {
+        let st = app.state::<State>();
+        *st.badge_scale.lock().unwrap() = scale;
+    }
+    save_settings(app);
+    place_badge(app);
+    // The badge page sizes itself from its window; nudge it after the resize.
+    if let Some(b) = app.get_webview_window("strip") {
+        let _ = b.emit("badge-scale", scale);
+    }
 }
 
 // The corner watcher: a background thread polls the global cursor position
@@ -323,9 +345,11 @@ fn main() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            let corner = load_corner(app.handle());
+            let settings = load_settings(app.handle());
+            let corner = settings.corner;
             app.manage(State {
                 corner: Mutex::new(corner),
+                badge_scale: Mutex::new(settings.badge_scale),
                 attention: Mutex::new(false),
                 pinned: Mutex::new(false),
                 last_panel_hide: Mutex::new(Instant::now() - std::time::Duration::from_secs(10)),
@@ -350,7 +374,7 @@ fn main() {
             // the panel (which auto-hides on focus loss). Clicks still land.
             .focusable(false)
             .visible(false)
-            .inner_size(ZONE_HOT, ZONE_HOT)
+            .inner_size(ZONE_HOT * settings.badge_scale, ZONE_HOT * settings.badge_scale)
             .build()?;
             let _ = badge.set_visible_on_all_workspaces(true);
 
@@ -458,12 +482,18 @@ fn main() {
                 app, "autostart", "Launch at login", true,
                 app.autolaunch().is_enabled().unwrap_or(false), None::<&str>,
             )?;
+            let scale = settings.badge_scale;
+            let size_s = CheckMenuItem::with_id(app, "size_s", "Small", true, (scale - 0.5).abs() < 0.01, None::<&str>)?;
+            let size_m = CheckMenuItem::with_id(app, "size_m", "Medium", true, (scale - 0.75).abs() < 0.01, None::<&str>)?;
+            let size_l = CheckMenuItem::with_id(app, "size_l", "Large", true, (scale - 1.0).abs() < 0.01, None::<&str>)?;
+            let size_menu = Submenu::with_items(app, "Badge size", true, &[&size_s, &size_m, &size_l])?;
             let dash_i = MenuItem::with_id(app, "dash", "Open full dashboard…", true, None::<&str>)?;
             let quit_i = PredefinedMenuItem::quit(app, Some("Quit DevBrain"))?;
-            let menu = Menu::with_items(app, &[&open_i, &reload_i, &pin_i, &bl_i, &br_i, &auto_i, &dash_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&open_i, &reload_i, &pin_i, &bl_i, &br_i, &size_menu, &auto_i, &dash_i, &quit_i])?;
 
             let bl_h = bl_i.clone();
             let br_h = br_i.clone();
+            let (ss_h, sm_h, sl_h) = (size_s.clone(), size_m.clone(), size_l.clone());
             TrayIconBuilder::with_id("devbrain-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .icon_as_template(false)
@@ -490,6 +520,13 @@ fn main() {
                         set_corner(app, Corner::BottomRight);
                         let _ = bl_h.set_checked(false);
                         let _ = br_h.set_checked(true);
+                    }
+                    "size_s" | "size_m" | "size_l" => {
+                        let scale = match event.id.as_ref() { "size_s" => 0.5, "size_l" => 1.0, _ => 0.75 };
+                        set_badge_scale(app, scale);
+                        let _ = ss_h.set_checked(scale == 0.5);
+                        let _ = sm_h.set_checked(scale == 0.75);
+                        let _ = sl_h.set_checked(scale == 1.0);
                     }
                     "autostart" => {
                         let al = app.autolaunch();

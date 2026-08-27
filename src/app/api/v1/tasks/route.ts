@@ -14,7 +14,9 @@ async function repoFor(auth: { org_id: string }, repoFull: string) {
   const { data } = await admin
     .from("linked_repos")
     .select("id, org_id")
-    .eq("full_name", repoFull)
+    // GitHub repo names are case-insensitive; git remotes are typed however
+    // the human typed them. Match without case (ilike, wildcards escaped).
+    .ilike("full_name", String(repoFull).replace(/[%_\\]/g, "\\$&"))
     .eq("org_id", auth.org_id)
     .single();
   return data;

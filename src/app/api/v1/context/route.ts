@@ -30,7 +30,9 @@ export async function GET(request: Request) {
   const { data: repo } = await admin
     .from("linked_repos")
     .select("id, org_id, full_name")
-    .eq("full_name", repoName)
+    // GitHub repo names are case-insensitive; git remotes are typed however
+    // the human typed them. Match without case (ilike, wildcards escaped).
+    .ilike("full_name", String(repoName).replace(/[%_\\]/g, "\\$&"))
     .eq("org_id", auth.org_id)
     .single();
   if (!repo) {

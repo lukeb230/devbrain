@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -434,7 +434,23 @@ async function callTool(name, args) {
     if (!existsSync(brainDir)) {
       return JSON.stringify({ error: "This repo has no .brain/ folder yet." });
     }
-    const files = readdirSync(brainDir).filter((f) => f.endsWith(".md")).sort();
+    // Recursive: index.md at the top plus every note under notes/ (and any
+    // deeper folders). A non-recursive read used to return only index.md
+    // while claiming to be the whole brain.
+    const files = [];
+    const walk = (dir, rel) => {
+      for (const name of readdirSync(dir).sort()) {
+        const abs = join(dir, name);
+        const r = rel ? `${rel}/${name}` : name;
+        let isDir = false;
+        try { isDir = statSync(abs).isDirectory(); } catch { continue; }
+        if (isDir) walk(abs, r);
+        else if (name.endsWith(".md")) files.push(r);
+      }
+    };
+    walk(brainDir, "");
+    // index first, then notes in path order.
+    files.sort((a, b) => (a === "index.md" ? -1 : b === "index.md" ? 1 : a.localeCompare(b)));
     const out = files.map((f) => `\n===== .brain/${f} =====\n` + readFileSync(join(brainDir, f), "utf8"));
     return out.join("\n") || "(brain is empty)";
   }

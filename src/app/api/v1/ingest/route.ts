@@ -21,7 +21,9 @@ export async function POST(request: Request) {
   const { data: repo } = await admin
     .from("linked_repos")
     .select("id, org_id")
-    .eq("full_name", body.repo)
+    // GitHub repo names are case-insensitive; git remotes are typed however
+    // the human typed them. Match without case (ilike, wildcards escaped).
+    .ilike("full_name", String(body.repo).replace(/[%_\\]/g, "\\$&"))
     .eq("org_id", auth.org_id)
     .single();
   if (!repo) {

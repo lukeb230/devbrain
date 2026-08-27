@@ -90,7 +90,11 @@ pub fn setup_state(app: AppHandle) -> SetupState {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "this-mac".into());
     SetupState {
-        configured: cfg.as_ref().map(|c| c.get("token").and_then(|t| t.as_str()).map(|t| !t.is_empty()).unwrap_or(false)).unwrap_or(false),
+        // "Configured" means the whole stack is present: a token AND the CLI
+        // checkout. A Mac onboarded by hand (config only, no ~/.devbrain/src)
+        // still gets the setup screen so the updater layer gets installed.
+        configured: cfg.as_ref().map(|c| c.get("token").and_then(|t| t.as_str()).map(|t| !t.is_empty()).unwrap_or(false)).unwrap_or(false)
+            && cli_path().exists(),
         node,
         node_ok,
         hostname,

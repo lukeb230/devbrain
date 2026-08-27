@@ -11,6 +11,9 @@
   ],
   "permissions": [
     "core:default",
-    "notification:default"
+    "notification:default",
+    "allow-notify",
+    "allow-notification-status",
+    "allow-open-notification-settings"
   ]
 }

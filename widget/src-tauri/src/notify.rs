@@ -109,6 +109,8 @@ mod mac {
 
     pub fn notify(title: &str, body: &str) -> String {
         let c = match center() { Ok(c) => c, Err(e) => return e };
+        // Delegate installed lazily on first use (not at launch — see setup()).
+        install_delegate();
         // Ask first (no-op if already decided); a denial here is the honest answer.
         match request_authorization(&c) {
             Ok(true) => {}
@@ -146,19 +148,25 @@ pub async fn notification_status() -> String {
 }
 
 #[tauri::command]
-pub async fn notify(title: String, body: String) -> String {
+pub async fn notify(app: tauri::AppHandle, title: String, body: String) -> String {
     #[cfg(target_os = "macos")]
-    { tauri::async_runtime::spawn_blocking(move || mac::notify(&title, &body)).await.unwrap_or_else(|_| "error: task failed".into()) }
+    {
+        let r = tauri::async_runtime::spawn_blocking(move || mac::notify(&title, &body))
+            .await
+            .unwrap_or_else(|_| "error: task failed".into());
+        // Registering with Notification Center can make macOS treat the app
+        // as a regular (Dock) app — seen when the delegate was installed at
+        // launch. Re-assert the menu-bar-only policy after every delivery.
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        r
+    }
     #[cfg(not(target_os = "macos"))]
-    { let _ = (title, body); "unsupported".to_string() }
+    { let _ = (app, title, body); "unsupported".to_string() }
 }
 
-/// Startup hook: register the delegate that keeps banners visible while the
-/// app is frontmost. No-op off macOS or when not running as a bundle.
-pub fn setup() {
-    #[cfg(target_os = "macos")]
-    mac::install_delegate();
-}
+// NOTE: the delegate is installed lazily by notify(), never at launch —
+// creating the notification center during startup made macOS register the
+// app as a regular foreground app (Dock icon) despite the Accessory policy.
 
 #[tauri::command]
 pub fn open_notification_settings() {

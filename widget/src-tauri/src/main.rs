@@ -410,7 +410,6 @@ fn main() {
 
             place_badge(app.handle());
             place_panel(app.handle());
-            notify::setup();
             // --- attention state from the panel ---------------------------
             // The panel is authenticated and knows what needs the user; it
             // emits {level, reason}. The badge window listens for the same

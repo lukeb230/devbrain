@@ -127,7 +127,13 @@ function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: Widge
   const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
   const [syncReminders, setSyncReminders] = useState(true);
   const [list, setList] = useState("Scorpion One");
-  const [repo, setRepo] = useState(repos[0]?.full_name ?? "");
+  // Default the repo to the one whose name matches the list ("Scorpion One"
+  // → flow-sync-dev/Scorpion-One), else the first linked repo.
+  const guessRepo = (l: string) => {
+    const key = l.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return repos.find((r) => r.full_name.toLowerCase().replace(/[^a-z0-9]/g, "").includes(key))?.full_name ?? repos[0]?.full_name ?? "";
+  };
+  const [repo, setRepo] = useState(guessRepo("Scorpion One"));
   const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
   const [done, setDone] = useState<null | "ok" | "fail">(null);
@@ -201,7 +207,7 @@ function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: Widge
           <div className="ml-5 grid grid-cols-2 gap-2">
             <label className="block text-xs">
               <span className="mb-1 block text-slate-500">Reminders list</span>
-              <input value={list} onChange={(e) => setList(e.target.value)} disabled={busy}
+              <input value={list} onChange={(e) => { setList(e.target.value); setRepo(guessRepo(e.target.value)); }} disabled={busy}
                 className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none" />
             </label>
             <label className="block text-xs">

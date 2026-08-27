@@ -583,7 +583,10 @@ if (cmd === "doctor") {
 
   if (existsSync(join(SRC_DIR, ".git"))) {
     let head = "?"; try { head = sh("git rev-parse --short HEAD", { cwd: SRC_DIR }); } catch { /* */ }
-    ok("source checkout", `${SRC_DIR} @ ${head}`);
+    ok("source checkout", `${SRC_DIR} @ ${head} (git)`);
+  } else if (existsSync(join(SRC_DIR, "cli", "bin", "devbrain.mjs"))) {
+    const sha = existsSync(SRC_SHA_FILE) ? readFileSync(SRC_SHA_FILE, "utf8").trim().slice(0, 7) : "?";
+    ok("source checkout", `${SRC_DIR} @ ${sha}`);
   } else bad("source checkout", `${SRC_DIR} missing — run: devbrain setup`);
   const last = existsSync(join(CONFIG_DIR, "last-update")) ? readFileSync(join(CONFIG_DIR, "last-update"), "utf8").trim() : null;
   if (last) ok("last update", last); else bad("last update", "never — run: devbrain update");

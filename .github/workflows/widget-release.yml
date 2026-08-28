@@ -117,18 +117,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd src-tauri/target/release/bundle/macos
+          {
+            echo "Built from ${GITHUB_SHA::7}."
+            echo
+            echo "New Mac — paste in Terminal (installs the app, no other prerequisites):"
+            echo
+            echo '    curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh'
+            echo
+            echo 'Beta channel: `… | sh -s -- beta`.'
+            echo
+            echo "Prefer the DMG? Drag DevBrain to Applications; macOS will call the unsigned app \"damaged\" until you run:"
+            echo
+            echo '    xattr -dr com.apple.quarantine /Applications/DevBrain.app'
+            echo
+            echo "Then click the brain in the bottom corner (or Alt+Space) → Sign in (browser) → Set up this Mac. Existing Macs update automatically."
+          } > "$RUNNER_TEMP/notes.md"
           gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
               --title "DevBrain widget ${{ steps.ver.outputs.version }}" \
-              --notes "Built from ${GITHUB_SHA::7}.
-
-New Mac — paste in Terminal (installs the app, no other prerequisites):
-    curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
-(beta channel: append \`| sh -s -- beta\` instead of \`| sh\`)
-
-Prefer the DMG? Drag DevBrain to Applications; macOS will call the unsigned app 'damaged' until you run:
-    xattr -dr com.apple.quarantine /Applications/DevBrain.app
-
-Then: click the brain in the bottom corner (or Alt+Space) → Sign in (browser) → Set up this Mac. Existing Macs update automatically." || true
+              --notes-file "$RUNNER_TEMP/notes.md" || true
           gh release upload "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
             "$ASSET.app.zip" "$ASSET.app.zip.sha256" "$ASSET.dmg"

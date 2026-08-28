@@ -54,10 +54,10 @@ if [ "$MODE" = "app" ]; then
   fi
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  say "Downloading $APP ($CHANNEL)…"
+  say "Downloading ${APP} (${CHANNEL})…"
   curl -fsSL -o "$TMP/$ASSET" "$BASE/$ASSET" || fail "download failed ($BASE/$ASSET). Is there a release yet? Are you online?"
   if curl -fsSL -o "$TMP/$ASSET.sha256" "$BASE/$ASSET.sha256" 2>/dev/null; then
-    (cd "$TMP" && shasum -a 256 -c "$ASSET.sha256" >/dev/null) || fail "checksum mismatch — the download is corrupt or tampered with. Nothing was installed."
+    (cd "$TMP" && shasum -a 256 -c "$ASSET.sha256" >/dev/null) || fail "checksum mismatch: the download is corrupt or tampered with. Nothing was installed."
   else
     say "(no checksum published for this release — skipping verification)"
   fi
@@ -68,10 +68,10 @@ if [ "$MODE" = "app" ]; then
   DEST="/Applications"
   if [ ! -w "$DEST" ]; then
     DEST="$HOME/Applications"; mkdir -p "$DEST"
-    say "/Applications isn't writable — installing to $DEST (auto-update expects /Applications; move it later if you can)"
+    say "/Applications isn't writable — installing to ${DEST} (auto-update expects /Applications; move it later if you can)"
   fi
   if pgrep -f "/$APP/Contents/MacOS/" >/dev/null 2>&1; then
-    say "Quitting the running $APP…"
+    say "Quitting the running ${APP}…"
     osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
     sleep 2
     pkill -9 -f "/$APP/Contents/MacOS/" 2>/dev/null || true
@@ -83,7 +83,7 @@ if [ "$MODE" = "app" ]; then
   mv "$DEST/$APP.new" "$DEST/$APP"
   rm -rf "$DEST/$APP.old"
   xattr -dr com.apple.quarantine "$DEST/$APP" 2>/dev/null || true
-  say "Installed $DEST/$APP — opening it."
+  say "Installed ${DEST}/${APP} — opening it."
   open -a "$DEST/$APP"
   printf '\n\033[1mNext:\033[0m click the brain in the bottom corner of your screen (or press Alt+Space),\n'
   printf 'click \033[1mSign in\033[0m (your browser opens for GitHub), then \033[1mSet up this Mac\033[0m.\n'

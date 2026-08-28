@@ -124,7 +124,67 @@ interface SetupState {
   hostname: string;
   app_version: string;
   source_present: boolean;
-  reminders: { list: string; repo: string }[];
+  has_token: boolean;
+  bootstrap_ok: boolean | null;
+  bootstrap_failed: string[];
+  bootstrap_at: string | null;
+  in_applications: boolean;
+  reminders_on: boolean;
+}
+type StepResult = { ok: boolean; msg: string; code?: string; skipped?: boolean };
+interface BootstrapResult {
+  ok: boolean;
+  fatal: boolean;
+  failed: string[];
+  steps: Record<string, StepResult> | null;
+  log: string;
+  exit_code: number | null;
+}
+const STEP_LABEL: Record<string, string> = { source: "DevBrain source", cli: "CLI", hooks: "Hooks", plugin: "Claude Code plugin", reminders: "Reminders sync", updater: "Daily updater", widget: "App" };
+// What to do about a failed part, by the CLI's stable code.
+function adviceFor(code: string | undefined, msg: string): string {
+  switch (code) {
+    case "claude_missing":
+      return "Claude Code isn't installed (or not where DevBrain looks). Install it, then Retry — or in any Claude session run /plugin marketplace add lukeb230/devbrain and /plugin install devbrain@devbrain.";
+    case "marketplace_add":
+    case "plugin_install":
+    case "plugin_update":
+      return "Usually network or GitHub access. Retry, or run the two /plugin commands above in a Claude session.";
+    case "source_offline":
+    case "source_pull":
+      return "Couldn't download DevBrain — are you online? Retry when you are.";
+    default:
+      return msg;
+  }
+}
+// Per-part list rendered after a bootstrap (and on the Settings card).
+function StepList({ result }: { result: BootstrapResult }) {
+  const steps = result.steps ?? {};
+  const names = Object.keys(steps);
+  if (names.length === 0) return null;
+  return (
+    <ul className="space-y-1 rounded-md border border-slate-200 bg-white p-2 text-[11px]">
+      {names.map((n) => {
+        const st = steps[n];
+        return (
+          <li key={n} className="flex gap-2">
+            <span className={st.ok ? (st.skipped ? "text-slate-400" : "text-emerald-600") : "text-red-600"}>{st.ok ? (st.skipped ? "·" : "✓") : "✗"}</span>
+            <span className="min-w-0 flex-1">
+              <span className="font-medium text-slate-800">{STEP_LABEL[n] ?? n}</span>
+              <span className="text-slate-500"> — {st.msg}</span>
+              {!st.ok && <div className="mt-0.5 text-red-700">{adviceFor(st.code, st.msg)}</div>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+// Re-run bootstrap without minting a token (config.json already has one).
+async function rerunBootstrap(): Promise<BootstrapResult> {
+  const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
+  if (!core) throw new Error("not running inside the DevBrain app");
+  return (await core.invoke("bootstrap", { server: window.location.origin, token: null, remindersList: null, remindersRepo: null })) as BootstrapResult;
 }
 
 function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; repos: WidgetData["repos"]; canAdmin: boolean; onDone: () => void }) {
@@ -141,29 +201,38 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
   const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
   const [done, setDone] = useState<null | "ok" | "fail">(null);
+  const [result, setResult] = useState<BootstrapResult | null>(null);
   const say = (l: string) => setLines((xs) => [...xs, l]);
   const core = () => (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
 
   const run = async () => {
-    setBusy(true); setLines([]); setDone(null);
+    setBusy(true); setLines([]); setDone(null); setResult(null);
     try {
       const c = core();
       if (!c) throw new Error("not running inside the DevBrain app");
-      say("Creating a token for this Mac…");
-      const minted = await mintDeviceToken(label);
-      if ("error" in minted) throw new Error(minted.error);
-      say(`Token "${minted.label}" created.`);
+      let token: string | null = null;
+      if (state.has_token) {
+        say("Using the token already on this Mac.");
+      } else {
+        say("Creating a token for this Mac…");
+        const minted = await mintDeviceToken(label);
+        if ("error" in minted) throw new Error(minted.error);
+        say(`Token "${minted.label}" created.`);
+        token = minted.token;
+      }
       say("Installing the CLI, Claude Code plugin, hooks and updater…");
       const r = (await c.invoke("bootstrap", {
         server: window.location.origin,
-        token: minted.token,
+        token,
         // "on"/"off" switches sync for this Mac; a list+repo also creates the
         // team's first mapping (Settings → Reminders holds the rest).
         remindersList: syncReminders ? (list && repo ? list : "on") : "off",
         remindersRepo: syncReminders && list && repo ? repo : null,
-      })) as { ok: boolean; log: string };
+      })) as BootstrapResult;
+      setResult(r);
       for (const l of r.log.split("\n").filter(Boolean)) say("  " + l);
-      if (!r.ok) throw new Error("setup failed — see above");
+      if (r.fatal) throw new Error("nothing was installed — see above");
+      if (!r.ok) throw new Error(`${r.failed.map((f) => STEP_LABEL[f] ?? f).join(", ")} failed — see the list below`);
       say("Asking for notification permission (click Allow)…");
       const n = String(await c.invoke("notify", { title: "DevBrain is set up", body: "You'll get team notifications here." }));
       say(n === "delivered" ? "Notifications on." : `Notifications: ${n}.`);
@@ -172,7 +241,7 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
         const out = (await c.invoke("run_collector_now")) as string[];
         for (const l of out) say("  " + l);
       }
-      say("Done. Restart any open Claude Code sessions to load the plugin.");
+      say(r.steps?.plugin?.ok ? "Done. Restart any open Claude Code sessions to load the plugin." : "Done.");
       setDone("ok");
     } catch (e) {
       say("✗ " + (e instanceof Error ? e.message : String(e)));
@@ -195,6 +264,16 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
           macOS will ask for two permissions along the way (Notifications, Reminders). Nothing else to install
           {state.node_ok ? " — Node is bundled with the app." : "."}
         </p>
+        {!state.in_applications && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+            Move DevBrain to your <b>Applications</b> folder first, then open it from there and come back here. (Running from a disk image or Downloads would break the tools it installs.)
+          </div>
+        )}
+        {state.bootstrap_ok === false && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+            Last setup{state.bootstrap_at ? ` (${new Date(state.bootstrap_at).toLocaleString()})` : ""} didn&apos;t finish: {state.bootstrap_failed.map((f) => STEP_LABEL[f] ?? f).join(", ")} failed. Fix the cause and run it again — the token is kept.
+          </div>
+        )}
         {!state.node_ok && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
             Bundled Node isn&apos;t runnable ({state.node}). This build may be incomplete — re-download the latest release, or tell your team admin.
@@ -234,19 +313,61 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
             </label>
           </div>
         )}
-        <button onClick={() => void run()} disabled={busy || done === "ok"}
+        <button onClick={() => void run()} disabled={busy || done === "ok" || !state.in_applications}
           className="w-full rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-          {busy ? "Setting up…" : done === "ok" ? "All set" : "Set up this Mac"}
+          {busy ? "Setting up…" : done === "ok" ? "All set" : done === "fail" ? "Retry setup" : state.bootstrap_ok === false ? "Run setup again" : "Set up this Mac"}
         </button>
+        {result && <StepList result={result} />}
         {lines.length > 0 && (
-          <pre className="max-h-64 overflow-auto rounded-md bg-slate-900 p-2.5 text-[10px] leading-relaxed text-slate-100">{lines.join("\n")}</pre>
+          <pre className="max-h-48 overflow-auto rounded-md bg-slate-900 p-2.5 text-[10px] leading-relaxed text-slate-100">{lines.join("\n")}</pre>
         )}
         {done === "ok" && (
           <button onClick={onDone} className="w-full rounded-md border border-brand-300 px-3 py-1.5 text-sm text-brand-700 hover:bg-brand-50">
             Open DevBrain
           </button>
         )}
+        {done === "fail" && !result?.fatal && (
+          <button onClick={() => { try { sessionStorage.setItem("devbrain_skip_setup", "1"); } catch { /* private mode */ } onDone(); }}
+            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
+            Continue to DevBrain anyway (you can re-run setup from Settings)
+          </button>
+        )}
       </div>
+    </div>
+  );
+}
+
+// Settings → "Setup on this Mac": last outcome + re-run without re-minting.
+function SetupCard({ state }: { state: SetupState }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<BootstrapResult | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const rerun = async () => {
+    setBusy(true); setErr(null); setResult(null);
+    try { setResult(await rerunBootstrap()); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  const status = result ? (result.ok ? "ok" : "failed") : state.bootstrap_ok === false ? "failed" : state.bootstrap_ok ? "ok" : null;
+  return (
+    <div className="card px-2.5 py-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Setup on this Mac</span>
+        <span className={"chip " + (status === "failed" ? "bg-red-50 text-red-700" : status === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>
+          {status === "failed" ? "needs attention" : status === "ok" ? "complete" : "unknown"}
+        </span>
+      </div>
+      <p className="text-[11px] text-slate-500">
+        {state.bootstrap_at ? `Last run ${new Date(state.bootstrap_at).toLocaleString()}.` : "Never run."}{" "}
+        {state.bootstrap_ok === false && !result ? `Failed: ${state.bootstrap_failed.map((f) => STEP_LABEL[f] ?? f).join(", ")}.` : ""}{" "}
+        Re-running is safe: it keeps your token and only fixes what's missing.
+      </p>
+      <button onClick={() => void rerun()} disabled={busy}
+        className="mt-1.5 rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+        {busy ? "Running…" : "Re-run setup"}
+      </button>
+      {err && <p className="mt-1.5 text-[11px] text-red-700">✗ {err}</p>}
+      {result && <div className="mt-2"><StepList result={result} />{result.fatal && <pre className="mt-1 max-h-32 overflow-auto rounded-md bg-slate-900 p-2 text-[10px] text-slate-100">{result.log}</pre>}</div>}
     </div>
   );
 }
@@ -376,7 +497,9 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const done = data.tasks.filter((t) => t.status === "done").slice(0, 5);
 
   if (setup && !setup.configured) {
-    return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} onDone={() => window.location.reload()} />;
+    let skipped = false;
+    try { skipped = sessionStorage.getItem("devbrain_skip_setup") === "1"; } catch { /* private mode */ }
+    if (!skipped) return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} onDone={() => window.location.reload()} />;
   }
 
   return (
@@ -450,6 +573,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       <div className={"min-h-0 flex-1 px-3 py-2.5 " + (tab === "Home" ? "overflow-hidden" : "overflow-y-auto")}>
         {tab === "Settings" && (
           <div className="space-y-2.5">
+            {setup && <SetupCard state={setup} />}
             <div className="card px-2.5 py-2">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Notifications</span>

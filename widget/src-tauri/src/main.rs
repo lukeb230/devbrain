@@ -28,10 +28,14 @@ use tauri_plugin_opener::OpenerExt;
 mod notify;
 mod setup;
 
-pub const SITE: &str = "https://devbrain-seven.vercel.app";
-const SITE_HOST: &str = "devbrain-seven.vercel.app";
-const SITE_PANEL: &str = "https://devbrain-seven.vercel.app/widget";
-const SITE_FULL: &str = "https://devbrain-seven.vercel.app/dashboard";
+// The site comes from the build (build.rs: DEVBRAIN_SITE), never a literal
+// here — capabilities/remote.json is asserted to match at compile time.
+pub const SITE: &str = env!("DEVBRAIN_SITE");
+fn site_host() -> &'static str {
+    SITE.trim_start_matches("https://").trim_start_matches("http://").split('/').next().unwrap_or("")
+}
+fn site_panel() -> String { format!("{SITE}/widget") }
+fn site_full() -> String { format!("{SITE}/dashboard") }
 
 const ZONE_HOT: f64 = 58.0; // expanded to show the badge
 const PANEL_W: f64 = 440.0;
@@ -386,24 +390,29 @@ fn main() {
             let _ = badge.set_visible_on_all_workspaces(true);
 
             // --- panel -----------------------------------------------------
-            // Navigation lock: the panel may only display the widget view and
-            // its auth flow. Anything else (PR links, the full dashboard)
-            // opens in the user's real browser instead of hijacking the panel.
+            // Navigation lock: the panel may only display the widget view,
+            // its auth flow, and the create-team / join-with-invite pages a
+            // brand-new user needs. Anything else (PR links, the full
+            // dashboard) opens in the user's real browser instead of
+            // hijacking the panel. Keep in sync with src/lib/panel-routes.ts.
             let nav_handle = app.handle().clone();
             let panel = WebviewWindowBuilder::new(
                 app,
                 "panel",
-                WebviewUrl::External(SITE_PANEL.parse().unwrap()),
+                WebviewUrl::External(site_panel().parse().unwrap()),
             )
             .on_navigation(move |url| {
                 let host = url.host_str().unwrap_or("");
                 let path = url.path();
-                let allowed = (host == SITE_HOST
+                let allowed = (host == site_host()
                     && (path.starts_with("/widget")
                         || path.starts_with("/auth")
+                        || path.starts_with("/welcome")
+                        || path.starts_with("/join/")
                         || path.starts_with("/_next")
                         || path == "/"))
-                    || host.ends_with("github.com")
+                    || host == "github.com"
+                    || host.ends_with(".github.com")
                     || host.ends_with(".supabase.co")
                     // Identity providers GitHub itself may hand off to during
                     // its own login (the panel has its own cookie jar).
@@ -532,7 +541,7 @@ fn main() {
                         // the webview currently is" (which could be a stuck
                         // sign-in hop).
                         if let Some(p) = app.get_webview_window("panel") {
-                            let _ = p.eval(&format!("window.location.replace({:?})", SITE_PANEL));
+                            let _ = p.eval(&format!("window.location.replace({:?})", site_panel()));
                         }
                     }
                     "pin" => {
@@ -566,7 +575,7 @@ fn main() {
                         }
                     }
                     "dash" => {
-                        let _ = app.opener().open_url(SITE_FULL, None::<&str>);
+                        let _ = app.opener().open_url(site_full(), None::<&str>);
                     }
                     _ => {}
                 })

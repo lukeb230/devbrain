@@ -45,6 +45,10 @@ jobs:
       APP_NAME: ${{ matrix.channel == 'beta' && 'DevBrain Beta' || 'DevBrain' }}
       ASSET: ${{ matrix.channel == 'beta' && 'DevBrain-Beta' || 'DevBrain' }}
       BUNDLE_ID: ${{ matrix.channel == 'beta' && 'app.devbrain.desktop.beta' || 'app.devbrain.desktop' }}
+      # Repo variables (Settings → Variables) override the site each channel
+      # loads; both must also appear in src-tauri/capabilities/remote.json.
+      DEVBRAIN_SITE: ${{ vars.DEVBRAIN_SITE || 'https://devbrain-seven.vercel.app' }}
+      DEVBRAIN_BETA_SITE: ${{ vars.DEVBRAIN_BETA_SITE || '' }}
     steps:
       - uses: actions/checkout@v4
 

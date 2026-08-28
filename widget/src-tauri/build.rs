@@ -7,6 +7,24 @@ fn main() {
     println!("cargo:rustc-env=DEVBRAIN_CHANNEL={channel}");
     println!("cargo:rerun-if-env-changed=DEVBRAIN_CHANNEL");
 
+    // The site the panel loads, baked in at build time (DEVBRAIN_SITE; the
+    // beta overlay in scripts/build-channel.sh may point it elsewhere).
+    // capabilities/remote.json must grant IPC to the SAME origin or every
+    // app command silently fails from the panel — assert it here so the two
+    // can never drift.
+    let site = std::env::var("DEVBRAIN_SITE")
+        .unwrap_or_else(|_| "https://devbrain-seven.vercel.app".into())
+        .trim_end_matches('/')
+        .to_string();
+    let remote = std::fs::read_to_string("capabilities/remote.json").expect("capabilities/remote.json");
+    assert!(
+        remote.contains(&format!("\"{site}\"")),
+        "capabilities/remote.json does not list {site} under remote.urls — add it (DEVBRAIN_SITE and the capability must match)"
+    );
+    println!("cargo:rustc-env=DEVBRAIN_SITE={site}");
+    println!("cargo:rerun-if-env-changed=DEVBRAIN_SITE");
+    println!("cargo:rerun-if-changed=capabilities/remote.json");
+
     // Declare the app's own commands so Tauri generates `allow-<command>`
     // permissions for them. Required: the panel is a REMOTE page, and Tauri
     // only lets remote origins reach app commands that a capability

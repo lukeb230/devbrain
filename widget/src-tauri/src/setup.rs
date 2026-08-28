@@ -4,9 +4,12 @@
 // The app is the package: open it once, sign in inside the panel, click
 // "Set up this Mac". The panel page then calls, in order:
 //   setup_state()                          — is this Mac configured? where's node?
-//   bootstrap(server, token, list?, repo?) — write ~/.devbrain/config.json,
+//                                            did the last bootstrap succeed?
+//   bootstrap(server, token?, list?, repo?)— write ~/.devbrain/config.json
+//                                            (token optional once one exists),
 //                                            fetch ~/.devbrain/src (tarball,
-//                                            no git), run `devbrain update`
+//                                            no git), run `devbrain bootstrap
+//                                            --json` and parse its summary
 //   run_collector_now()                    — first Reminders read → macOS
 //                                            prompts "DevBrain would like to
 //                                            access Reminders"
@@ -82,7 +85,33 @@ pub struct SetupState {
     hostname: String,
     app_version: String,
     source_present: bool,
-    reminders: Vec<serde_json::Value>,
+    /// A token is already in config.json — bootstrap can run without minting one.
+    has_token: bool,
+    /// Outcome of the last `devbrain bootstrap`/`update` (None = never recorded).
+    bootstrap_ok: Option<bool>,
+    bootstrap_failed: Vec<String>,
+    bootstrap_at: Option<String>,
+    /// Running from /Applications (or ~/Applications). From a DMG or
+    /// ~/Downloads the bundled node path everything links to would vanish.
+    in_applications: bool,
+    reminders_on: bool,
+}
+
+pub fn reminders_on(cfg: &serde_json::Value) -> bool {
+    match cfg.get("reminders") {
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::Array(a)) => !a.is_empty(), // legacy shape, migrated by the CLI
+        _ => false,
+    }
+}
+
+fn in_applications(app: &AppHandle) -> bool {
+    if cfg!(debug_assertions) {
+        return true; // `tauri dev` runs from target/
+    }
+    let Ok(dir) = app.path().resource_dir() else { return false };
+    let user_apps = home().join("Applications");
+    dir.starts_with("/Applications/") || dir.starts_with(&user_apps)
 }
 
 #[tauri::command]
@@ -98,18 +127,27 @@ pub fn setup_state(app: AppHandle) -> SetupState {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "this-mac".into());
+    let has_token = cfg.as_ref().map(|c| c.get("token").and_then(|t| t.as_str()).map(|t| !t.is_empty()).unwrap_or(false)).unwrap_or(false);
+    let bootstrap_ok = cfg.as_ref().and_then(|c| c.get("bootstrap_ok").and_then(|b| b.as_bool()));
     SetupState {
         // "Configured" means the whole stack is present: a token AND the CLI
-        // checkout. A Mac onboarded by hand (config only, no ~/.devbrain/src)
-        // still gets the setup screen so the updater layer gets installed.
-        configured: cfg.as_ref().map(|c| c.get("token").and_then(|t| t.as_str()).map(|t| !t.is_empty()).unwrap_or(false)).unwrap_or(false)
-            && cli_path().exists(),
+        // checkout AND the last bootstrap did not record a failure. A Mac
+        // onboarded by hand (config only, no ~/.devbrain/src) or one whose
+        // plugin install failed gets the setup screen (again) so it can be
+        // finished. Configs from before bootstrap_ok existed count as ok.
+        configured: has_token && cli_path().exists() && bootstrap_ok != Some(false),
         node,
         node_ok,
         hostname,
         app_version: app.package_info().version.to_string(),
         source_present: cli_path().exists(),
-        reminders: cfg.and_then(|c| c.get("reminders").and_then(|r| r.as_array().cloned())).unwrap_or_default(),
+        has_token,
+        bootstrap_ok,
+        bootstrap_failed: cfg.as_ref().and_then(|c| c.get("bootstrap_failed").and_then(|f| f.as_array()))
+            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+        bootstrap_at: cfg.as_ref().and_then(|c| c.get("bootstrap_at").and_then(|v| v.as_str()).map(String::from)),
+        in_applications: in_applications(&app),
+        reminders_on: cfg.as_ref().map(reminders_on).unwrap_or(false),
     }
 }
 
@@ -157,56 +195,95 @@ fn fetch_source() -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 pub struct BootstrapResult {
     ok: bool,
+    /// Nothing usable was installed (offline, node broken, not in /Applications).
+    fatal: bool,
+    /// Names of the parts that failed, e.g. ["plugin"]; see `steps` for codes.
+    failed: Vec<String>,
+    /// Per-part {ok, msg, code?} from the CLI's DEVBRAIN_SUMMARY line.
+    steps: serde_json::Value,
     log: String,
+    exit_code: Option<i32>,
 }
 
-/// First-run install. Runs on a blocking task; returns the CLI's summary.
+/// First-run install (and re-run from Settings). Runs on a blocking task;
+/// returns the CLI's per-part summary so the panel can say exactly what
+/// failed. `token` may be None when config.json already has one.
 #[tauri::command]
 pub async fn bootstrap(
     app: AppHandle,
     server: String,
-    token: String,
+    token: Option<String>,
     reminders_list: Option<String>,
     reminders_repo: Option<String>,
 ) -> BootstrapResult {
     let node = node_path(&app);
+    if !in_applications(&app) {
+        let from = app.path().resource_dir().map(|d| d.display().to_string()).unwrap_or_default();
+        return BootstrapResult {
+            fatal: true, failed: vec!["location".into()],
+            log: format!("✗ Move {} to your Applications folder first (it is running from {from}), then open it again and click Set up.\n", app_name()),
+            ..Default::default()
+        };
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let mut log = String::new();
         if !cli_path().exists() {
             log.push_str("→ fetching DevBrain source…\n");
             if let Err(e) = fetch_source() {
-                return BootstrapResult { ok: false, log: log + &format!("✗ {e}\n") };
+                return BootstrapResult { fatal: true, failed: vec!["source".into()], log: log + &format!("✗ {e}\n"), ..Default::default() };
             }
         }
         let mut args: Vec<String> = vec![
             cli_path().to_string_lossy().into_owned(),
             "bootstrap".into(),
+            "--json".into(),
             "--server".into(), server,
-            "--token".into(), token,
         ];
+        if let Some(t) = token.filter(|t| !t.trim().is_empty()) {
+            args.push("--token".into()); args.push(t);
+        }
         match (reminders_list.filter(|s| !s.trim().is_empty()), reminders_repo.filter(|s| !s.trim().is_empty())) {
             (Some(l), Some(r)) => { args.push("--reminders".into()); args.push(l); args.push("--repo".into()); args.push(r); }
             (Some(flag), None) if flag == "on" || flag == "off" => { args.push("--reminders".into()); args.push(flag); }
             _ => {}
         }
         log.push_str("→ running devbrain bootstrap…\n");
-        match Command::new(&node).args(&args).env("HOME", home()).output() {
+        match Command::new(&node).args(&args).env("HOME", home()).env("DEVBRAIN_HOME", devbrain_dir()).output() {
             Ok(o) => {
-                log.push_str(&String::from_utf8_lossy(&o.stdout));
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                // The summary line is the contract; the exit code is the fallback.
+                let summary = stdout.lines().rev().find_map(|l| l.strip_prefix("DEVBRAIN_SUMMARY "))
+                    .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok());
+                for l in stdout.lines().filter(|l| !l.starts_with("DEVBRAIN_SUMMARY ")) {
+                    log.push_str(l); log.push('\n');
+                }
                 if !o.status.success() {
                     log.push_str(&String::from_utf8_lossy(&o.stderr));
-                    return BootstrapResult { ok: false, log };
                 }
-                BootstrapResult { ok: true, log }
+                let exit_code = o.status.code();
+                match summary {
+                    Some(sm) => BootstrapResult {
+                        ok: sm.get("ok").and_then(|b| b.as_bool()).unwrap_or(false),
+                        fatal: false,
+                        failed: sm.get("failed").and_then(|f| f.as_array()).map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                        steps: sm.get("steps").cloned().unwrap_or(serde_json::Value::Null),
+                        log, exit_code,
+                    },
+                    None => BootstrapResult {
+                        ok: o.status.success(), fatal: !o.status.success(),
+                        failed: if o.status.success() { vec![] } else { vec!["bootstrap".into()] },
+                        log, exit_code, ..Default::default()
+                    },
+                }
             }
-            Err(e) => BootstrapResult { ok: false, log: log + &format!("✗ could not run node ({node}): {e}\n") },
+            Err(e) => BootstrapResult { fatal: true, failed: vec!["node".into()], log: log + &format!("✗ could not run node ({node}): {e}\n"), ..Default::default() },
         }
     })
     .await
-    .unwrap_or_else(|_| BootstrapResult { ok: false, log: "task failed".into() })
+    .unwrap_or_else(|_| BootstrapResult { fatal: true, failed: vec!["task".into()], log: "task failed".into(), ..Default::default() })
 }
 
 /// One collector pass: `collect.mjs --auto` asks the server which lists the
@@ -214,11 +291,7 @@ pub async fn bootstrap(
 /// Runs only when this Mac has Reminders sync switched on (config.reminders).
 fn collect_all(node: &str) -> Vec<String> {
     let Some(cfg) = read_config() else { return vec![] };
-    let on = match cfg.get("reminders") {
-        Some(serde_json::Value::Bool(b)) => *b,
-        Some(serde_json::Value::Array(a)) => !a.is_empty(), // legacy shape, migrated by the CLI
-        _ => false,
-    };
+    let on = reminders_on(&cfg);
     let collect = src_dir().join("tools").join("reminders-sync").join("collect.mjs");
     if !on || !collect.exists() {
         return vec![];

@@ -405,6 +405,12 @@ fn main() {
                         || path == "/"))
                     || host.ends_with("github.com")
                     || host.ends_with(".supabase.co")
+                    // Identity providers GitHub itself may hand off to during
+                    // its own login (the panel has its own cookie jar).
+                    || host == "accounts.google.com"
+                    || host.ends_with(".google.com")
+                    || host == "appleid.apple.com"
+                    || host.ends_with(".apple.com")
                     || url.scheme() == "about"
                     || url.scheme() == "tauri";
                 if !allowed {
@@ -509,8 +515,11 @@ fn main() {
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => toggle_panel(app.clone()),
                     "reload" => {
+                        // Always go back to the panel's home, not "reload wherever
+                        // the webview currently is" (which could be a stuck
+                        // sign-in hop).
                         if let Some(p) = app.get_webview_window("panel") {
-                            let _ = p.eval("window.location.reload()");
+                            let _ = p.eval(&format!("window.location.replace({:?})", SITE_PANEL));
                         }
                     }
                     "pin" => {

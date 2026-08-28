@@ -108,6 +108,17 @@ export default async function DashboardPage({
             Unlinked (history kept): {unlinkedRepos.map((r) => r.full_name).join(" · ")} — reinstall the GitHub App on a repo to relink it.
           </p>
         )}
+        {(!repos || repos.length === 0) && (
+          <section className="card mb-6 border-brand-200 card-pad">
+            <div className="card-title mb-1 text-brand-700">Get {org.orgName} running</div>
+            <ol className="mt-2 grid gap-3 text-sm text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
+              <li className="rounded-md border border-slate-200 p-3"><b>1. Link a repo.</b> <a href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain"}/installations/new`} className="text-brand-600 hover:underline">Install the GitHub App</a> on the repos your team works in.</li>
+              <li className="rounded-md border border-slate-200 p-3"><b>2. Install the Mac app.</b> It sets up the Claude Code plugin and the CLI on first run — see <Link href="/settings/setup" className="text-brand-600 hover:underline">Setup</Link>.</li>
+              <li className="rounded-md border border-slate-200 p-3"><b>3. Invite your team.</b> Mint a link on <Link href="/settings/members" className="text-brand-600 hover:underline">Members</Link>; they sign in with GitHub and repeat step 2.</li>
+              <li className="rounded-md border border-slate-200 p-3"><b>4. Work.</b> Presence, collisions, tasks, reviews and journals fill in as sessions run.</li>
+            </ol>
+          </section>
+        )}
         {/* Stat strip */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {stats.map((s) => (

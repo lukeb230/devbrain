@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 // traffic lights, lanes, merge order, reminders title parsing).
 export default defineConfig({
   test: {
-    include: ["src/lib/__tests__/**/*.test.ts", "plugin/hooks/__tests__/**/*.test.ts"],
+    include: ["src/lib/__tests__/**/*.test.ts", "plugin/hooks/__tests__/**/*.test.ts", "cli/bin/__tests__/**/*.test.ts"],
     environment: "node",
   },
   resolve: {

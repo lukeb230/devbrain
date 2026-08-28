@@ -8,7 +8,7 @@ import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { devbrainHome } from "./home.mjs";
+import { devbrainHome, loadConfig } from "./home.mjs";
 
 function out(obj) { process.stdout.write(JSON.stringify(obj)); }
 
@@ -19,13 +19,7 @@ try {
 
   // Config file first; DEVBRAIN_URL/DEVBRAIN_TOKEN env vars as the headless
   // fallback (Cowork, CI). No config at all → exit silently (guard is a no-op).
-  let cfg = null;
-  try { cfg = JSON.parse(readFileSync(join(devbrainHome(), "config.json"), "utf8")); } catch { /* try env */ }
-  if (!cfg) {
-    const server = (process.env.DEVBRAIN_URL || "").trim().replace(/\/$/, "");
-    const token = (process.env.DEVBRAIN_TOKEN || "").trim();
-    if (server && token) cfg = { server, token };
-  }
+  const cfg = loadConfig();
   if (!cfg) process.exit(0);
   let repo = null, rel = filePath;
   try {

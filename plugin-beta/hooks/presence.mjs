@@ -3,7 +3,8 @@
 // Presence hook — session start / end / file activity, owned by the PLUGIN.
 //
 // Before 0.5.0 these three hooks were written into ~/.claude/settings.json by
-// `devbrain init`, pointing at a CLI file inside a clone of the repo.
+// the CLI (then `devbrain init`, now `devbrain setup`), pointing at a file
+// inside a clone of the repo.
 // That made the clone a permanent runtime dependency (move it → presence dies
 // silently) and froze the hooks at whatever init wrote. Owned by the plugin,
 // they travel with every plugin update and need no second repo at all.
@@ -23,21 +24,14 @@ import { execSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { devbrainHome } from "./home.mjs";
+import { devbrainHome, httpHint, loadConfig } from "./home.mjs";
 import { fileURLToPath } from "node:url";
 import { buildExcerpt } from "./journal-extract.mjs";
 
 const CONFIG_DIR = devbrainHome();
 const kind = process.argv[2] || "activity";
 
-function config() {
-  try {
-    return JSON.parse(readFileSync(join(CONFIG_DIR, "config.json"), "utf8"));
-  } catch { /* try env */ }
-  const server = (process.env.DEVBRAIN_URL || "").trim().replace(/\/$/, "");
-  const token = (process.env.DEVBRAIN_TOKEN || "").trim();
-  return server && token ? { server, token } : null;
-}
+const config = loadConfig;
 
 function git(cmd) {
   try {
@@ -198,9 +192,16 @@ async function main() {
         { headers: { Authorization: `Bearer ${cfg.token}` }, signal: ctrl.signal },
       );
       clearTimeout(timer);
-      const ctx = await res.json();
-      console.log("## Team context (DevBrain)");
-      console.log(JSON.stringify(ctx, null, 2));
+      if (res.ok) {
+        const ctx = await res.json();
+        console.log("## Team context (DevBrain)");
+        console.log(JSON.stringify(ctx, null, 2));
+      } else {
+        // Not linked / server trouble → say nothing (a personal repo is the
+        // normal case). A dead token is the one thing worth a line.
+        const hint = httpHint(res.status);
+        if (hint) console.log(hint);
+      }
     } catch { /* best effort */ }
     process.exit(0);
   }

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // ============================================================================
 // DevBrain MCP server (stdio) — zero-dependency implementation of the MCP
-// protocol's tools surface. Reads ~/.devbrain/config.json (created by
-// `devbrain init`) for the server URL + dev token, and exposes DevBrain to
-// any MCP-capable Claude session.
+// protocol's tools surface. Reads <home>/config.json (written by the DevBrain
+// app's first run or `devbrain setup`) for the server URL + dev token, and
+// exposes DevBrain to any MCP-capable Claude session.
 //
 // Tools:
 //   get_team_context   — live digest: PRs, active sessions, claims, collisions
@@ -15,23 +15,44 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { devbrainHome } from "../hooks/home.mjs";
+import { appName, cmdName, devbrainHome, loadConfig } from "../hooks/home.mjs";
 import { createInterface } from "node:readline";
 
 const CONFIG_DIR = devbrainHome();
 
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 
-// Auth resolution order:
-//   1. ~/.devbrain/config.json  (written by `devbrain init` — the normal path)
-//   2. DEVBRAIN_URL + DEVBRAIN_TOKEN env vars — for environments with no home
-//      config: Cowork sessions, CI jobs, headless agents.
-function config() {
-  try { return JSON.parse(readFileSync(CONFIG_PATH, "utf8")); } catch { /* fall through */ }
-  const server = (process.env.DEVBRAIN_URL || "").trim().replace(/\/$/, "");
-  const token = (process.env.DEVBRAIN_TOKEN || "").trim();
-  if (server && token) return { server, token };
-  return null;
+// Auth: <home>/config.json, else DEVBRAIN_URL + DEVBRAIN_TOKEN (Cowork, CI,
+// headless agents) — shared with the hooks in ../hooks/home.mjs.
+const config = loadConfig;
+const NOT_CONFIGURED = `DevBrain not configured on this machine — install the ${appName()} app (it sets everything up on first run) or run: ${cmdName()} setup`;
+
+// Never let a non-JSON body (502 HTML, a Vercel error page) or a network
+// error become a JSON-RPC protocol error: tools always return something the
+// model can read.
+async function readJson(res) {
+  const out = await res.json().catch(() => null);
+  if (out === null || typeof out !== "object") return { error: `DevBrain returned ${res.status}${res.statusText ? " " + res.statusText : ""}`, status: res.status };
+  if (!res.ok && !out.error) out.error = `request failed (${res.status})`;
+  return out;
+}
+async function call(url, init) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    return await readJson(res);
+  } catch (e) {
+    return { error: `DevBrain unreachable: ${e?.name === "AbortError" ? "timed out" : String(e?.message || e)}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+// This session's id for a repo, written by the presence hook — used to keep
+// your own edits out of collision answers.
+function ownSessionId(repo) {
+  try { return readFileSync(join(CONFIG_DIR, "session-" + repo.replace("/", "_")), "utf8").trim(); }
+  catch { return ""; }
 }
 function currentRepo() {
   try {
@@ -49,12 +70,11 @@ function repoRoot() {
 async function apiContext() {
   const cfg = config();
   const repo = currentRepo();
-  if (!cfg) return { error: "DevBrain not configured on this machine — run: devbrain init" };
+  if (!cfg) return { error: NOT_CONFIGURED };
   if (!repo) return { error: "Not inside a git repo with a GitHub remote." };
-  const res = await fetch(`${cfg.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, {
+  return call(`${cfg.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, {
     headers: { Authorization: `Bearer ${cfg.token}` },
   });
-  return res.json();
 }
 
 const TOOLS = [
@@ -235,7 +255,7 @@ async function callTool(name, args) {
   if (name === "search_team_memory") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const q = String(args?.query || "").trim();
     if (!q) return JSON.stringify({ error: "query required" });
     const limit = Math.min(25, Math.max(1, Number(args?.limit) || 8));
@@ -243,7 +263,7 @@ async function callTool(name, args) {
       `${cfg.server}/api/v1/memory/search?repo=${encodeURIComponent(repo)}&q=${encodeURIComponent(q)}&limit=${limit}`,
       { headers: { Authorization: `Bearer ${cfg.token}` } },
     );
-    const out = await res.json().catch(() => ({}));
+    const out = await readJson(res);
     if (!res.ok) return JSON.stringify(out.error ? out : { error: `search failed (${res.status})` });
     const hits = out.hits || [];
     if (hits.length === 0) return `No team memory matched "${q}". (Journals accumulate as sessions end; decisions via log_decision.)`;
@@ -256,7 +276,8 @@ async function callTool(name, args) {
     const ctx = await apiContext();
     if (ctx.error) return JSON.stringify(ctx);
     const file = String(args?.file || "");
-    const sessions = (ctx.active_sessions || []).filter((s) => (s.files || []).includes(file));
+    const own = ownSessionId(currentRepo() || "");
+    const sessions = (ctx.active_sessions || []).filter((s) => String(s.id || "") !== own && (s.files || []).includes(file));
     const collisions = (ctx.collisions || []).filter((c) => c.includes(file));
     const claims = (ctx.claims || []).filter(
       (c) =>
@@ -273,57 +294,51 @@ async function callTool(name, args) {
   if (name === "update_status") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
-    let session_id = "";
-    try {
-      session_id = readFileSync(
-        join(CONFIG_DIR, "session-" + repo.replace("/", "_")),
-        "utf8",
-      ).trim();
-    } catch { /* none */ }
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
+    const session_id = ownSessionId(repo);
     if (!session_id) return JSON.stringify({ error: "No active DevBrain session (hooks not running?)." });
     const res = await fetch(`${cfg.server}/api/v1/ingest`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ kind: "session_update", repo, session_id, summary: String(args?.status || "") }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "broadcast") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/broadcasts`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, text: String(args?.text || "") }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "log_decision") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/decisions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, text: String(args?.text || "") }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "list_tasks") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/tasks?repo=${encodeURIComponent(repo)}`, {
       headers: { Authorization: `Bearer ${cfg.token}` },
     });
-    return JSON.stringify(await res.json(), null, 2);
+    return JSON.stringify(await readJson(res), null, 2);
   }
   if (name === "add_task") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
@@ -337,18 +352,18 @@ async function callTool(name, args) {
         assigned_to: args?.assignee,
       }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "complete_task") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "complete", id: String(args?.id || "") }),
     });
-    const out = await res.json();
+    const out = await readJson(res);
     try {
       const f = join(CONFIG_DIR, "task-" + repo.replace("/", "_"));
       if (existsSync(f) && readFileSync(f, "utf8").trim() === String(args?.id || "")) unlinkSync(f);
@@ -358,13 +373,13 @@ async function callTool(name, args) {
   if (name === "start_task") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "start", id: String(args?.id || "") }),
     });
-    const out = await res.json();
+    const out = await readJson(res);
     // Remember the task this session is on, so the session journal links to it.
     if (res.ok && !out?.error) {
       try { writeFileSync(join(CONFIG_DIR, "task-" + repo.replace("/", "_")), String(args?.id || "")); } catch { /* non-fatal */ }
@@ -374,29 +389,29 @@ async function callTool(name, args) {
   if (name === "claim_area") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/claims`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "claim", paths: args?.paths, note: args?.note, hours: args?.hours }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "release_claim") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/claims`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "release", id: args?.id }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "leave_handoff") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     let branch = null;
     try {
       branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
@@ -415,18 +430,18 @@ async function callTool(name, args) {
         branch,
       }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "pickup_handoff") {
     const cfg = config();
     const repo = currentRepo();
-    if (!cfg || !repo) return JSON.stringify({ error: "DevBrain not configured or not in a repo." });
+    if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     const res = await fetch(`${cfg.server}/api/v1/handoffs`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
       body: JSON.stringify({ repo, action: "pickup", id: String(args?.id || "") }),
     });
-    return JSON.stringify(await res.json());
+    return JSON.stringify(await readJson(res));
   }
   if (name === "get_brain") {
     const root = repoRoot();

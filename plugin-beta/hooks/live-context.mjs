@@ -8,11 +8,12 @@ import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { devbrainHome } from "./home.mjs";
+import { devbrainHome, loadConfig } from "./home.mjs";
 
 try {
   const input = JSON.parse(readFileSync(0, "utf8"));
-  const cfg = JSON.parse(readFileSync(join(devbrainHome(), "config.json"), "utf8"));
+  const cfg = loadConfig(); // config file, else DEVBRAIN_URL/TOKEN (headless)
+  if (!cfg) process.exit(0);
 
   let repo = null;
   try {

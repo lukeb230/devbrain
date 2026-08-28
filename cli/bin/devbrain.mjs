@@ -4,10 +4,18 @@
 //
 //   devbrain setup       — first run: token, plugin, jobs, widget
 //   devbrain update      — bring everything on this Mac up to main
-//   devbrain reminders   — add / list / remove synced Reminders lists
+//   devbrain bootstrap   — non-interactive first run (the DevBrain app)
+//   devbrain reminders   — on/off here; team-wide list → repo mappings
 //   devbrain doctor      — verify the whole chain
 //   devbrain ctx         — print the context digest for the current repo
 //   devbrain send        — internal: post one event (used by hooks)
+//
+// Exit codes: `update` and `setup` exit 1 when any part is NOT in the desired
+// state (0 with --quiet, so hooks/launchd can call it blindly). `bootstrap`
+// exits 0 (all ok), 2 (config written, some part failed — safe to re-run) or
+// 1 (fatal: no token / unhandled). With --json the LAST stdout line is
+//   DEVBRAIN_SUMMARY {"ok":bool,"failed":[…],"steps":{name:{ok,msg,code?}}}
+// which the app parses; the exit code is only a fallback.
 //
 // Layout on a teammate's Mac (created by install.sh / `devbrain setup`):
 //   ~/.devbrain/config.json      server, token, reminders lists
@@ -33,13 +41,13 @@ import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
+import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults } from "./lib.mjs";
 
 // The repo everything is installed from. When the repo goes private this is
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
 const SOURCE_REPO = "lukeb230/devbrain";
 const DEFAULT_SERVER = "https://devbrain-seven.vercel.app";
 const MARKETPLACE = "devbrain";
-const PLUGIN_NAME_STABLE = "devbrain";
 
 const HOME = homedir();
 const SELF = fileURLToPath(import.meta.url);
@@ -61,8 +69,8 @@ function inferHome() {
 const CONFIG_DIR = inferHome();
 const CHANNEL = CONFIG_DIR.endsWith("-beta") ? "beta" : "stable";
 const CH = CHANNEL === "beta"
-  ? { appName: "DevBrain Beta", app: "/Applications/DevBrain Beta.app", cmd: "devbrain-beta", plugin: "devbrain-beta", label: "com.devbrain.beta", asset: "DevBrain-Beta.app.zip", rcMark: "# devbrain-beta" }
-  : { appName: "DevBrain", app: "/Applications/DevBrain.app", cmd: "devbrain", plugin: "devbrain", label: "com.devbrain", asset: "DevBrain.app.zip", rcMark: "# devbrain" };
+  ? { appName: "DevBrain Beta", app: "/Applications/DevBrain Beta.app", cmd: "devbrain-beta", plugin: "devbrain-beta", pluginDir: "plugin-beta", bundleId: "app.devbrain.desktop.beta", label: "com.devbrain.beta", asset: "DevBrain-Beta.app.zip", rcMark: "# devbrain-beta" }
+  : { appName: "DevBrain", app: "/Applications/DevBrain.app", cmd: "devbrain", plugin: "devbrain", pluginDir: "plugin", bundleId: "app.devbrain.desktop", label: "com.devbrain", asset: "DevBrain.app.zip", rcMark: "# devbrain" };
 
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const SRC_DIR = join(CONFIG_DIR, "src");
@@ -79,11 +87,19 @@ const SRC_SHA_FILE = join(SRC_DIR, ".devbrain-sha");
 const cmd = process.argv[2];
 const flags = new Set(process.argv.slice(3).filter((a) => a.startsWith("--")));
 const QUIET = flags.has("--quiet");
+const FORCE = flags.has("--force"); // widget: reinstall even if same/newer/unreadable
+const JSON_OUT = flags.has("--json");
+// DEVBRAIN_SKIP=widget,updater — leave those parts alone (QA in a scratch
+// DEVBRAIN_HOME must never touch /Applications or ~/Library/LaunchAgents).
+const SKIP = new Set((process.env.DEVBRAIN_SKIP || "").split(",").map((x) => x.trim()).filter(Boolean));
 const log = (m) => { if (!QUIET) console.log(m); };
+// Step-result helpers (contract in ./lib.mjs).
+const fail = (code, msg) => ({ ok: false, code, msg: `FAILED: ${msg}` });
+const skip = (msg) => ({ ok: true, skipped: true, msg });
 
 function loadConfig() {
   if (!existsSync(CONFIG_PATH)) {
-    console.error("Not configured. Run: devbrain setup");
+    console.error(`Not configured. Run: ${CH.cmd} setup`);
     process.exit(1);
   }
   return JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
@@ -226,12 +242,12 @@ function updateSource() {
   if (existsSync(join(SRC_DIR, ".git"))) {
     const before = sh("git rev-parse HEAD", { cwd: SRC_DIR });
     const r = run("git", ["pull", "--ff-only", "--quiet"], { cwd: SRC_DIR });
-    if (r.status !== 0) return `pull failed (${r.stderr.trim().split("\n").pop()})`;
+    if (r.status !== 0) return fail("source_pull", `pull failed (${r.stderr.trim().split("\n").pop()})`);
     const after = sh("git rev-parse HEAD", { cwd: SRC_DIR });
     return before === after ? "up to date" : `updated ${before.slice(0, 7)} → ${after.slice(0, 7)}`;
   }
   const sha = headSha();
-  if (!sha) return existsSync(SRC_DIR) ? "offline — kept current source" : "offline — cannot fetch source";
+  if (!sha) return existsSync(SRC_DIR) ? skip("offline — kept current source") : fail("source_offline", "offline — cannot fetch source");
   const have = existsSync(SRC_SHA_FILE) ? readFileSync(SRC_SHA_FILE, "utf8").trim() : null;
   if (have === sha && existsSync(join(SRC_DIR, "cli", "bin", "devbrain.mjs"))) return "up to date";
   fetchSourceTarball(sha);
@@ -280,6 +296,11 @@ exec "$NODE" "${join(SRC_DIR, "cli", "bin", "devbrain.mjs")}" "$@"
 //    The `claude` CLI is not always on PATH for background processes (launchd,
 //    the desktop app's hooks), so look in the usual install spots too.
 function findClaude() {
+  // DEVBRAIN_CLAUDE=/path pins the lookup (QA: /nonexistent simulates "not installed").
+  if (process.env.DEVBRAIN_CLAUDE) {
+    const c = process.env.DEVBRAIN_CLAUDE;
+    return existsSync(c) && run(c, ["--version"]).status === 0 ? c : null;
+  }
   const candidates = [
     "claude",
     join(HOME, ".local", "bin", "claude"),
@@ -307,31 +328,34 @@ function findClaude() {
 }
 let CLAUDE = null;
 function claude(args) { return run(CLAUDE, args); }
+function wantedPluginVersion() {
+  return JSON.parse(readFileSync(join(REPO_ROOT, CH.pluginDir, ".claude-plugin", "plugin.json"), "utf8")).version;
+}
 function updatePlugin() {
   CLAUDE = findClaude();
-  if (!CLAUDE) return "claude CLI not found (PATH, ~/.local/bin, ~/.claude/local, app bundle) — skipped";
+  if (!CLAUDE) return fail("claude_missing", "Claude Code CLI not found (PATH, ~/.local/bin, ~/.claude/local, app bundle) — install Claude Code, then re-run");
   const mp = claude(["plugin", "marketplace", "list"]);
   // Exact-name match: "devbrain" must not be satisfied by "devbrain-marketplace".
   const haveMarketplace = new RegExp(`^\\s*(?:❯\\s*)?${MARKETPLACE}\\s*$`, "m").test(mp.stdout + mp.stderr);
   if (!haveMarketplace) {
     const a = claude(["plugin", "marketplace", "add", SOURCE_REPO]);
-    if (a.status !== 0) return `marketplace add failed: ${(a.stderr || a.stdout).trim().split("\n").pop()}`;
+    if (a.status !== 0) return fail("marketplace_add", `marketplace add failed: ${(a.stderr || a.stdout).trim().split("\n").pop()}`);
   } else {
     claude(["plugin", "marketplace", "update", MARKETPLACE]);
   }
   const installed = claude(["plugin", "list"]).stdout;
-  const wantVer = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", ".claude-plugin", "plugin.json"), "utf8")).version;
+  const wantVer = wantedPluginVersion();
   const m = installed.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
   const haveVer = m ? m[1] : null;
   if (!haveVer) {
     const r = claude(["plugin", "install", `${CH.plugin}@${MARKETPLACE}`]);
-    return r.status === 0 ? `installed ${wantVer}` : `install failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
+    return r.status === 0 ? `installed ${wantVer}` : fail("plugin_install", `install failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`);
   }
   if (haveVer === wantVer) return `${haveVer} up to date`;
   const r = claude(["plugin", "update", `${CH.plugin}@${MARKETPLACE}`, "-y"]);
   return r.status === 0
     ? `${haveVer} → ${wantVer} (applies to new Claude sessions)`
-    : `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
+    : fail("plugin_update", `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`);
 }
 
 // 4. Reminders sync is run by the DevBrain app (every 3 min while it runs)
@@ -359,7 +383,7 @@ async function updateReminderJobs(cfg) {
   const appOk = existsSync(WIDGET_APP);
   const base = on
     ? `on — lists mapped on Settings → Reminders, synced by the ${CH.appName} app${appOk ? "" : " (app not installed!)"}`
-    : "off (devbrain reminders on)";
+    : `off (${CH.cmd} reminders on)`;
   const extras = [migrated ? `migrated ${migrated} mapping(s) to the server` : "", retired ? `retired ${retired} launchd job(s)` : ""].filter(Boolean);
   return extras.length ? `${base}; ${extras.join("; ")}` : base;
 }
@@ -391,47 +415,97 @@ function updateUpdaterJob() {
 //    widget-v<version> GitHub Release produced by .github/workflows.
 function installedWidgetVersion() {
   if (!existsSync(WIDGET_APP)) return null;
-  const r = run("defaults", ["read", join(WIDGET_APP, "Contents", "Info.plist"), "CFBundleShortVersionString"]);
-  return r.status === 0 ? r.stdout.trim() : "unknown";
+  const plist = join(WIDGET_APP, "Contents", "Info.plist");
+  const r = run("defaults", ["read", plist, "CFBundleShortVersionString"]);
+  if (r.status === 0 && r.stdout.trim()) return r.stdout.trim();
+  // cfprefsd can lag on a freshly copied bundle; plutil reads the file itself.
+  const p = run("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", plist]);
+  return p.status === 0 && p.stdout.trim() ? p.stdout.trim() : "unknown";
+}
+// Any running copy of THIS channel's app, wherever it lives (DMG, ~/Downloads,
+// /Applications). Match the bundle folder with a leading slash so
+// "/DevBrain.app/" never matches "/DevBrain Beta.app/".
+function runningApp() {
+  const r = run("pgrep", ["-fl", `/${CH.appName}.app/Contents/MacOS/`]);
+  if (r.status !== 0) return null;
+  const line = r.stdout.trim().split("\n")[0] || "";
+  const pid = line.split(" ")[0];
+  const exe = run("ps", ["-o", "comm=", "-p", pid]).stdout.trim();
+  const bundle = exe.replace(/\/Contents\/MacOS\/.*$/, "") || WIDGET_APP;
+  return { pid: Number(pid), bundle, inApplications: bundle === WIDGET_APP };
+}
+function quitApp(running) {
+  run("osascript", ["-e", `tell application id "${CH.bundleId}" to quit`]);
+  const until = Date.now() + 4000;
+  while (Date.now() < until) {
+    try { process.kill(running.pid, 0); } catch { return; }
+    spawnSync("sleep", ["0.2"]);
+  }
+  run("pkill", ["-9", "-f", `/${CH.appName}.app/Contents/MacOS/`]);
 }
 async function updateWidget() {
   const confPath = join(SRC_DIR, "widget", "src-tauri", "tauri.conf.json");
-  if (!existsSync(confPath)) return "no widget in checkout";
+  if (!existsSync(confPath)) return skip("no widget in checkout");
   const want = JSON.parse(readFileSync(confPath, "utf8")).version;
   const have = installedWidgetVersion();
-  if (have === want) return `${have} up to date`;
+  const cmp = compareVersions(have, want);
+  if (have && !FORCE) {
+    if (cmp === null) return skip(`installed version "${have}" unreadable — not touching it (--force reinstalls ${want})`);
+    if (cmp === 0) return `${have} up to date`;
+    if (cmp === 1) return `${have} installed is newer than ${want} on main — kept (--force to downgrade)`;
+  }
 
   const url = `https://github.com/${SOURCE_REPO}/releases/download/widget-v${want}/${CH.asset}`;
   const res = await fetch(url, { redirect: "follow" }).catch((e) => ({ ok: false, status: e.message }));
   if (!res.ok) {
     return res.status === 404
-      ? `${want} not released yet (installed: ${have ?? "none"}) — CI builds it on the next widget push`
-      : `download failed (${res.status})`;
+      ? skip(`${want} not released yet (installed: ${have ?? "none"}) — CI builds it on the next widget push`)
+      : fail("widget_download", `download failed (${res.status})`);
   }
   const tmp = join(tmpdir(), `${CH.cmd}-widget-${want}`);
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   const zip = join(tmp, CH.asset);
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
-  // ditto preserves bundle metadata; xattr clears Gatekeeper quarantine on
-  // the unsigned build so no "unidentified developer" dialog appears.
-  if (run("ditto", ["-x", "-k", zip, tmp]).status !== 0) return "unzip failed";
+  // ditto preserves bundle metadata; xattr clears Gatekeeper quarantine so
+  // the ad-hoc-signed download is never refused as "damaged".
+  if (run("ditto", ["-x", "-k", zip, tmp]).status !== 0) return fail("widget_unzip", "unzip failed");
   const app = join(tmp, `${CH.appName}.app`);
-  if (!existsSync(app)) return `zip did not contain ${CH.appName}.app`;
+  if (!existsSync(app)) return fail("widget_unzip", `zip did not contain ${CH.appName}.app`);
   run("xattr", ["-dr", "com.apple.quarantine", app]);
 
-  // The bundle's binary is devbrain-widget, not DevBrain — match on the
-  // bundle path so the check survives renames.
-  const wasRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
-  if (wasRunning) {
-    run("osascript", ["-e", `tell application "${CH.appName}" to quit`]);
-    run("pkill", ["-f", `${WIDGET_APP}/Contents/MacOS/`]);
+  // Stage next to the target, verify the runtime everything else depends on
+  // (~/.devbrain/bin/node → this bundle), THEN swap by rename. The old app is
+  // never removed before the new one is proven to work.
+  const staged = WIDGET_APP + ".new";
+  const old = WIDGET_APP + ".old";
+  rmSync(staged, { recursive: true, force: true });
+  if (run("ditto", [app, staged]).status !== 0) {
+    rmSync(staged, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true });
+    return fail("widget_copy", `could not stage new app next to ${WIDGET_APP} (permissions? disk full?) — the installed app is untouched`);
   }
-  rmSync(WIDGET_APP, { recursive: true, force: true });
-  if (run("ditto", [app, WIDGET_APP]).status !== 0) return "could not copy into /Applications";
+  const stagedNode = join(staged, "Contents", "Resources", "node", "bin", "node");
+  if (!existsSync(stagedNode) || run(stagedNode, ["-v"]).status !== 0) {
+    rmSync(staged, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true });
+    return fail("widget_verify", "new app's bundled node does not run — kept the installed app");
+  }
+  const running = runningApp();
+  if (running) quitApp(running);
+  rmSync(old, { recursive: true, force: true });
+  try {
+    if (existsSync(WIDGET_APP)) renameSync(WIDGET_APP, old);
+    renameSync(staged, WIDGET_APP);
+  } catch (e) {
+    if (!existsSync(WIDGET_APP) && existsSync(old)) renameSync(old, WIDGET_APP);
+    rmSync(staged, { recursive: true, force: true }); rmSync(tmp, { recursive: true, force: true });
+    return fail("widget_swap", `swap failed, restored ${have ?? "nothing"}: ${e.message}`);
+  }
+  rmSync(old, { recursive: true, force: true });
   rmSync(tmp, { recursive: true, force: true });
-  if (wasRunning || !have) run("open", ["-a", WIDGET_APP]);
-  return `${have ?? "none"} → ${want} installed${wasRunning ? " and relaunched" : ""}`;
+  run("xattr", ["-dr", "com.apple.quarantine", WIDGET_APP]);
+  if (running || !have) run("open", ["-a", WIDGET_APP]);
+  const where = running && !running.inApplications ? ` (was running from ${running.bundle} — now /Applications)` : "";
+  return `${have ?? "none"} → ${want} installed${running ? " and relaunched" : ""}${where}`;
 }
 
 // ----------------------------------------------------------------------------
@@ -440,22 +514,37 @@ async function updateWidget() {
 // ----------------------------------------------------------------------------
 async function updateAll({ skipSource = false } = {}) {
   const cfg = loadConfig();
+  // One updater at a time (launchd daily vs. session-start hook).
+  const lock = join(CONFIG_DIR, "update.lock");
+  try {
+    const st = existsSync(lock) ? JSON.parse(readFileSync(lock, "utf8")) : null;
+    if (st && Date.now() - st.at < 10 * 60_000) {
+      let alive = false; try { process.kill(st.pid, 0); alive = true; } catch { /* gone */ }
+      if (alive && st.pid !== process.pid) return { results: { update: skip(`another update is running (pid ${st.pid})`) }, failed: [], ok: true };
+    }
+  } catch { /* unreadable lock — take it */ }
+  writeFileSync(lock, JSON.stringify({ pid: process.pid, at: Date.now() }));
+
   const results = {};
   const step = async (name, fn) => {
-    try { results[name] = await fn(); }
-    catch (e) { results[name] = `FAILED: ${e.message.split("\n")[0]}`; }
+    if (SKIP.has(name)) { results[name] = skip("skipped (DEVBRAIN_SKIP)"); return; }
+    try { results[name] = normalizeStep(await fn()); }
+    catch (e) { results[name] = stepFromError(e); }
   };
 
   if (!skipSource) {
     await step("source", updateSource);
     // If the CLI itself changed, hand off to the new one so the rest of this
-    // run uses current code. Guarded against loops.
+    // run uses current code. Guarded against loops. The child prints the
+    // summary (and DEVBRAIN_SUMMARY line) on our inherited stdout.
     const runningFromSrc = SELF.startsWith(SRC_DIR + "/");
-    if (runningFromSrc && /updated|cloned|installed/.test(results.source) && !process.env.DEVBRAIN_REEXEC) {
-      const r = spawnSync(process.execPath, [SELF, "update", "--no-source", ...(QUIET ? ["--quiet"] : [])], {
+    if (runningFromSrc && results.source.ok && /updated|cloned|installed/.test(results.source.msg) && !process.env.DEVBRAIN_REEXEC) {
+      const passthru = [...flags].filter((f) => f !== "--no-source");
+      const r = spawnSync(process.execPath, [SELF, "update", "--no-source", ...passthru], {
         stdio: "inherit", env: { ...process.env, DEVBRAIN_REEXEC: "1" },
       });
-      log(`  source    ${results.source}`);
+      log(`  source    ${results.source.msg}`);
+      rmSync(lock, { force: true });
       process.exit(QUIET ? 0 : r.status ?? 0);
     }
   }
@@ -464,27 +553,25 @@ async function updateAll({ skipSource = false } = {}) {
   await step("plugin", updatePlugin);
   await step("reminders", () => updateReminderJobs(cfg));
   await step("updater", updateUpdaterJob);
-  await step("widget", updateWidget);
+  await step("widget", updateWidget); // keep LAST: it replaces the bundle our node came from
 
+  const summary = summarizeResults(results);
   writeFileSync(join(CONFIG_DIR, "last-update"), new Date().toISOString());
-  const pad = (s) => (s + "         ").slice(0, 10);
-  for (const [k, v] of Object.entries(results)) log(`  ${pad(k)}${v}`);
-  const failed = Object.values(results).some((v) => String(v).startsWith("FAILED"));
-  if (failed && !QUIET) process.exit(1);
-}
-
-// One-off collector run in the foreground (terminal installs). The app owns
-// the sync and asks for Reminders access itself on first run; this just
-// checks the list name resolves and the server accepts the post.
-function primeRemindersPermission(list, repo) {
-  const collect = join(existsSync(SRC_DIR) ? SRC_DIR : REPO_ROOT, "tools", "reminders-sync", "collect.mjs");
-  console.log(`\n→ Reading "${list}" once. If macOS asks to allow access to Reminders, click Allow.`);
-  const r = spawnSync(process.execPath, [collect, list, repo], { stdio: "inherit" });
-  if (r.status !== 0) {
-    console.log(`! The collector failed. Fix the error above, then run:  devbrain reminders add "${list}" "${repo}"`);
-    return false;
+  // Record the outcome so the app (and a later good run) know where we stand.
+  try {
+    const fresh = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+    fresh.bootstrap_ok = summary.ok;
+    fresh.bootstrap_failed = summary.failed;
+    fresh.bootstrap_at = new Date().toISOString();
+    saveConfig(fresh);
+  } catch { /* config vanished mid-run; nothing to record */ }
+  for (const l of summary.lines) log(l);
+  if (JSON_OUT) {
+    const steps = Object.fromEntries(Object.entries(results).map(([k, v]) => [k, { ok: v.ok, msg: v.msg.replace(/^FAILED: /, ""), ...(v.code ? { code: v.code } : {}), ...(v.skipped ? { skipped: true } : {}) }]));
+    console.log("DEVBRAIN_SUMMARY " + JSON.stringify({ ok: summary.ok, failed: summary.failed, steps }));
   }
-  return true;
+  rmSync(lock, { force: true });
+  return { results, failed: summary.failed, ok: summary.ok };
 }
 
 // ============================================================================
@@ -492,12 +579,12 @@ function primeRemindersPermission(list, repo) {
 // ============================================================================
 
 if (cmd === "setup" || cmd === "init") {
-  if (cmd === "init") console.log("(`devbrain init` is now `devbrain setup`)");
+  if (cmd === "init") console.log(`(\`${CH.cmd} init\` is now \`${CH.cmd} setup\`)`);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   let cfg = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, "utf8")) : {};
   if (!cfg.server || !cfg.token || flags.has("--reconfigure")) {
     const server = (await rl.question(`DevBrain server URL [${cfg.server || DEFAULT_SERVER}]: `)).trim();
-    const token = (await rl.question("Your dev token (dashboard → Tokens, shown once): ")).trim();
+    const token = (await rl.question("Your dev token (Settings → Tokens on the dashboard, shown once): ")).trim();
     cfg.server = server || cfg.server || DEFAULT_SERVER;
     if (token) cfg.token = token;
     if (!cfg.token) { console.error("A dev token is required."); process.exit(1); }
@@ -511,12 +598,13 @@ if (cmd === "setup" || cmd === "init") {
   rl.close();
 
   console.log("\n→ Installing / updating everything on this Mac…");
-  await updateAll();
-  console.log(`
-✓ Done. Open a NEW terminal (or run: source ~/.zshrc) so \`devbrain\` is on your PATH.
+  const { ok } = await updateAll();
+  console.log(ok ? `
+✓ Done. Open a NEW terminal (or run: source ~/.zshrc) so \`${CH.cmd}\` is on your PATH.
   Everything updates itself from main daily and whenever a Claude Code session starts.
-  Check any time with:  devbrain doctor`);
-  process.exit(0);
+  Check any time with:  ${CH.cmd} doctor` : `
+! Some parts failed (marked ✗ above). Fix the cause and re-run: ${CH.cmd} update`);
+  process.exit(ok ? 0 : 1);
 }
 
 // Non-interactive first-run used by the DevBrain app: writes config, then
@@ -527,19 +615,25 @@ if (cmd === "bootstrap") {
   const cfg = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, "utf8")) : {};
   cfg.server = (arg("--server") || cfg.server || DEFAULT_SERVER).replace(/\/$/, "");
   if (arg("--token")) cfg.token = arg("--token");
-  if (!cfg.token) { console.error("bootstrap: --token required"); process.exit(1); }
+  if (!cfg.token) { console.error("bootstrap: --token required (none in config yet)"); process.exit(1); }
   const rem = arg("--reminders");
   if (rem === "on" || rem === "off") cfg.reminders = rem === "on";
   else if (rem && arg("--repo")) cfg.reminders = [{ list: rem, repo: arg("--repo") }]; // legacy shape → migrated by updateReminderJobs
   if (cfg.reminders === undefined) cfg.reminders = true;
   saveConfig(cfg);
-  await updateAll();
-  process.exit(0);
+  let out;
+  try { out = await updateAll(); }
+  catch (e) {
+    if (JSON_OUT) console.log("DEVBRAIN_SUMMARY " + JSON.stringify({ ok: false, failed: ["bootstrap"], steps: { bootstrap: { ok: false, code: "exception", msg: String(e.message || e) } } }));
+    console.error(`bootstrap: ${e.message || e}`);
+    process.exit(1);
+  }
+  process.exit(out.ok ? 0 : 2);
 }
 
 if (cmd === "update") {
-  await updateAll({ skipSource: flags.has("--no-source") });
-  process.exit(0);
+  const out = await updateAll({ skipSource: flags.has("--no-source") });
+  process.exit(out.ok || QUIET ? 0 : 1);
 }
 
 if (cmd === "reminders") {
@@ -557,7 +651,6 @@ if (cmd === "reminders") {
     if (!r.ok) { console.error(`  ✗ ${r.out.error || r.status}`); process.exit(1); }
     if (cfg.reminders !== true) { cfg.reminders = true; saveConfig(cfg); }
     console.log(`  ✓ "${list}" → ${repo} (team-wide mapping; synced by any Mac running ${CH.appName})`);
-    const r2 = await api(cfg, "GET", "/api/v1/reminders/sources");
     process.exit(0);
   }
   if (sub === "remove") {
@@ -600,9 +693,14 @@ if (cmd === "send") {
       const res = await fetch(`${config.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, {
         headers: { Authorization: `Bearer ${config.token}` },
       });
-      const ctx = await res.json();
-      console.log("## Team context (DevBrain)");
-      console.log(JSON.stringify(ctx, null, 2));
+      if (res.ok) {
+        const ctx = await res.json();
+        console.log("## Team context (DevBrain)");
+        console.log(JSON.stringify(ctx, null, 2));
+      } else {
+        const hint = httpHint(res.status, CH.cmd);
+        if (hint) console.log(hint);
+      }
     } catch { /* best-effort */ }
     process.exit(0);
   }
@@ -629,8 +727,8 @@ if (cmd === "doctor") {
   let cfg = null;
   if (existsSync(CONFIG_PATH)) {
     try { cfg = JSON.parse(readFileSync(CONFIG_PATH, "utf8")); ok("config", CONFIG_PATH); }
-    catch { bad("config", "exists but is not valid JSON — re-run: devbrain setup"); }
-  } else bad("config", "missing — run: devbrain setup");
+    catch { bad("config", `exists but is not valid JSON — re-run: ${CH.cmd} setup`); }
+  } else bad("config", `missing — run: ${CH.cmd} setup`);
 
   if (cfg?.server && cfg?.token) {
     try {
@@ -638,7 +736,7 @@ if (cmd === "doctor") {
       const t = setTimeout(() => ctrl.abort(), 5000);
       const res = await fetch(`${cfg.server}/api/v1/context`, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: ctrl.signal });
       clearTimeout(t);
-      if (res.status === 401) bad("auth", "token rejected — create a new one on the Tokens page, run: devbrain setup --reconfigure");
+      if (res.status === 401) bad("auth", `token rejected — create a new one on Settings → Tokens, then run: ${CH.cmd} setup --reconfigure`);
       else if (res.status === 400) ok("server + auth", cfg.server);
       else ok("server reachable", `status ${res.status}`);
     } catch (e) { bad("server", `unreachable (${e.name === "AbortError" ? "timeout" : e.message})`); }
@@ -668,11 +766,12 @@ if (cmd === "doctor") {
   } else if (existsSync(join(SRC_DIR, "cli", "bin", "devbrain.mjs"))) {
     const sha = existsSync(SRC_SHA_FILE) ? readFileSync(SRC_SHA_FILE, "utf8").trim().slice(0, 7) : "?";
     ok("source checkout", `${SRC_DIR} @ ${sha}`);
-  } else bad("source checkout", `${SRC_DIR} missing — run: devbrain setup`);
+  } else bad("source checkout", `${SRC_DIR} missing — run: ${CH.cmd} setup`);
   const last = existsSync(join(CONFIG_DIR, "last-update")) ? readFileSync(join(CONFIG_DIR, "last-update"), "utf8").trim() : null;
-  if (last) ok("last update", last); else bad("last update", "never — run: devbrain update");
+  if (last) ok("last update", last); else bad("last update", `never — run: ${CH.cmd} update`);
+  if (cfg?.bootstrap_ok === false) bad("last setup", `parts failed: ${(cfg.bootstrap_failed || []).join(", ") || "?"} — run: ${CH.cmd} update`);
   if (run("launchctl", ["list", `${CH.label}.update`]).status === 0) ok("daily updater job loaded");
-  else bad("daily updater job", "not loaded — run: devbrain update");
+  else bad("daily updater job", `not loaded — run: ${CH.cmd} update`);
 
   const repo = currentRepo();
   if (repo) {
@@ -681,7 +780,8 @@ if (cmd === "doctor") {
       try {
         const res = await fetch(`${cfg.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, { headers: { Authorization: `Bearer ${cfg.token}` } });
         if (res.ok) ok("repo linked in DevBrain");
-        else bad("repo not linked", "install the GitHub App on it from the dashboard");
+        else if (res.status === 401) bad("auth", "token rejected");
+        else bad("repo not linked", "an admin installs the GitHub App on it from the dashboard (Link repo)");
       } catch { /* covered above */ }
     }
   } else results.push("  · not inside a git repo (repo checks skipped)");
@@ -690,7 +790,7 @@ if (cmd === "doctor") {
     try {
       const s = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8"));
       const legacy = Object.values(s.hooks || {}).flat().some((h) => /devbrain\.mjs send/.test(JSON.stringify(h)));
-      if (legacy) bad("legacy CLI presence hooks", "still in ~/.claude/settings.json (double ingest) — run: devbrain update");
+      if (legacy) bad("legacy CLI presence hooks", `still in ~/.claude/settings.json (double ingest) — run: ${CH.cmd} update`);
       else ok("presence hooks", "owned by the plugin");
     } catch { bad("~/.claude/settings.json", "unreadable"); }
   }
@@ -700,25 +800,28 @@ if (cmd === "doctor") {
   if (pl.status !== 0) bad("claude CLI", "not found (PATH, ~/.local/bin, ~/.claude/local, app bundle)");
   else {
     const m = pl.stdout.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
-    let want = "?"; try { want = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", ".claude-plugin", "plugin.json"), "utf8")).version; } catch { /* */ }
-    if (!m) bad("plugin", "not installed — run: devbrain update");
+    let want = "?"; try { want = wantedPluginVersion(); } catch { /* */ }
+    if (!m) bad("plugin", `not installed — run: ${CH.cmd} update`);
     else if (m[1] === want) ok("plugin", `${m[1]}`);
-    else bad("plugin", `${m[1]} installed, ${want} on main — run: devbrain update, then restart Claude`);
+    else bad("plugin", `${m[1]} installed, ${want} on main — run: ${CH.cmd} update, then restart Claude`);
   }
 
+  const running = runningApp();
   if (cfg?.reminders === true) {
-    const appRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
-    if (appRunning) ok("reminders sync", `on — mapped lists synced by ${CH.appName} every 3 min`);
+    if (running) ok("reminders sync", `on — mapped lists synced by ${CH.appName} every 3 min`);
     else bad("reminders sync", `on, but ${CH.appName} isn't running — open it`);
   }
-  if (bundledNode()) ok("node", "bundled with the DevBrain app"); else results.push(`  · node — using ${process.execPath}`);
+  if (bundledNode()) ok("node", `bundled with the ${CH.appName} app`); else results.push(`  · node — using ${process.execPath}`);
   const wv = installedWidgetVersion();
   let wantW = null; try { wantW = JSON.parse(readFileSync(join(REPO_ROOT, "widget", "src-tauri", "tauri.conf.json"), "utf8")).version; } catch { /* */ }
-  if (!wv) bad("widget", "not installed — run: devbrain update (needs a published widget release)");
-  else if (wv === wantW) ok("widget", `${wv}${run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0 ? " (running)" : " (not running)"}`);
-  else bad("widget", `${wv} installed, ${wantW} on main — run: devbrain update`);
+  const wcmp = compareVersions(wv, wantW);
+  if (!wv) bad("widget", `not installed — run: ${CH.cmd} update (needs a published widget release)`);
+  else if (wcmp === 0) ok("widget", `${wv}${running ? (running.inApplications ? " (running)" : ` (running from ${running.bundle} — move it to /Applications)`) : " (not running)"}`);
+  else if (wcmp === 1) ok("widget", `${wv} (newer than ${wantW} on main)`);
+  else if (wcmp === null) bad("widget", `installed version unreadable ("${wv}") — run: ${CH.cmd} update --force`);
+  else bad("widget", `${wv} installed, ${wantW} on main — run: ${CH.cmd} update`);
 
-  console.log("devbrain doctor\n" + results.join("\n"));
+  console.log(`${CH.cmd} doctor\n` + results.join("\n"));
   process.exit(results.some((r) => r.includes("✗")) ? 1 : 0);
 }
 
@@ -729,21 +832,24 @@ if (cmd === "ctx") {
   const res = await fetch(`${config.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, {
     headers: { Authorization: `Bearer ${config.token}` },
   });
-  console.log(JSON.stringify(await res.json(), null, 2));
-  process.exit(0);
+  const body = await res.json().catch(() => ({ error: `server returned ${res.status}` }));
+  console.log(JSON.stringify(res.ok ? body : { status: res.status, ...body }, null, 2));
+  process.exit(res.ok ? 0 : 1);
 }
 
-console.log(`${CH.cmd} — ${CH.appName} CLI (channel: ${CHANNEL}, home: ${CONFIG_DIR})
+const c = CH.cmd;
+console.log(`${c} — ${CH.appName} CLI (channel: ${CHANNEL}, home: ${CONFIG_DIR})
 
 Usage:
-  devbrain setup              First-time setup on this Mac (token, hooks, plugin, jobs, widget)
-  devbrain update             Bring everything on this Mac up to main (runs automatically too)
-  devbrain bootstrap          Non-interactive first run (used by the DevBrain app)
-  devbrain reminders          Show the team's list → repo mappings + this Mac's on/off
-  devbrain reminders on|off   Sync (or don't) from this Mac
-  devbrain reminders add "<List>" "<owner/repo>"   Map a list for the whole team
-  devbrain reminders remove "<List>"
-  devbrain doctor             Verify the whole chain
-  devbrain ctx                Print the live context digest for the current repo
-  devbrain send               (internal — invoked by hooks)
+  ${c} setup [--reconfigure]        First-time setup on this Mac (token, plugin, jobs, app)
+  ${c} update [--force]             Bring everything on this Mac up to main (runs automatically too)
+  ${c} bootstrap --server URL [--token TOKEN] [--reminders on|off] [--json]
+                                    Non-interactive first run (used by the ${CH.appName} app)
+  ${c} reminders                    Show the team's list → repo mappings + this Mac's on/off
+  ${c} reminders on|off             Sync (or don't) from this Mac
+  ${c} reminders add "<List>" "<owner/repo>"   Map a list for the whole team (admins)
+  ${c} reminders remove "<List>"
+  ${c} doctor                       Verify the whole chain
+  ${c} ctx                          Print the live context digest for the current repo
+  ${c} send                         (internal — invoked by hooks)
 `);

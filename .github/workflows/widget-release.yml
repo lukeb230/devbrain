@@ -138,3 +138,5 @@ jobs:
               --notes-file "$RUNNER_TEMP/notes.md" || true
           gh release upload "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
             "$ASSET.app.zip" "$ASSET.app.zip.sha256" "$ASSET.dmg"
+          # Notes are written on create only; keep them current on re-runs too.
+          gh release edit "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md" || true

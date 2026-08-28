@@ -334,22 +334,45 @@ function updatePlugin() {
     : `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
 }
 
-// 4. Reminders sync is run by the DevBrain app itself (every 3 min while it
-//    runs) — that keeps the macOS Reminders permission attached to the app,
-//    so the first-run prompt is the only one anyone ever sees. The CLI just
-//    manages the list in config.json and retires the old launchd jobs.
-function updateReminderJobs(cfg) {
-  const lists = Array.isArray(cfg.reminders) ? cfg.reminders : [];
+// 4. Reminders sync is run by the DevBrain app (every 3 min while it runs)
+//    for every list the TEAM mapped on Settings → Reminders — the mapping
+//    lives on the server, never on a Mac. Locally there is only an on/off
+//    flag (config.reminders = true). Old per-Mac mappings are migrated up
+//    once, then the app takes over. Legacy launchd jobs are retired.
+async function updateReminderJobs(cfg) {
   let retired = 0;
   for (const f of existsSync(AGENTS_DIR) ? readdirSync(AGENTS_DIR) : []) {
     const label = f.replace(/\.plist$/, "");
     if (label === `${CH.label}.reminders` || label.startsWith(`${CH.label}.reminders.`)) { removeJob(label); retired++; }
   }
+  let migrated = 0;
+  if (Array.isArray(cfg.reminders)) {
+    for (const l of cfg.reminders) {
+      if (!l?.list || !l?.repo) continue;
+      const r = await api(cfg, "POST", "/api/v1/reminders/sources", { list: l.list, repo: l.repo });
+      if (r.ok) migrated++;
+    }
+    cfg.reminders = true;
+    saveConfig(cfg);
+  }
+  const on = cfg.reminders === true;
   const appOk = existsSync(WIDGET_APP);
-  const base = lists.length
-    ? `${lists.map((l) => `${l.list} → ${l.repo}`).join("; ")} (run by the DevBrain app${appOk ? "" : " — app not installed!"})`
-    : "none configured";
-  return retired ? `${base}; retired ${retired} launchd job(s)` : base;
+  const base = on
+    ? `on — lists mapped on Settings → Reminders, synced by the ${CH.appName} app${appOk ? "" : " (app not installed!)"}`
+    : "off (devbrain reminders on)";
+  const extras = [migrated ? `migrated ${migrated} mapping(s) to the server` : "", retired ? `retired ${retired} launchd job(s)` : ""].filter(Boolean);
+  return extras.length ? `${base}; ${extras.join("; ")}` : base;
+}
+
+async function api(cfg, method, path, body) {
+  try {
+    const res = await fetch(`${cfg.server.replace(/\/$/, "")}${path}`, {
+      method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const out = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, out };
+  } catch (e) { return { ok: false, status: 0, out: { error: String(e.message || e) } }; }
 }
 
 // 5. Daily self-update job (also fires on wake if a run was missed).
@@ -481,16 +504,11 @@ if (cmd === "setup" || cmd === "init") {
     saveConfig(cfg);
     console.log(`✓ Saved ${CONFIG_PATH}`);
   }
-  cfg.reminders = cfg.reminders || [];
-  if (cfg.reminders.length === 0) {
-    const list = (await rl.question('Shared Reminders list to sync (blank to skip): ')).trim();
-    if (list) {
-      const repo = (await rl.question(`GitHub repo that list feeds (owner/name): `)).trim();
-      rl.close();
-      cfg.reminders.push({ list, repo }); saveConfig(cfg);
-      primeRemindersPermission(list, repo);
-    } else rl.close();
-  } else rl.close();
+  if (cfg.reminders === undefined) {
+    const yn = (await rl.question("Sync the team's shared Apple Reminders lists from this Mac? [Y/n] ")).trim().toLowerCase();
+    cfg.reminders = yn !== "n"; saveConfig(cfg);
+  }
+  rl.close();
 
   console.log("\n→ Installing / updating everything on this Mac…");
   await updateAll();
@@ -510,9 +528,10 @@ if (cmd === "bootstrap") {
   cfg.server = (arg("--server") || cfg.server || DEFAULT_SERVER).replace(/\/$/, "");
   if (arg("--token")) cfg.token = arg("--token");
   if (!cfg.token) { console.error("bootstrap: --token required"); process.exit(1); }
-  cfg.reminders = Array.isArray(cfg.reminders) ? cfg.reminders : [];
-  const list = arg("--reminders"), repo = arg("--repo");
-  if (list && repo && !cfg.reminders.some((l) => l.list === list)) cfg.reminders.push({ list, repo });
+  const rem = arg("--reminders");
+  if (rem === "on" || rem === "off") cfg.reminders = rem === "on";
+  else if (rem && arg("--repo")) cfg.reminders = [{ list: rem, repo: arg("--repo") }]; // legacy shape → migrated by updateReminderJobs
+  if (cfg.reminders === undefined) cfg.reminders = true;
   saveConfig(cfg);
   await updateAll();
   process.exit(0);
@@ -526,28 +545,33 @@ if (cmd === "update") {
 if (cmd === "reminders") {
   const sub = process.argv[3];
   const cfg = loadConfig();
-  cfg.reminders = cfg.reminders || [];
+  if (sub === "on" || sub === "off") {
+    cfg.reminders = sub === "on"; saveConfig(cfg);
+    console.log(`  reminders sync ${sub} on this Mac${sub === "on" ? ` — the ${CH.appName} app syncs the mapped lists every 3 min` : ""}`);
+    process.exit(0);
+  }
   if (sub === "add") {
     const [list, repo] = process.argv.slice(4);
-    if (!list || !repo) { console.error('usage: devbrain reminders add "<List Name>" "<owner/repo>"'); process.exit(1); }
-    cfg.reminders = cfg.reminders.filter((l) => l.list !== list);
-    cfg.reminders.push({ list, repo });
-    saveConfig(cfg);
-    console.log(`  reminders ${updateReminderJobs(cfg)}`);
+    if (!list || !repo) { console.error(`usage: ${CH.cmd} reminders add "<List Name>" "<owner/repo>"`); process.exit(1); }
+    const r = await api(cfg, "POST", "/api/v1/reminders/sources", { list, repo });
+    if (!r.ok) { console.error(`  ✗ ${r.out.error || r.status}`); process.exit(1); }
+    if (cfg.reminders !== true) { cfg.reminders = true; saveConfig(cfg); }
+    console.log(`  ✓ "${list}" → ${repo} (team-wide mapping; synced by any Mac running ${CH.appName})`);
+    const r2 = await api(cfg, "GET", "/api/v1/reminders/sources");
     process.exit(0);
   }
   if (sub === "remove") {
     const list = process.argv[4];
-    cfg.reminders = cfg.reminders.filter((l) => l.list !== list);
-    saveConfig(cfg);
-    console.log(`  reminders ${updateReminderJobs(cfg)}`);
-    process.exit(0);
+    if (!list) { console.error(`usage: ${CH.cmd} reminders remove "<List Name>"`); process.exit(1); }
+    const r = await api(cfg, "DELETE", "/api/v1/reminders/sources", { list });
+    console.log(r.ok ? `  ✓ removed ${r.out.removed} mapping(s) for "${list}"` : `  ✗ ${r.out.error || r.status}`);
+    process.exit(r.ok ? 0 : 1);
   }
-  if (cfg.reminders.length === 0) console.log("No Reminders lists configured. Add one: devbrain reminders add \"<List>\" \"<owner/repo>\"");
-  for (const l of cfg.reminders) {
-    const appRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
-    console.log(`  ${appRunning ? "✓" : "✗"} "${l.list}" → ${l.repo}  (every 3 min while the DevBrain app runs; log: /tmp/devbrain-reminders.log)`);
-  }
+  const r = await api(cfg, "GET", "/api/v1/reminders/sources");
+  const list = r.ok ? r.out.sources : [];
+  console.log(`Reminders sync on this Mac: ${cfg.reminders === true ? "on" : "off"}   (${CH.cmd} reminders on|off)`);
+  if (list.length === 0) console.log(`No lists mapped. Map one: ${CH.cmd} reminders add "<List>" "<owner/repo>"  (or Settings → Reminders)`);
+  for (const s of list) console.log(`  "${s.list}" → ${s.repo}${s.by ? `  (by ${s.by})` : ""}`);
   process.exit(0);
 }
 
@@ -676,10 +700,10 @@ if (cmd === "doctor") {
     else bad("plugin", `${m[1]} installed, ${want} on main — run: devbrain update, then restart Claude`);
   }
 
-  for (const l of cfg?.reminders || []) {
+  if (cfg?.reminders === true) {
     const appRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
-    if (appRunning) ok(`reminders sync "${l.list}"`, `→ ${l.repo} (run by the DevBrain app)`);
-    else bad(`reminders sync "${l.list}"`, "the DevBrain app isn't running — open it (it syncs every 3 min while running)");
+    if (appRunning) ok("reminders sync", `on — mapped lists synced by ${CH.appName} every 3 min`);
+    else bad("reminders sync", `on, but ${CH.appName} isn't running — open it`);
   }
   if (bundledNode()) ok("node", "bundled with the DevBrain app"); else results.push(`  · node — using ${process.execPath}`);
   const wv = installedWidgetVersion();
@@ -709,8 +733,9 @@ Usage:
   devbrain setup              First-time setup on this Mac (token, hooks, plugin, jobs, widget)
   devbrain update             Bring everything on this Mac up to main (runs automatically too)
   devbrain bootstrap          Non-interactive first run (used by the DevBrain app)
-  devbrain reminders          Show synced Reminders lists
-  devbrain reminders add "<List>" "<owner/repo>"
+  devbrain reminders          Show the team's list → repo mappings + this Mac's on/off
+  devbrain reminders on|off   Sync (or don't) from this Mac
+  devbrain reminders add "<List>" "<owner/repo>"   Map a list for the whole team
   devbrain reminders remove "<List>"
   devbrain doctor             Verify the whole chain
   devbrain ctx                Print the live context digest for the current repo

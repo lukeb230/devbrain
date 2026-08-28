@@ -17,29 +17,16 @@ is why these ride in the title. Both are stripped before the task is stored.
 
 ## Setup
 
-`devbrain setup` offers this during onboarding; to add a list later:
+Mappings are **team-wide** and live on the server: **Settings → Reminders**
+on the dashboard (or `devbrain reminders add "<List>" "<owner/repo>"`). Any
+Mac running the DevBrain app with Reminders sync on (the first-run checkbox,
+or `devbrain reminders on`) syncs every mapped list it can see, every
+3 minutes, and reports the lists it sees so unmapped ones can be picked.
+Two Macs syncing the same list is fine — the server dedupes on reminder ID
+and the mapping guarantees one repo per list.
 
-    devbrain reminders add "Team Inbox" "acme/app"
-
-That runs the collector once in the foreground (click **Allow** on the macOS
-Reminders prompt), then installs a launchd job that runs it every 3 minutes
-using the node that ran the CLI. `devbrain update` re-renders the job whenever
-the collector changes on `main`. Watch it: `tail -f /tmp/devbrain-reminders.log`.
-Remove: `devbrain reminders remove "Team Inbox"`.
-
-Manual install without the CLI (fill the placeholders; check `which node` —
-nvm installs are not at /usr/local/bin/node):
-
-    sed -e "s|/usr/local/bin/node|$(which node)|" \
-        -e "s|__COLLECT_PATH__|$PWD/tools/reminders-sync/collect.mjs|" \
-        -e "s|__LIST_NAME__|Team Inbox|" \
-        -e "s|__REPO__|acme/app|" \
-        tools/reminders-sync/com.devbrain.reminders.plist \
-        > ~/Library/LaunchAgents/com.devbrain.reminders.plist
-    launchctl load ~/Library/LaunchAgents/com.devbrain.reminders.plist
-
-Two Macs running the sync is fine — the server dedupes on the reminder ID.
-The first launchd run can take ~10 minutes; after that it's every 3 minutes.
+Manual one-off: `node tools/reminders-sync/collect.mjs "<List Name>"`.
+Log: `/tmp/devbrain-reminders.log` (`/tmp/devbrain-beta-reminders.log` for beta).
 
 ## Notes
 - Deleting a reminder does NOT delete the task (deletion is ambiguous — do it

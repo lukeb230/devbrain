@@ -187,9 +187,10 @@ pub async fn bootstrap(
             "--server".into(), server,
             "--token".into(), token,
         ];
-        if let (Some(l), Some(r)) = (reminders_list.filter(|s| !s.trim().is_empty()), reminders_repo.filter(|s| !s.trim().is_empty())) {
-            args.push("--reminders".into()); args.push(l);
-            args.push("--repo".into()); args.push(r);
+        match (reminders_list.filter(|s| !s.trim().is_empty()), reminders_repo.filter(|s| !s.trim().is_empty())) {
+            (Some(l), Some(r)) => { args.push("--reminders".into()); args.push(l); args.push("--repo".into()); args.push(r); }
+            (Some(flag), None) if flag == "on" || flag == "off" => { args.push("--reminders".into()); args.push(flag); }
+            _ => {}
         }
         log.push_str("→ running devbrain bootstrap…\n");
         match Command::new(&node).args(&args).env("HOME", home()).output() {
@@ -208,33 +209,40 @@ pub async fn bootstrap(
     .unwrap_or_else(|_| BootstrapResult { ok: false, log: "task failed".into() })
 }
 
-/// One collector pass for every configured list. Output appended to the
-/// same log the old launchd job used.
+/// One collector pass: `collect.mjs --auto` asks the server which lists the
+/// team mapped, syncs the ones visible on this Mac, and reports the rest.
+/// Runs only when this Mac has Reminders sync switched on (config.reminders).
 fn collect_all(node: &str) -> Vec<String> {
     let Some(cfg) = read_config() else { return vec![] };
-    let lists = cfg.get("reminders").and_then(|r| r.as_array()).cloned().unwrap_or_default();
+    let on = match cfg.get("reminders") {
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::Array(a)) => !a.is_empty(), // legacy shape, migrated by the CLI
+        _ => false,
+    };
     let collect = src_dir().join("tools").join("reminders-sync").join("collect.mjs");
-    if lists.is_empty() || !collect.exists() {
+    if !on || !collect.exists() {
         return vec![];
     }
-    let mut out = Vec::new();
-    for l in lists {
-        let (Some(list), Some(repo)) = (l.get("list").and_then(|v| v.as_str()), l.get("repo").and_then(|v| v.as_str())) else { continue };
-        let res = Command::new(node).arg(&collect).arg(list).arg(repo).env("HOME", home()).output();
-        let line = match res {
-            Ok(o) => {
-                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                let e = String::from_utf8_lossy(&o.stderr).trim().to_string();
-                if o.status.success() { s } else { format!("[{}] {list} → {repo}: FAILED {e}", chrono_now()) }
+    let res = Command::new(node)
+        .arg(&collect)
+        .arg("--auto")
+        .env("HOME", home())
+        .env("DEVBRAIN_HOME", devbrain_dir())
+        .output();
+    let lines: Vec<String> = match res {
+        Ok(o) => {
+            let mut v: Vec<String> = String::from_utf8_lossy(&o.stdout).lines().map(String::from).collect();
+            if !o.status.success() {
+                v.extend(String::from_utf8_lossy(&o.stderr).lines().map(|l| format!("[{}] {l}", chrono_now())));
             }
-            Err(e) => format!("[{}] {list} → {repo}: could not run collector: {e}", chrono_now()),
-        };
-        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(log_path()) {
-            let _ = writeln!(f, "{line}");
+            v
         }
-        out.push(line);
+        Err(e) => vec![format!("[{}] could not run collector: {e}", chrono_now())],
+    };
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(log_path()) {
+        for l in &lines { let _ = writeln!(f, "{l}"); }
     }
-    out
+    lines
 }
 
 fn chrono_now() -> String {

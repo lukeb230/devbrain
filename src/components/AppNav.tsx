@@ -55,6 +55,9 @@ export function AppNav({
           <Link href="/settings/members" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Members
           </Link>
+          <Link href="/settings/reminders" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+            Reminders
+          </Link>
           <Link href="/settings/tokens" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Tokens
           </Link>

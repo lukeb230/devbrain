@@ -125,7 +125,7 @@ interface SetupState {
 
 function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: WidgetData["repos"]; onDone: () => void }) {
   const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
-  const [syncReminders, setSyncReminders] = useState(false);
+  const [syncReminders, setSyncReminders] = useState(true);
   const [list, setList] = useState("");
   // Default the repo to the one whose name matches the list name, else the
   // first linked repo.
@@ -153,16 +153,18 @@ function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: Widge
       const r = (await c.invoke("bootstrap", {
         server: window.location.origin,
         token: minted.token,
-        remindersList: syncReminders ? list : null,
-        remindersRepo: syncReminders ? repo : null,
+        // "on"/"off" switches sync for this Mac; a list+repo also creates the
+        // team's first mapping (Settings → Reminders holds the rest).
+        remindersList: syncReminders ? (list && repo ? list : "on") : "off",
+        remindersRepo: syncReminders && list && repo ? repo : null,
       })) as { ok: boolean; log: string };
       for (const l of r.log.split("\n").filter(Boolean)) say("  " + l);
       if (!r.ok) throw new Error("setup failed — see above");
       say("Asking for notification permission (click Allow)…");
       const n = String(await c.invoke("notify", { title: "DevBrain is set up", body: "You'll get team notifications here." }));
       say(n === "delivered" ? "Notifications on." : `Notifications: ${n}.`);
-      if (syncReminders && list && repo) {
-        say(`Reading Reminders list "${list}" (click Allow if macOS asks)…`);
+      if (syncReminders) {
+        say("Reading your Reminders lists (click Allow if macOS asks)…");
         const out = (await c.invoke("run_collector_now")) as string[];
         for (const l of out) say("  " + l);
       }
@@ -201,12 +203,15 @@ function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: Widge
         </label>
         <label className="flex items-center gap-2 text-xs text-slate-700">
           <input type="checkbox" checked={syncReminders} onChange={(e) => setSyncReminders(e.target.checked)} disabled={busy} />
-          Sync a shared Apple Reminders list into the task board
+          Sync the team&apos;s shared Apple Reminders lists from this Mac
         </label>
         {syncReminders && (
           <div className="ml-5 grid grid-cols-2 gap-2">
+            <div className="col-span-2 text-[11px] text-slate-500">
+              Which lists feed which repos is set once for the whole team on Settings → Reminders. Optionally map the first one here:
+            </div>
             <label className="block text-xs">
-              <span className="mb-1 block text-slate-500">Reminders list</span>
+              <span className="mb-1 block text-slate-500">Reminders list (optional)</span>
               <input value={list} onChange={(e) => { setList(e.target.value); setRepo(guessRepo(e.target.value)); }} disabled={busy}
                 className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none" />
             </label>

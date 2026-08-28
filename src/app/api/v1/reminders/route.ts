@@ -8,7 +8,8 @@ import { PRIORITY_MAP, parseTitle } from "@/lib/reminders";
 // Reminders list here; each reminder becomes (or updates) a task.
 //
 // Body: {
-//   repo: "owner/name",
+//   list: "Team Inbox",            // routed via the org's list → repo mapping
+//   repo?: "owner/name",          // legacy collectors; ignored when a mapping exists
 //   items: [{ id, title, notes?, priority?, completed?, due? }]
 // }
 //   id        — the reminder's stable identifier (dedupe key)
@@ -38,20 +39,45 @@ export async function POST(request: Request) {
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await request.json().catch(() => null);
-  if (!body?.repo || !Array.isArray(body.items)) {
-    return NextResponse.json({ error: "repo and items required" }, { status: 400 });
+  if (!Array.isArray(body?.items)) {
+    return NextResponse.json({ error: "items required" }, { status: 400 });
   }
-
   const admin = supabaseAdmin();
-  const { data: repo } = await admin
-    .from("linked_repos")
-    .select("id, org_id")
-    // GitHub repo names are case-insensitive; git remotes are typed however
-    // the human typed them. Match without case (ilike, wildcards escaped).
-    .ilike("full_name", String(body.repo).replace(/[%_\\]/g, "\\$&"))
-    .eq("org_id", auth.org_id)
-    .single();
-  if (!repo) return NextResponse.json({ error: "repo not linked" }, { status: 404 });
+
+  // Route by the team's list → repo mapping (Settings → Reminders). The
+  // collector may still send a legacy `repo`; a mapping always wins so two
+  // Macs can never send the same list to different repos.
+  const listName = String(body.list ?? "").trim();
+  let repo: { id: string; org_id: string } | null = null;
+  if (listName) {
+    const { data: src } = await admin
+      .from("reminder_sources")
+      .select("repo_id")
+      .eq("org_id", auth.org_id)
+      .ilike("list_name", listName.replace(/[%_\\]/g, "\\$&"))
+      .maybeSingle();
+    if (src) {
+      const { data: r } = await admin.from("linked_repos").select("id, org_id").eq("id", src.repo_id).single();
+      repo = r ?? null;
+    }
+    // Remember the list either way, so it can be mapped from the dashboard.
+    await admin.from("reminder_sightings").upsert(
+      { org_id: auth.org_id, list_name: listName.slice(0, 120), seen_by: auth.label, item_count: body.items.length, last_seen: new Date().toISOString() },
+      { onConflict: "org_id,list_name" },
+    );
+  }
+  if (!repo && body.repo) {
+    const { data: r } = await admin
+      .from("linked_repos")
+      .select("id, org_id")
+      .ilike("full_name", String(body.repo).replace(/[%_\\]/g, "\\$&"))
+      .eq("org_id", auth.org_id)
+      .single();
+    repo = r ?? null;
+  }
+  if (!repo) {
+    return NextResponse.json({ ok: true, skipped: true, reason: listName ? "list not mapped to a repo — map it on Settings → Reminders" : "repo not linked" });
+  }
 
   const items = (body.items as Item[]).filter((i) => i?.id && String(i.title || "").trim()).slice(0, 100);
   if (items.length === 0) return NextResponse.json({ ok: true, created: 0, updated: 0, completed: 0 });

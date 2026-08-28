@@ -46,7 +46,7 @@ export default async function TasksPage({
 
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, full_name")
+    .select("id, full_name, org_id")
     .eq("id", repoId)
     .single();
   if (!repo) notFound();
@@ -58,7 +58,7 @@ export default async function TasksPage({
       .eq("repo_id", repo.id)
       .order("priority")
       .order("created_at"),
-    teamMembers(),
+    teamMembers(repo.org_id),
   ]);
 
   const open = (tasks ?? []).filter((t) => t.status === "open");

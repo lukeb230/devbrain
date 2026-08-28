@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
+import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { LiveAll } from "./live-all";
 
@@ -31,11 +32,13 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  const org = await currentOrg();
+  if (!org) redirect("/welcome");
 
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: activity }, { data: decisions }, { data: topTasks }] =
     await Promise.all([
-      supabase.from("linked_repos").select("id, full_name, default_branch, is_vault").is("unlinked_at", null).order("created_at"),
+      supabase.from("linked_repos").select("id, full_name, default_branch, is_vault").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, branch, agent_kind, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_branch, review_state, draft, mergeable_state, changed_files, html_url, updated_at").eq("state", "open").order("updated_at", { ascending: false }),
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),

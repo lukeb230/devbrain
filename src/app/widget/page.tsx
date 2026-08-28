@@ -7,6 +7,7 @@ import { teamMembers } from "@/lib/members";
 import { computeMergePlan } from "@/lib/merge-order";
 import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { computeLights } from "@/lib/traffic";
+import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
@@ -27,15 +28,17 @@ export default async function WidgetPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/?from=widget");
+  const org = await currentOrg();
+  if (!org) redirect("/welcome");
 
   const lastRepoId = (await cookies()).get("devbrain_last_repo")?.value ?? null;
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
-  const members = await teamMembers();
+  const members = await teamMembers(org.orgId);
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
     await Promise.all([
-      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").is("unlinked_at", null).order("created_at"),
+      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files, last_push_at").is("merged_at", null),

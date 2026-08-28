@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { requireRole } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // Unlink a repository from DevBrain.
@@ -22,8 +23,10 @@ async function ownedRepo(repoId: string) {
   if (!user) return null;
   const { data: repo } = await supabase.from("linked_repos").select("id, org_id, full_name").eq("id", repoId).single();
   if (!repo) return null;
-  const login = String((user.user_metadata as Record<string, unknown> | undefined)?.user_name || user.email || user.id);
-  return { repo, login };
+  // Admins and owners of the repo's org only.
+  const me = await requireRole("admin");
+  if (!me || me.orgId !== repo.org_id) return null;
+  return { repo, login: me.login };
 }
 
 export async function unlinkRepo(formData: FormData): Promise<void> {

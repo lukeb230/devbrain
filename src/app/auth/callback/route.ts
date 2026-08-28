@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
-// OAuth code exchange. On first sign-in, provision a personal org and
-// membership so the user lands on a working dashboard.
+// OAuth code exchange. Newcomers without a team are sent to /welcome.
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
@@ -22,71 +21,20 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
-      const admin = supabaseAdmin();
-
-      // Allowlist = DEVBRAIN_ALLOWED_LOGINS (env) ∪ allowed_members (table).
-      // Additive on purpose: the Members page can add people without a Vercel
-      // redeploy, and adopting the table can never lock out the env list.
-      // Both empty = open instance (dev only).
-      const envAllowed = (process.env.DEVBRAIN_ALLOWED_LOGINS || "")
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
-      const { data: memberRows } = await admin.from("allowed_members").select("login");
-      const dbAllowed = (memberRows ?? []).map((r) => String(r.login).toLowerCase());
-      const allowed = new Set([...envAllowed, ...dbAllowed]);
-      if (allowed.size > 0) {
-        const login = (
-          (data.user.user_metadata?.user_name as string | undefined) ?? ""
-        ).toLowerCase();
-        if (!allowed.has(login)) {
-          await supabase.auth.signOut();
-          return NextResponse.redirect(`${origin}/?denied=1`);
-        }
-      }
-      const { data: memberships } = await admin
+      // Team creation is open: no allowlist. A newcomer with no membership
+      // goes to /welcome (create a team or paste an invite) — unless they
+      // arrived through an invite link, which /join handles itself.
+      const { data: memberships } = await supabaseAdmin()
         .from("org_members")
         .select("org_id")
         .eq("user_id", data.user.id)
         .limit(1);
-
       if (!memberships || memberships.length === 0) {
-        const login =
-          (data.user.user_metadata?.user_name as string | undefined) ??
-          data.user.email?.split("@")[0] ??
-          "team";
-        // Single-team instance: an allowlisted newcomer JOINS the existing
-        // team org (so they see the same repos, tasks, and brain as everyone
-        // else). Only the very first user ever bootstraps a new org.
-        const { data: existingOrg } = await admin
-          .from("orgs")
-          .select("id")
-          .order("created_at")
-          .limit(1)
-          .single();
-        if (existingOrg) {
-          await admin.from("org_members").insert({
-            org_id: existingOrg.id,
-            user_id: data.user.id,
-            role: "member",
-            github_login: login,
-          });
-        } else {
-          const slug = `${login}-${data.user.id.slice(0, 6)}`.toLowerCase();
-          const { data: org } = await admin
-            .from("orgs")
-            .insert({ name: `${login}'s team`, slug })
-            .select("id")
-            .single();
-          if (org) {
-            await admin.from("org_members").insert({
-              org_id: org.id,
-              user_id: data.user.id,
-              role: "owner",
-              github_login: login,
-            });
-          }
-        }
+        if (next.startsWith("/join/")) return NextResponse.redirect(`${origin}${next}`);
+        const res = NextResponse.redirect(`${origin}/welcome`);
+        // Keep the desktop hand-off destination alive across /welcome.
+        if (next !== "/dashboard") res.cookies.set("devbrain_next", next, { maxAge: 900, path: "/", sameSite: "lax" });
+        return res;
       }
       return NextResponse.redirect(`${origin}${next}`);
     }

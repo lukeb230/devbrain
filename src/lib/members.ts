@@ -1,15 +1,11 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 
-// Team member names for assignment dropdowns. Every account on this instance
-// is an allowlisted team member, so auth.users IS the roster.
-export async function teamMembers(): Promise<string[]> {
+// Team member names for assignment dropdowns: the members of ONE org, never
+// every account on the instance.
+export async function teamMembers(orgId: string): Promise<string[]> {
   try {
-    const { data } = await supabaseAdmin().auth.admin.listUsers({ perPage: 50 });
-    const names = (data?.users ?? []).map((u) => {
-      const m = (u.user_metadata ?? {}) as Record<string, unknown>;
-      return String(m.user_name || m.preferred_username || u.email?.split("@")[0] || "").trim();
-    });
-    return [...new Set(names.filter(Boolean))].sort();
+    const { data } = await supabaseAdmin().from("org_members").select("github_login").eq("org_id", orgId);
+    return [...new Set((data ?? []).map((r) => String(r.github_login || "").trim()).filter(Boolean))].sort();
   } catch {
     return [];
   }

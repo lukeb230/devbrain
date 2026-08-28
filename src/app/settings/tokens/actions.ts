@@ -2,27 +2,16 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { currentOrg } from "@/lib/org";
+import { supabaseAdmin } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
 
 // Server actions for self-serve dev tokens. Each signed-in member manages
 // their OWN tokens; the plaintext token is returned exactly once.
 
 async function currentMember() {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const admin = supabaseAdmin();
-  const { data: membership } = await admin
-    .from("org_members")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!membership) return null;
-  return { userId: user.id, orgId: membership.org_id };
+  const ctx = await currentOrg();
+  return ctx ? { userId: ctx.userId, orgId: ctx.orgId } : null;
 }
 
 export async function createToken(formData: FormData): Promise<void> {

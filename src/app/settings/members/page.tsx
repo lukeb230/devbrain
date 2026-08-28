@@ -1,126 +1,85 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
-import { addMember, removeMember } from "./actions";
+import { currentOrg, hasRole } from "@/lib/org";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { createInvite, removeMember, revokeInvite, setRole } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-// Team members + allowlist. Adding someone here replaces the old flow of
-// editing DEVBRAIN_ALLOWED_LOGINS in Vercel and redeploying.
+// The team roster and its invite links. Anyone in the org can see who is
+// here; admins mint invites; owners change roles and remove people.
+
+function timeAgo(iso: string) {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (min < 60) return `${Math.max(min, 0)}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 48) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
 
 export default async function MembersPage() {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  const me = await currentOrg();
+  if (!me) redirect("/welcome");
+  const isOwner = hasRole(me.role, "owner");
+  const isAdmin = hasRole(me.role, "admin");
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
 
   const admin = supabaseAdmin();
-  const [{ data: invited }, { data: authUsers }, { data: sessions }] = await Promise.all([
-    supabase.from("allowed_members").select("login, invited_by, note, created_at").order("created_at"),
-    admin.auth.admin.listUsers(),
-    admin
-      .from("sessions")
-      .select("dev_label, last_seen")
-      .order("last_seen", { ascending: false })
-      .limit(200),
+  const [{ data: members }, { data: invites }, { data: sessions }] = await Promise.all([
+    admin.from("org_members").select("user_id, role, github_login, created_at").eq("org_id", me.orgId).order("created_at"),
+    admin.from("org_invites").select("id, code, role, created_by, max_uses, uses, expires_at, revoked_at, created_at").eq("org_id", me.orgId).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }),
+    admin.from("sessions").select("dev_label, last_seen").eq("org_id", me.orgId).order("last_seen", { ascending: false }).limit(200),
   ]);
-
-  const envLogins = (process.env.DEVBRAIN_ALLOWED_LOGINS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-
-  // Who has actually signed in, and who has ever streamed a session.
-  const joined = new Map<string, string>();
-  for (const u of authUsers?.users ?? []) {
-    const m = (u.user_metadata ?? {}) as Record<string, unknown>;
-    const login = String(m.user_name || m.preferred_username || "").toLowerCase();
-    if (login) joined.set(login, u.created_at);
+  const lastSeen = new Map<string, string>();
+  for (const s of sessions ?? []) {
+    const k = String(s.dev_label || "").toLowerCase();
+    if (k && !lastSeen.has(k)) lastSeen.set(k, s.last_seen);
   }
-  const active = new Set(
-    (sessions ?? []).map((s) => String(s.dev_label || "").toLowerCase()),
-  );
-
-  const rows = [
-    ...new Set([...envLogins, ...(invited ?? []).map((i) => i.login.toLowerCase())]),
-  ].sort();
 
   return (
     <>
       <AppNav />
       <main className="mx-auto max-w-3xl px-6 py-6">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">Team members</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{me.orgName} · members</h1>
         <p className="mb-5 mt-1 max-w-xl text-sm text-slate-500">
-          Anyone listed here can sign in to DevBrain. Adding someone takes
-          effect immediately — no Vercel edit, no redeploy. Send them the{" "}
-          <Link href="/settings/setup" className="text-brand-600 hover:underline">
-            setup page
-          </Link>{" "}
-          and they can do the rest themselves.
+          Invite links add people to this team with one click. They sign in with GitHub, install the DevBrain app, and they&apos;re in.
         </p>
 
-        <section className="card mb-6 card-pad">
-          <form action={addMember} className="flex flex-wrap gap-2">
-            <input
-              name="login"
-              required
-              placeholder="GitHub username (or profile URL)"
-              className="min-w-[220px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none"
-            />
-            <input
-              name="note"
-              placeholder="Note (optional)"
-              className="min-w-[160px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none"
-            />
-            <button className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
-              Add member
-            </button>
-          </form>
-        </section>
-
-        <section className="card">
+        <section className="card mb-6">
           <ul className="divide-y divide-slate-100">
-            {rows.length === 0 && (
-              <li className="px-4 py-6 text-center text-sm text-slate-400">
-                No allowlist yet — this instance is open to any GitHub account.
-                Add yourself and your teammates to lock it down.
-              </li>
-            )}
-            {rows.map((login) => {
-              const inv = (invited ?? []).find((i) => i.login.toLowerCase() === login);
-              const fromEnv = envLogins.includes(login);
-              const hasJoined = joined.has(login);
-              const hasStreamed = active.has(login);
+            {(members ?? []).map((m) => {
+              const login = String(m.github_login || "").toLowerCase();
+              const seen = lastSeen.get(login);
+              const self = m.user_id === me.userId;
               return (
-                <li key={login} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
-                  <a
-                    href={`https://github.com/${login}`}
-                    target="_blank"
-                    className="font-medium text-slate-900 hover:text-brand-600"
-                  >
-                    {login}
+                <li key={m.user_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+                  <a href={`https://github.com/${login}`} target="_blank" className="font-medium text-slate-900 hover:text-brand-600">
+                    {m.github_login}{self ? " (you)" : ""}
                   </a>
-                  {hasStreamed ? (
-                    <span className="chip bg-emerald-50 text-emerald-700">fully set up</span>
-                  ) : hasJoined ? (
-                    <span className="chip bg-amber-50 text-amber-700">signed in · machine not connected</span>
+                  {isOwner && !self ? (
+                    <form action={setRole} className="flex items-center gap-1">
+                      <input type="hidden" name="userId" value={m.user_id} />
+                      <select name="role" defaultValue={m.role} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-xs">
+                        <option value="owner">owner</option>
+                        <option value="admin">admin</option>
+                        <option value="member">member</option>
+                      </select>
+                      <button className="text-xs text-slate-500 hover:text-slate-900">Save</button>
+                    </form>
                   ) : (
-                    <span className="chip bg-slate-100 text-slate-500">invited · not signed in</span>
+                    <span className="chip bg-slate-100 text-slate-600">{m.role}</span>
                   )}
-                  {fromEnv && (
-                    <span className="chip bg-slate-100 text-slate-400" title="Listed in DEVBRAIN_ALLOWED_LOGINS">
-                      from env
-                    </span>
+                  {seen ? (
+                    <span className="chip bg-emerald-50 text-emerald-700">active {timeAgo(seen)}</span>
+                  ) : (
+                    <span className="chip bg-amber-50 text-amber-700">machine not connected yet</span>
                   )}
-                  <span className="text-xs text-slate-400">
-                    {inv?.invited_by ? `added by ${inv.invited_by}` : ""}
-                    {inv?.note ? ` · ${inv.note}` : ""}
-                  </span>
-                  {!fromEnv && (
+                  <span className="text-xs text-slate-400">joined {timeAgo(m.created_at)}</span>
+                  {isOwner && !self && (
                     <form action={removeMember} className="ml-auto">
-                      <input type="hidden" name="login" value={login} />
+                      <input type="hidden" name="userId" value={m.user_id} />
                       <button className="text-xs text-slate-400 hover:text-red-600">Remove</button>
                     </form>
                   )}
@@ -130,13 +89,52 @@ export default async function MembersPage() {
           </ul>
         </section>
 
-        {envLogins.length > 0 && (
-          <p className="mt-3 text-xs text-slate-400">
-            Entries marked <span className="chip bg-slate-100 text-slate-400">from env</span> come from
-            the <code className="rounded bg-slate-100 px-1">DEVBRAIN_ALLOWED_LOGINS</code> variable in
-            Vercel and can only be removed there. New members added here don&apos;t need it.
-          </p>
-        )}
+        <section className="card mb-6">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="font-semibold text-slate-900">Invite links</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Links expire after 7 days. Reusable unless marked single-use.</p>
+          </div>
+          {isAdmin && (
+            <form action={createInvite} className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3 text-sm">
+              <label className="flex items-center gap-1.5 text-slate-600">
+                Role
+                <select name="role" defaultValue="member" className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-sm">
+                  <option value="member">member</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-slate-600">
+                <input type="checkbox" name="single" /> single-use
+              </label>
+              <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">New invite link</button>
+            </form>
+          )}
+          {!invites || invites.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-slate-500">No active invite links.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {invites.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+                  <code className="select-all rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-800">{origin}/join/{i.code}</code>
+                  <span className="chip bg-slate-100 text-slate-600">{i.role}</span>
+                  <span className="text-xs text-slate-400">
+                    {i.max_uses === 1 ? (i.uses >= 1 ? "used" : "single-use") : `used ${i.uses}×`} · by {i.created_by} · expires in {Math.max(1, Math.round((new Date(i.expires_at).getTime() - Date.now()) / 86_400_000))}d
+                  </span>
+                  {isAdmin && (
+                    <form action={revokeInvite} className="ml-auto">
+                      <input type="hidden" name="id" value={i.id} />
+                      <button className="text-xs text-slate-400 hover:text-red-600">Revoke</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <p className="text-xs text-slate-500">
+          Roles: <b>owner</b> manages roles, members and the team itself; <b>admin</b> also mints invites, maps Reminders and unlinks repos; <b>member</b> does everything else.
+        </p>
       </main>
     </>
   );

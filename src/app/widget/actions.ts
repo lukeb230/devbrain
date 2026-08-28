@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { currentOrg } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
 
@@ -48,13 +49,9 @@ export async function mintDeviceToken(labelRaw: string): Promise<{ token: string
   } = await supabase.auth.getUser();
   if (!user) return { error: "not signed in" };
   const admin = supabaseAdmin();
-  const { data: membership } = await admin
-    .from("org_members")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!membership) return { error: "not a member of any org" };
+  const ctx = await currentOrg();
+  if (!ctx) return { error: "not a member of any team yet — finish setup in the browser first" };
+  const membership = { org_id: ctx.orgId };
   const label = String(labelRaw || "").trim().slice(0, 60) || "devbrain-app";
   const token = "dbk_" + randomBytes(24).toString("hex");
   const { error } = await admin.from("dev_tokens").insert({

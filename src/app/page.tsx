@@ -21,8 +21,7 @@ export default async function LandingPage({
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-8 px-6 text-center">
       {denied && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-          This DevBrain is private — your GitHub account isn&apos;t on the team
-          allowlist. Ask an admin to add you.
+          Sign-in was refused. Try again, or ask a teammate for a fresh invite link.
         </p>
       )}
       <div>

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { BrainMark } from "@/components/BrainMark";
+import { currentOrg } from "@/lib/org";
+import { switchOrg } from "@/app/settings/org/actions";
 
 // Global top bar — wordmark, contextual tabs, account actions. Rendered on
 // every authed page so navigation is consistent and no page wastes a header.
 
-export function AppNav({
+export async function AppNav({
   tabs,
   live,
 }: {
@@ -12,6 +14,7 @@ export function AppNav({
   live?: React.ReactNode;
 }) {
   const appSlug = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
+  const org = await currentOrg();
   return (
     <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 overflow-x-auto px-4 sm:gap-6 sm:px-6">
@@ -21,6 +24,24 @@ export function AppNav({
             DevBrain
           </span>
         </Link>
+        {org && org.orgs.length > 1 ? (
+          <form action={switchOrg} className="flex-shrink-0">
+            <select
+              name="orgId"
+              defaultValue={org.orgId}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700"
+            >
+              {org.orgs.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+            <button className="ml-1 text-xs text-slate-500 hover:text-slate-900">Switch</button>
+          </form>
+        ) : org ? (
+          <Link href="/settings/org" className="hidden flex-shrink-0 text-sm text-slate-500 hover:text-slate-900 md:inline">
+            {org.orgName}
+          </Link>
+        ) : null}
 
         {tabs && tabs.length > 0 && (
           <div className="flex flex-shrink-0 items-center gap-1 text-sm">
@@ -54,6 +75,9 @@ export function AppNav({
           </Link>
           <Link href="/settings/members" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Members
+          </Link>
+          <Link href="/settings/org" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+            Team
           </Link>
           <Link href="/settings/reminders" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Reminders

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { currentOrg } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { installationOctokit } from "@/lib/github";
 
@@ -17,13 +18,9 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.redirect(`${origin}/`);
 
   const admin = supabaseAdmin();
-  const { data: membership } = await admin
-    .from("org_members")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!membership) return NextResponse.redirect(`${origin}/dashboard`);
+  const ctx = await currentOrg();
+  if (!ctx) return NextResponse.redirect(`${origin}/welcome`);
+  const membership = { org_id: ctx.orgId };
 
   // Claim (or create) the installation row for this org.
   await admin.from("installations").upsert({

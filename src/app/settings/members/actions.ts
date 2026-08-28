@@ -1,60 +1,72 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { currentOrg, requireRole, type Role } from "@/lib/org";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
-// Manage the allowlist from the dashboard instead of Vercel env vars.
-// Any signed-in member can invite — this is a 3-person team tool, not a
-// permissions product; every add is attributed and visible to everyone.
+// Members page: invite links (admin+), roles and removal (owner).
 
-async function currentMember() {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: membership } = await supabaseAdmin()
-    .from("org_members")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!membership) return null;
-  const m = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const label = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "someone");
-  return { orgId: membership.org_id, label };
+export async function createInvite(formData: FormData): Promise<void> {
+  const me = await requireRole("admin");
+  if (!me) return;
+  const role = formData.get("role") === "admin" ? "admin" : "member";
+  const single = formData.get("single") === "on";
+  await supabaseAdmin().from("org_invites").insert({
+    org_id: me.orgId,
+    code: randomBytes(12).toString("base64url"),
+    role,
+    created_by: me.login,
+    max_uses: single ? 1 : null,
+  });
+  revalidatePath("/settings/members");
 }
 
-export async function addMember(formData: FormData): Promise<void> {
-  const me = await currentMember();
+export async function revokeInvite(formData: FormData): Promise<void> {
+  const me = await requireRole("admin");
   if (!me) return;
-  // Accept a bare username or a pasted profile URL.
-  const raw = String(formData.get("login") || "").trim();
-  const login = raw
-    .replace(/^https?:\/\/(www\.)?github\.com\//i, "")
-    .replace(/^@/, "")
-    .split("/")[0]
-    .trim()
-    .toLowerCase();
-  if (!login || !/^[a-z0-9-]{1,39}$/.test(login)) return;
+  const id = String(formData.get("id") || "");
+  await supabaseAdmin().from("org_invites").update({ revoked_at: new Date().toISOString() }).eq("id", id).eq("org_id", me.orgId);
+  revalidatePath("/settings/members");
+}
 
-  await supabaseAdmin().from("allowed_members").upsert(
-    {
-      login,
-      org_id: me.orgId,
-      invited_by: me.label,
-      note: String(formData.get("note") || "").trim().slice(0, 200) || null,
-    },
-    { onConflict: "login" },
-  );
+export async function setRole(formData: FormData): Promise<void> {
+  const me = await requireRole("owner");
+  if (!me) return;
+  const userId = String(formData.get("userId") || "");
+  const role = String(formData.get("role") || "") as Role;
+  if (!["owner", "admin", "member"].includes(role) || !userId) return;
+  const admin = supabaseAdmin();
+  if (userId === me.userId && role !== "owner") {
+    // Never demote the last owner.
+    const { count } = await admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId).eq("role", "owner");
+    if ((count ?? 0) <= 1) return;
+  }
+  await admin.from("org_members").update({ role }).eq("org_id", me.orgId).eq("user_id", userId);
   revalidatePath("/settings/members");
 }
 
 export async function removeMember(formData: FormData): Promise<void> {
-  const me = await currentMember();
+  const me = await requireRole("owner");
   if (!me) return;
-  const login = String(formData.get("login") || "").trim().toLowerCase();
-  if (!login) return;
-  await supabaseAdmin().from("allowed_members").delete().eq("login", login).eq("org_id", me.orgId);
+  const userId = String(formData.get("userId") || "");
+  if (!userId || userId === me.userId) return;
+  const admin = supabaseAdmin();
+  await admin.from("org_members").delete().eq("org_id", me.orgId).eq("user_id", userId);
+  // Their machines stop talking to this org too.
+  await admin.from("dev_tokens").update({ revoked_at: new Date().toISOString() }).eq("org_id", me.orgId).eq("user_id", userId).is("revoked_at", null);
   revalidatePath("/settings/members");
+}
+
+export async function leaveOrg(): Promise<void> {
+  const me = await currentOrg();
+  if (!me) return;
+  const admin = supabaseAdmin();
+  if (me.role === "owner") {
+    const { count } = await admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId).eq("role", "owner");
+    if ((count ?? 0) <= 1) return; // hand ownership over first
+  }
+  await admin.from("org_members").delete().eq("org_id", me.orgId).eq("user_id", me.userId);
+  await admin.from("dev_tokens").update({ revoked_at: new Date().toISOString() }).eq("org_id", me.orgId).eq("user_id", me.userId).is("revoked_at", null);
+  revalidatePath("/", "layout");
 }

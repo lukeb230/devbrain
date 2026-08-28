@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireRole } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // Settings → Reminders: map an Apple Reminders list to a linked repo, or
-// remove a mapping. Membership is proven via an RLS-scoped read of the repo
+// remove a mapping. Admins and owners only; the repo is re-read under RLS
 // before writing with the service role.
 
 async function member() {
@@ -13,10 +14,9 @@ async function member() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data: m } = await supabase.from("org_members").select("org_id, github_login").limit(1).single();
-  if (!m) return null;
-  const label = String((user.user_metadata as Record<string, unknown> | undefined)?.user_name || m.github_login || user.email || "member");
-  return { supabase, orgId: m.org_id as string, label };
+  const ctx = await requireRole("admin");
+  if (!ctx) return null;
+  return { supabase, orgId: ctx.orgId, label: ctx.login };
 }
 
 export async function mapList(formData: FormData): Promise<void> {

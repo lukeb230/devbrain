@@ -31,6 +31,33 @@ export function agentModel(): string {
   return process.env.DEVBRAIN_AGENT_MODEL || "claude-sonnet-4-5";
 }
 
+/** Thrown when an org has spent today's AI budget (orgs.ai_daily_cap). */
+export class AiCapExceeded extends Error {
+  constructor(orgId: string) {
+    super(`ai cap reached for org ${orgId} — resets at 00:00 UTC`);
+    this.name = "AiCapExceeded";
+  }
+}
+
+// Every call is charged to an org via ai_reserve()/ai_record(). Passing no
+// org is allowed only for calls that have no tenant (none today) — it is
+// logged so an unmetered path can't creep in silently.
+async function reserve(orgId: string | undefined): Promise<void> {
+  if (!orgId) {
+    console.warn("askClaude: unmetered call (no org)");
+    return;
+  }
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  const { data, error } = await supabaseAdmin().rpc("ai_reserve", { p_org: orgId });
+  if (error) throw new Error(`ai_reserve: ${error.message}`);
+  if (data !== true) throw new AiCapExceeded(orgId);
+}
+async function record(orgId: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined) {
+  if (!orgId || !usage) return;
+  const { supabaseAdmin } = await import("@/lib/supabase/server");
+  await supabaseAdmin().rpc("ai_record", { p_org: orgId, p_in: usage.input_tokens ?? 0, p_out: usage.output_tokens ?? 0 });
+}
+
 /** Minimal Messages API caller — plain fetch, no SDK dependency. */
 export async function askClaude(
   system: string,
@@ -38,7 +65,10 @@ export async function askClaude(
   maxTokens = 1200,
   /** Optional assistant prefill (e.g. "{" to force a JSON reply). Prepended to the returned text. */
   prefill?: string,
+  /** Org the call is charged to. */
+  orgId?: string,
 ): Promise<string> {
+  await reserve(orgId);
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -59,7 +89,8 @@ export async function askClaude(
     const detail = await res.text().catch(() => "");
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+  const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+  await record(orgId, data.usage);
   const text = (data.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")
@@ -74,7 +105,9 @@ export async function askClaudeBlocks(
   system: string,
   blocks: unknown[],
   maxTokens = 4000,
+  orgId?: string,
 ): Promise<string> {
+  await reserve(orgId);
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -93,7 +126,8 @@ export async function askClaudeBlocks(
     const detail = await res.text().catch(() => "");
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+  const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+  await record(orgId, data.usage);
   return (data.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")

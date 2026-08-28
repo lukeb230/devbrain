@@ -12,11 +12,17 @@ export default async function OrgSettingsPage() {
   if (!me) redirect("/welcome");
   const isOwner = hasRole(me.role, "owner");
   const admin = supabaseAdmin();
-  const [{ count: repoCount }, { count: memberCount }, { count: ownerCount }] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ count: repoCount }, { count: memberCount }, { count: ownerCount }, { data: orgRow }, { data: usage }] = await Promise.all([
     admin.from("linked_repos").select("id", { count: "exact", head: true }).eq("org_id", me.orgId).is("unlinked_at", null),
     admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId),
     admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId).eq("role", "owner"),
+    admin.from("orgs").select("ai_daily_cap, plan").eq("id", me.orgId).single(),
+    admin.from("ai_usage").select("calls, input_tokens, output_tokens").eq("org_id", me.orgId).eq("day", today).maybeSingle(),
   ]);
+  const cap = orgRow?.ai_daily_cap ?? 0;
+  const calls = usage?.calls ?? 0;
+  const pct = cap > 0 ? Math.min(100, Math.round((calls / cap) * 100)) : 0;
   const soleOwner = isOwner && (ownerCount ?? 0) <= 1;
 
   return (
@@ -27,6 +33,19 @@ export default async function OrgSettingsPage() {
         <p className="mb-5 mt-1 text-sm text-slate-500">
           {memberCount ?? 0} member{memberCount === 1 ? "" : "s"} · {repoCount ?? 0} linked repo{repoCount === 1 ? "" : "s"} · you are <b>{me.role}</b>
         </p>
+
+        <section className="card mb-6 card-pad">
+          <h2 className="font-semibold text-slate-900">AI usage today</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {calls} of {cap} calls · {Number(usage?.input_tokens ?? 0).toLocaleString()} in / {Number(usage?.output_tokens ?? 0).toLocaleString()} out tokens · resets 00:00 UTC · plan <b>{orgRow?.plan ?? "beta"}</b>
+          </p>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className={"h-full " + (pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-brand-600")} style={{ width: `${pct}%` }} />
+          </div>
+          {pct >= 100 && (
+            <p className="mt-2 text-xs text-red-700">Budget spent — reviews, journals and digests pause for this team until midnight UTC. Presence, collisions and merge lights keep running.</p>
+          )}
+        </section>
 
         <section className="card mb-6 card-pad">
           <h2 className="font-semibold text-slate-900">Name</h2>

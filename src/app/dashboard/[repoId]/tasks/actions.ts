@@ -142,6 +142,8 @@ export async function braindumpTasks(formData: FormData): Promise<void> {
         BRAINDUMP_SYSTEM,
         `EXISTING OPEN TASKS (skip duplicates):\n${existingTitles.map((t) => `- ${t}`).join("\n") || "(none)"}\n\nBRAINDUMP:\n${dump}`,
         1500,
+        undefined,
+        ctx.repo.org_id,
       );
       const obj = extractJson(raw);
       const arr = Array.isArray(obj?.tasks) ? (obj!.tasks as Record<string, unknown>[]) : [];

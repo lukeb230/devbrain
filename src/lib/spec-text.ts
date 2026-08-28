@@ -41,7 +41,7 @@ export function htmlToText(html: string): string {
 
 /** PDFs go to Claude as a native document block and come back as markdown —
  *  which also means diagrams, mockups, and screenshots get described. */
-export async function pdfToMarkdown(base64: string): Promise<string> {
+export async function pdfToMarkdown(base64: string, orgId: string): Promise<string> {
   if (!agentConfigured()) {
     throw new Error("PDF ingest needs an API key — paste the text instead, or upload .md/.txt/.html");
   }
@@ -52,6 +52,7 @@ export async function pdfToMarkdown(base64: string): Promise<string> {
       { type: "text", text: "Transcribe this document to markdown." },
     ],
     8000,
+    orgId,
   );
 }
 

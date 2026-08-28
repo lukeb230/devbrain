@@ -50,7 +50,7 @@ export async function uploadSpec(formData: FormData): Promise<void> {
       const buf = Buffer.from(await f.arrayBuffer());
       if (kind === "pdf") {
         try {
-          body = await pdfToMarkdown(buf.toString("base64"));
+          body = await pdfToMarkdown(buf.toString("base64"), ctx.repo.org_id);
         } catch (err) {
           body = "";
           await supabaseAdmin().from("specs").insert({

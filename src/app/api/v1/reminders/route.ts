@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       .select("id, org_id")
       .ilike("full_name", String(body.repo).replace(/[%_\\]/g, "\\$&"))
       .eq("org_id", auth.org_id)
+    .is("unlinked_at", null)
       .single();
     repo = r ?? null;
   }

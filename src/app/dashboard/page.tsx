@@ -20,7 +20,12 @@ function timeAgo(iso: string) {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ unlinked?: string; deleted?: string }>;
+}) {
+  const { unlinked: justUnlinked, deleted: justDeleted } = await searchParams;
   const supabase = await supabaseServer();
   const {
     data: { user },
@@ -30,7 +35,7 @@ export default async function DashboardPage() {
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: activity }, { data: decisions }, { data: topTasks }] =
     await Promise.all([
-      supabase.from("linked_repos").select("id, full_name, default_branch, is_vault").order("created_at"),
+      supabase.from("linked_repos").select("id, full_name, default_branch, is_vault").is("unlinked_at", null).order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, branch, agent_kind, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_branch, review_state, draft, mergeable_state, changed_files, html_url, updated_at").eq("state", "open").order("updated_at", { ascending: false }),
       supabase.from("branches").select("repo_id, name, changed_files, merged_at").is("merged_at", null),
@@ -38,6 +43,9 @@ export default async function DashboardPage() {
       supabase.from("events").select("repo_id, kind, payload, at").in("kind", ["decision", "broadcast", "rule_change", "bot_write"]).order("at", { ascending: false }).limit(12),
       supabase.from("tasks").select("repo_id, id, title, priority").eq("status", "open").order("priority").order("created_at").limit(8),
     ]);
+  // Soft-unlinked repos: history kept, hidden from every list. Reinstalling
+  // the GitHub App on one relinks it.
+  const { data: unlinkedRepos } = await supabase.from("linked_repos").select("full_name, unlinked_at").not("unlinked_at", "is", null).order("unlinked_at", { ascending: false });
 
   const repoById = new Map((repos ?? []).map((r) => [r.id, r]));
   const filesBySession = new Map<string, string[]>();
@@ -87,6 +95,16 @@ export default async function DashboardPage() {
         }))}
       />
       <main className="mx-auto max-w-[1440px] px-6 py-6">
+        {(justUnlinked || justDeleted) && (
+          <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+            {justDeleted ? `Deleted ${justDeleted} and everything under it.` : `Unlinked ${justUnlinked} — history kept. Reinstall the GitHub App on it to relink.`}
+          </p>
+        )}
+        {unlinkedRepos && unlinkedRepos.length > 0 && (
+          <p className="mb-4 text-xs text-slate-500">
+            Unlinked (history kept): {unlinkedRepos.map((r) => r.full_name).join(" · ")} — reinstall the GitHub App on a repo to relink it.
+          </p>
+        )}
         {/* Stat strip */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {stats.map((s) => (

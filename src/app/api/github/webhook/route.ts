@@ -50,7 +50,12 @@ export async function POST(request: Request) {
             await upsertRepo(admin, inst.id, r);
           }
         } else if (payload.action === "deleted") {
-          await admin.from("installations").delete().eq("id", inst.id);
+          // App uninstalled → keep history: soft-unlink its repos, mark the
+          // installation suspended. (Deleting the row would cascade-delete
+          // every task, journal and PR record for those repos.)
+          const now = new Date().toISOString();
+          await admin.from("linked_repos").update({ unlinked_at: now }).eq("installation_id", inst.id).is("unlinked_at", null);
+          await admin.from("installations").update({ suspended: true }).eq("id", inst.id);
         } else if (
           payload.action === "suspend" ||
           payload.action === "unsuspend"
@@ -69,7 +74,8 @@ export async function POST(request: Request) {
           await upsertRepo(admin, instId, r);
         }
         for (const r of payload.repositories_removed ?? []) {
-          await admin.from("linked_repos").delete().eq("github_repo_id", r.id);
+          // Removed from the installation on GitHub → soft unlink (history kept).
+          await admin.from("linked_repos").update({ unlinked_at: new Date().toISOString() }).eq("github_repo_id", r.id);
         }
         break;
       }

@@ -766,7 +766,7 @@ export async function POST(request: Request) {
       await setCursor(src.key, String((rows[rows.length - 1] as Record<string, unknown>)[src.col]));
     }
     // Brain notes: the stalest repo, if older than 30 min.
-    const { data: repos } = await admin.from("linked_repos").select("id, full_name, installation_id, default_branch").limit(25);
+    const { data: repos } = await admin.from("linked_repos").select("id, full_name, installation_id, default_branch").is("unlinked_at", null).limit(25);
     const staleBefore = new Date(Date.now() - 30 * 60_000).toISOString();
     let picked: { id: string; full_name: string; installation_id: number; default_branch: string | null } | null = null;
     let pickedAt = "9999";
@@ -801,7 +801,7 @@ export async function POST(request: Request) {
       const today = new Date().toISOString().slice(0, 10);
       const { data: repos } = await admin
         .from("linked_repos")
-        .select("id, org_id, full_name")
+        .select("id, org_id, full_name").is("unlinked_at", null)
         .limit(25);
       for (const repo of repos ?? []) {
         const { data: existing } = await admin

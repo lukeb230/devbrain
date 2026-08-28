@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     // the human typed them. Match without case (ilike, wildcards escaped).
     .ilike("full_name", String(repoName).replace(/[%_\\]/g, "\\$&"))
     .eq("org_id", auth.org_id)
+    .is("unlinked_at", null)
     .single();
   if (!repo) {
     return NextResponse.json({ error: "repo not linked" }, { status: 404 });

@@ -54,6 +54,7 @@ export async function GET(request: Request) {
           installation_id: installationId,
           github_repo_id: r.id,
           full_name: r.full_name,
+          unlinked_at: null, // reinstalling relinks a soft-unlinked repo
           default_branch: r.default_branch ?? "main",
         },
         { onConflict: "github_repo_id" },

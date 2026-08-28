@@ -20,7 +20,7 @@ export default async function RemindersSettingsPage() {
   const [{ data: sources }, { data: sightings }, { data: repos }] = await Promise.all([
     supabase.from("reminder_sources").select("id, list_name, created_by, created_at, repo_id, linked_repos(full_name)").order("list_name"),
     supabase.from("reminder_sightings").select("list_name, seen_by, item_count, last_seen").order("list_name"),
-    supabase.from("linked_repos").select("id, full_name").order("full_name"),
+    supabase.from("linked_repos").select("id, full_name").is("unlinked_at", null).order("full_name"),
   ]);
   const mapped = new Set((sources ?? []).map((s) => s.list_name.toLowerCase()));
   const unmapped = (sightings ?? []).filter((s) => !mapped.has(s.list_name.toLowerCase()));

@@ -4,6 +4,7 @@ import { writerConfigured } from "@/lib/github-writer";
 import { FEATURE_CATALOG, RULES_CATALOG as CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { supabaseServer } from "@/lib/supabase/server";
 import { toggleRule } from "./actions";
+import { deleteRepo, unlinkRepo } from "../unlink-actions";
 import { connectWriter } from "./writer-actions";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function RulesPage({
 
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, full_name, writer_installation_id")
+    .select("id, full_name, writer_installation_id, installation_id, unlinked_at")
     .eq("id", repoId)
     .single();
   if (!repo) notFound();
@@ -232,6 +233,38 @@ export default async function RulesPage({
               );
             })}
           </ul>
+        </section>
+
+        <section className="card mt-6 border-red-100">
+          <div className="border-b border-slate-100 p-4">
+            <h2 className="font-semibold text-slate-900">Unlink this repository</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Unlinking removes <span className="font-mono">{repo.full_name}</span> from DevBrain&apos;s dashboards, widget and agent context.
+              Your Claude sessions in it stop reporting. GitHub access is separate — to also revoke the app&apos;s access,{" "}
+              <a className="text-brand-700 underline" href={`https://github.com/settings/installations/${repo.installation_id}`} target="_blank" rel="noreferrer">
+                edit the installation on GitHub
+              </a>.
+            </p>
+          </div>
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
+            <form action={unlinkRepo} className="rounded-md border border-slate-200 p-3">
+              <input type="hidden" name="repoId" value={repo.id} />
+              <div className="font-medium text-slate-900">Unlink, keep history</div>
+              <p className="mt-0.5 mb-3 text-xs text-slate-500">
+                Tasks, journals, PR reviews and the brain index stay. Reinstalling the GitHub App on this repo links it again with everything intact.
+              </p>
+              <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:border-slate-400">Unlink</button>
+            </form>
+            <form action={deleteRepo} className="rounded-md border border-red-200 bg-red-50/40 p-3">
+              <input type="hidden" name="repoId" value={repo.id} />
+              <div className="font-medium text-red-800">Unlink and delete everything</div>
+              <p className="mt-0.5 mb-2 text-xs text-slate-600">
+                Permanently deletes every task, journal, handoff, PR record and index entry for this repo. Type the full name to confirm.
+              </p>
+              <input name="confirm" placeholder={repo.full_name} className="mb-2 w-full rounded-md border border-red-200 bg-white px-2 py-1.5 font-mono text-xs focus:border-red-400 focus:outline-none" />
+              <button className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">Delete</button>
+            </form>
+          </div>
         </section>
       </main>
     </>

@@ -18,6 +18,7 @@ async function repoFor(auth: { org_id: string }, repoFull: string) {
     // the human typed them. Match without case (ilike, wildcards escaped).
     .ilike("full_name", String(repoFull).replace(/[%_\\]/g, "\\$&"))
     .eq("org_id", auth.org_id)
+    .is("unlinked_at", null)
     .single();
   return data;
 }

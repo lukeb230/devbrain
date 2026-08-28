@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     .select("id")
     .ilike("full_name", repoName.replace(/[%_\\]/g, "\\$&"))
     .eq("org_id", auth.org_id)
+    .is("unlinked_at", null)
     .single();
   if (!repo) return NextResponse.json({ error: "repo not linked" }, { status: 404 });
   // Replace any existing mapping for this list (case-insensitive).

@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 
-const SOURCE_REPO: &str = "lukeb230/devbrain-test";
+const SOURCE_REPO: &str = "lukeb230/devbrain";
 const COLLECT_EVERY_SECS: u64 = 180;
 const LOG_PATH: &str = "/tmp/devbrain-reminders.log";
 

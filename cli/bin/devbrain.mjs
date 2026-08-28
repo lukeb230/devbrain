@@ -36,8 +36,8 @@ import { createInterface } from "node:readline/promises";
 
 // The repo everything is installed from. When the repo goes private this is
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
-const SOURCE_REPO = "lukeb230/devbrain-test";
-const DEFAULT_SERVER = "https://devbrain-ebon.vercel.app";
+const SOURCE_REPO = "lukeb230/devbrain";
+const DEFAULT_SERVER = "https://devbrain.vercel.app";
 const MARKETPLACE = "devbrain-marketplace";
 const PLUGIN = "devbrain";
 
@@ -463,9 +463,9 @@ if (cmd === "setup" || cmd === "init") {
   }
   cfg.reminders = cfg.reminders || [];
   if (cfg.reminders.length === 0) {
-    const list = (await rl.question('Shared Reminders list to sync (blank to skip) [Scorpion One]: ')).trim() || "Scorpion One";
-    if (list !== "-") {
-      const repo = (await rl.question(`GitHub repo that list feeds [flow-sync-dev/Scorpion-One]: `)).trim() || "flow-sync-dev/Scorpion-One";
+    const list = (await rl.question('Shared Reminders list to sync (blank to skip): ')).trim();
+    if (list) {
+      const repo = (await rl.question(`GitHub repo that list feeds (owner/name): `)).trim();
       rl.close();
       cfg.reminders.push({ list, repo }); saveConfig(cfg);
       primeRemindersPermission(list, repo);

@@ -3,7 +3,7 @@
   "description": "The panel loads the DevBrain web app remotely; grant it notification access so the widget can post native notifications.",
   "remote": {
     "urls": [
-      "https://devbrain-ebon.vercel.app"
+      "https://devbrain.vercel.app"
     ]
   },
   "windows": [

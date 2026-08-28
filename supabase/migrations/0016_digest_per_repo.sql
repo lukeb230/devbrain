@@ -1,7 +1,7 @@
 -- Digests become per-repo. They were org-wide: one digest a day blending every
 -- linked repo's activity, shown inside every repo's Overview and served into
--- every Claude's context — so working in Scorpion-One meant reading about
--- gear-tracker. A repo page must only ever show that repo's data.
+-- every Claude's context — so working in one repo meant reading about
+-- another. A repo page must only ever show that repo's data.
 --
 -- Existing rows hold blended, now-meaningless content, so they're dropped.
 

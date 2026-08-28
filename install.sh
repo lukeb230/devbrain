@@ -2,7 +2,7 @@
 # ============================================================================
 # DevBrain one-line installer for a teammate's Mac.
 #
-#   curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain-test/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
 #
 # It clones this repo into ~/.devbrain/src and hands off to `devbrain setup`,
 # which asks for your dev token, then installs the Claude Code hooks, the
@@ -15,7 +15,7 @@
 # ============================================================================
 set -eu
 
-REPO="lukeb230/devbrain-test"
+REPO="lukeb230/devbrain"
 DIR="$HOME/.devbrain/src"
 
 say()  { printf '\033[1m→ %s\033[0m\n' "$*"; }

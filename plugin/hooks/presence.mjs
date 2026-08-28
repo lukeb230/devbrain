@@ -3,7 +3,7 @@
 // Presence hook — session start / end / file activity, owned by the PLUGIN.
 //
 // Before 0.5.0 these three hooks were written into ~/.claude/settings.json by
-// `devbrain init`, pointing at a CLI file inside a clone of devbrain-test.
+// `devbrain init`, pointing at a CLI file inside a clone of the repo.
 // That made the clone a permanent runtime dependency (move it → presence dies
 // silently) and froze the hooks at whatever init wrote. Owned by the plugin,
 // they travel with every plugin update and need no second repo at all.

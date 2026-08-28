@@ -5,8 +5,8 @@ team allowlist, Node 18+, and Claude Code installed.
 
 ## 1. Sign in to the dashboard
 
-Go to **https://devbrain-ebon.vercel.app** and sign in with GitHub.
-If it says you're not on the allowlist, ask Luke to add your GitHub username.
+Go to **https://devbrain.vercel.app** and sign in with GitHub.
+If it says you're not on the allowlist, ask your DevBrain admin to add your GitHub username.
 
 You'll land on the team dashboard — same org as everyone else: live presence,
 PRs, tasks, the brain.
@@ -19,7 +19,7 @@ Dashboard → **Tokens** (top right) → label it after your machine
 ## 3. Install the app (that's the whole install)
 
 Download **DevBrain.dmg** from the latest widget release
-(https://github.com/lukeb230/devbrain-test/releases/latest), drag DevBrain to
+(https://github.com/lukeb230/devbrain/releases/latest), drag DevBrain to
 Applications, and open it (first time: right-click → Open, it's not notarized).
 
 It's a menu-bar app — no Dock icon. Move your mouse into the bottom-right
@@ -39,18 +39,18 @@ check mark. Restart any open Claude Code session so it loads the plugin.
 Prefer a terminal? The one-liner still works (needs Node 18+ and git):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain-test/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
 ```
 
 ### Staying current
 
-You don't do anything. Luke pushes to `main`; your Mac pulls it on the next
+You don't do anything. Your admin pushes to `main`; your Mac pulls it on the next
 Claude Code session start (at most every 6 h) and daily via launchd — CLI,
 plugin, sync and the app itself. To force it: `devbrain update`.
 
 ## 4. Prove it works
 
-Open a Claude Code session in `gear-tracker/` and ask:
+Open a Claude Code session in any linked repo and ask:
 *"What's the team up to right now?"* — your Claude should answer from live
 DevBrain data. Meanwhile, everyone else's dashboard now shows YOU under
 "Now working."

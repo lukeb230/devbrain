@@ -4,7 +4,7 @@
 // Mac and posts it to DevBrain, where each reminder becomes a task.
 //
 //   node collect.mjs "<List Name>" "<owner/repo>"
-//   e.g. node collect.mjs "Scorpion One" "flow-sync-dev/Scorpion-One"
+//   e.g. node collect.mjs "Team Inbox" "acme/app"
 //
 // Auth comes from ~/.devbrain/config.json (written by `devbrain init`).
 // Runs fine from launchd every few minutes; the server is idempotent, so

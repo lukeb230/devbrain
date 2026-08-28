@@ -5,7 +5,7 @@ description: Team workflow for repos tracked by DevBrain. Use at the START of an
 
 # DevBrain team workflow
 
-This repo is tracked by DevBrain — the team's shared second brain. Three
+This repo is tracked by DevBrain — the team's shared second brain. Several
 developers (and their Claudes) work here in parallel. Follow this workflow so
 nobody steps on anyone.
 

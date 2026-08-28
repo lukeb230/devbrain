@@ -125,15 +125,15 @@ interface SetupState {
 
 function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: WidgetData["repos"]; onDone: () => void }) {
   const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
-  const [syncReminders, setSyncReminders] = useState(true);
-  const [list, setList] = useState("Scorpion One");
-  // Default the repo to the one whose name matches the list ("Scorpion One"
-  // → flow-sync-dev/Scorpion-One), else the first linked repo.
+  const [syncReminders, setSyncReminders] = useState(false);
+  const [list, setList] = useState("");
+  // Default the repo to the one whose name matches the list name, else the
+  // first linked repo.
   const guessRepo = (l: string) => {
     const key = l.toLowerCase().replace(/[^a-z0-9]/g, "");
     return repos.find((r) => r.full_name.toLowerCase().replace(/[^a-z0-9]/g, "").includes(key))?.full_name ?? repos[0]?.full_name ?? "";
   };
-  const [repo, setRepo] = useState(guessRepo("Scorpion One"));
+  const [repo, setRepo] = useState(guessRepo(""));
   const [busy, setBusy] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
   const [done, setDone] = useState<null | "ok" | "fail">(null);

@@ -83,7 +83,7 @@ jobs:
         # proper ad-hoc signature keyed to the bundle id keeps Notification
         # Center / TCC records stable across updates. No Developer ID needed.
         run: |
-          codesign --force --deep -s - --identifier com.veriflush.devbrain-widget \
+          codesign --force --deep -s - --identifier app.devbrain.desktop \
             src-tauri/target/release/bundle/macos/DevBrain.app
           codesign -dv src-tauri/target/release/bundle/macos/DevBrain.app 2>&1 | grep -E "Identifier|flags"
 

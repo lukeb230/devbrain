@@ -72,7 +72,7 @@ export default async function SetupPage() {
   const hasSession = (mySessions ?? []).length > 0;
   const hasActivity = (myActivity ?? []).length > 0;
   const newToken = (await cookies()).get("devbrain_new_token")?.value;
-  const server = "https://devbrain-ebon.vercel.app";
+  const server = process.env.NEXT_PUBLIC_SITE_URL ?? "https://devbrain.vercel.app";
 
   // The paste-one-line connector: writes ~/.devbrain/config.json directly.
   // No clone, no prompts, no remote code — plain Node with the token inline.
@@ -142,7 +142,7 @@ export default async function SetupPage() {
             <strong>restart the session</strong>:
           </p>
           <pre className="select-all overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">
-{`/plugin marketplace add lukeb230/devbrain-test
+{`/plugin marketplace add lukeb230/devbrain
 /plugin install devbrain@devbrain-marketplace`}
           </pre>
           <p className="mt-2 text-xs text-slate-500">

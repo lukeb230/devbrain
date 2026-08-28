@@ -82,7 +82,7 @@ Dashboard → **Tokens** → create one per machine (shown once). Then the
 one-line installer on that Mac does the rest (see `ONBOARDING.md`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain-test/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
 devbrain doctor        # every line should be a check mark
 devbrain ctx           # print the live context digest for the current repo
 ```

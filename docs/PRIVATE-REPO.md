@@ -1,6 +1,6 @@
 # When this repo goes private
 
-The installer/updater assumes `lukeb230/devbrain-test` is public. Four things
+The installer/updater assumes `lukeb230/devbrain` is public. Four things
 fetch from GitHub anonymously today; each needs credentials once the repo is
 private. Nothing else in the system cares.
 
@@ -8,7 +8,7 @@ private. Nothing else in the system cares.
 |---|------|-------|-------|--------------|
 | 1 | Bootstrap script | `curl …/raw…/install.sh \| sh` (ONBOARDING.md) | anonymous raw URL | raw URLs 404 on private repos |
 | 2 | Source checkout | `git clone` / `git pull` of `~/.devbrain/src` (install.sh, `updateSource()` in `cli/bin/devbrain.mjs`) | anonymous HTTPS | needs a git credential |
-| 3 | Claude Code plugin | `claude plugin marketplace add lukeb230/devbrain-test` (`updatePlugin()`) | anonymous | Claude Code clones the marketplace with the user's git credentials — works if #2 works |
+| 3 | Claude Code plugin | `claude plugin marketplace add lukeb230/devbrain` (`updatePlugin()`) | anonymous | Claude Code clones the marketplace with the user's git credentials — works if #2 works |
 | 4 | Widget download | `https://github.com/…/releases/download/widget-vX/DevBrain.app.zip` (`updateWidget()`) | anonymous | release assets on private repos require a token; the browser-style URL redirects to a login page |
 
 ## Recommended fix (one credential, once, per Mac)
@@ -23,7 +23,7 @@ brew install gh && gh auth login        # once per Mac; pick HTTPS + "authentica
 Then:
 
 1. **Bootstrap**: replace the raw-URL curl in ONBOARDING.md with
-   `gh repo clone lukeb230/devbrain-test ~/.devbrain/src && ~/.devbrain/src/install.sh`
+   `gh repo clone lukeb230/devbrain ~/.devbrain/src && ~/.devbrain/src/install.sh`
    (install.sh already handles an existing checkout).
 2. **Checkout**: `gh auth login` with "authenticate git" installs a credential
    helper, so the existing `git clone` / `git pull` in `install.sh` and

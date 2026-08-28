@@ -55,7 +55,7 @@ create table linked_repos (
   org_id           uuid not null references orgs(id) on delete cascade,
   installation_id  bigint not null references installations(id) on delete cascade,
   github_repo_id   bigint not null unique,
-  full_name        text not null,               -- "flow-sync-dev/Scorpion-One"
+  full_name        text not null,               -- "owner/name"
   default_branch   text not null default 'main',
   is_vault         boolean not null default false,
   created_at       timestamptz not null default now()

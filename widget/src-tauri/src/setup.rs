@@ -26,13 +26,22 @@ use tauri::{AppHandle, Manager};
 
 const SOURCE_REPO: &str = "lukeb230/devbrain";
 const COLLECT_EVERY_SECS: u64 = 180;
-const LOG_PATH: &str = "/tmp/devbrain-reminders.log";
+fn log_path() -> &'static str {
+    if is_beta() { "/tmp/devbrain-beta-reminders.log" } else { "/tmp/devbrain-reminders.log" }
+}
 
 fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".into()))
 }
+pub const CHANNEL: &str = env!("DEVBRAIN_CHANNEL");
+pub fn is_beta() -> bool {
+    CHANNEL == "beta"
+}
+pub fn app_name() -> &'static str {
+    if is_beta() { "DevBrain Beta" } else { "DevBrain" }
+}
 fn devbrain_dir() -> PathBuf {
-    home().join(".devbrain")
+    home().join(if is_beta() { ".devbrain-beta" } else { ".devbrain" })
 }
 fn config_path() -> PathBuf {
     devbrain_dir().join("config.json")
@@ -220,7 +229,7 @@ fn collect_all(node: &str) -> Vec<String> {
             }
             Err(e) => format!("[{}] {list} → {repo}: could not run collector: {e}", chrono_now()),
         };
-        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(LOG_PATH) {
+        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(log_path()) {
             let _ = writeln!(f, "{line}");
         }
         out.push(line);

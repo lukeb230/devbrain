@@ -21,3 +21,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - name: plugin-beta is in sync with plugin
+        run: ./tools/sync-beta-plugin.sh && git diff --exit-code --stat plugin-beta

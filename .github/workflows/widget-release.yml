@@ -6,9 +6,10 @@ name: Widget release
 # compares that version against /Applications/DevBrain.app and swaps in the
 # new build.
 #
-# To ship a widget change: edit widget/**, bump "version" in tauri.conf.json,
-# push to main. If the version was NOT bumped the build runs (as a check) but
-# no release is created, so an existing release is never overwritten.
+# Builds BOTH channels (stable "DevBrain.app" and beta "DevBrain Beta.app")
+# from the same commit and attaches all assets to one widget-v<version>
+# release. To ship: edit widget/**, bump "version" in tauri.conf.json, push.
+# Unbumped versions build as a check only.
 #
 # The .app is unsigned (no Apple Developer ID yet). The updater strips the
 # quarantine flag after download, so Gatekeeper's "unidentified developer"
@@ -33,9 +34,17 @@ concurrency:
 jobs:
   build:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [stable, beta]
     defaults:
       run:
         working-directory: widget
+    env:
+      APP_NAME: ${{ matrix.channel == 'beta' && 'DevBrain Beta' || 'DevBrain' }}
+      ASSET: ${{ matrix.channel == 'beta' && 'DevBrain-Beta' || 'DevBrain' }}
+      BUNDLE_ID: ${{ matrix.channel == 'beta' && 'app.devbrain.desktop.beta' || 'app.devbrain.desktop' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +59,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: widget/src-tauri
+          key: ${{ matrix.channel }}
 
       - name: Read version
         id: ver
@@ -58,70 +68,48 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "tag=widget-v$v" >> "$GITHUB_OUTPUT"
 
-      - name: Skip if this version is already released
+      - name: Is this version's ${{ matrix.channel }} asset already released?
         id: exists
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null | grep -qx "$ASSET.dmg"; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ steps.ver.outputs.tag }} already exists — building as a check only. Bump the version in widget/src-tauri/tauri.conf.json to publish."
+            echo "::notice::$ASSET for ${{ steps.ver.outputs.tag }} already released — building as a check only."
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
           fi
 
       - run: npm ci
 
-      - name: Bundle Node runtime (no prerequisites for teammates)
-        run: ./scripts/fetch-node.sh
-
-      - name: Build .app
-        run: npm run tauri build -- --bundles app
+      - name: Build ${{ matrix.channel }} .app (Node bundled)
+        run: ./scripts/build-channel.sh ${{ matrix.channel }}
 
       - name: Ad-hoc sign with the bundle identifier
-        # Tauri leaves the binary linker-signed with a random identifier. A
-        # proper ad-hoc signature keyed to the bundle id keeps Notification
-        # Center / TCC records stable across updates. No Developer ID needed.
         run: |
-          codesign --force --deep -s - --identifier app.devbrain.desktop \
-            src-tauri/target/release/bundle/macos/DevBrain.app
-          codesign -dv src-tauri/target/release/bundle/macos/DevBrain.app 2>&1 | grep -E "Identifier|flags"
-
-      - name: Free runner disk before packaging
-        # The Rust intermediates run to several GB; with Node bundled the
-        # runner hit "No space left on device" while hdiutil built the DMG.
-        # The .app is complete at this point, so drop the intermediates.
-        run: |
-          df -h / | tail -1
-          rm -rf src-tauri/target/release/deps src-tauri/target/release/build \
-                 src-tauri/target/release/incremental src-tauri/target/release/.fingerprint \
-                 ~/.cargo/registry/src ~/.cargo/git
-          df -h / | tail -1
+          codesign --force --deep -s - --identifier "$BUNDLE_ID" "src-tauri/target/release/bundle/macos/$APP_NAME.app"
+          codesign -dv "src-tauri/target/release/bundle/macos/$APP_NAME.app" 2>&1 | grep -E "Identifier|flags"
 
       - name: Zip + DMG
-        # The zip feeds `devbrain update`; the DMG is the thing you send a new
-        # teammate (drag to Applications, open, sign in, click "Set up").
         run: |
           cd src-tauri/target/release/bundle/macos
-          ditto -c -k --sequesterRsrc --keepParent DevBrain.app DevBrain.app.zip
-          shasum -a 256 DevBrain.app.zip > DevBrain.app.zip.sha256
-          cat DevBrain.app.zip.sha256
-          rm -rf dmg && mkdir dmg && cp -R DevBrain.app dmg/ && ln -s /Applications dmg/Applications
+          ditto -c -k --sequesterRsrc --keepParent "$APP_NAME.app" "$ASSET.app.zip"
+          shasum -a 256 "$ASSET.app.zip" > "$ASSET.app.zip.sha256"
+          rm -rf dmg && mkdir dmg && cp -R "$APP_NAME.app" dmg/ && ln -s /Applications dmg/Applications
           # Explicit size + HFS+: hdiutil's auto-sizing undershoots with the
-          # 110 MB Node binary inside and fails with a misleading "No space
-          # left on device" (the runner disk is fine).
-          hdiutil create -size 600m -fs HFS+ -volname "DevBrain" -srcfolder dmg -ov -format UDZO DevBrain.dmg
-          ls -la DevBrain.dmg
+          # bundled Node binary and fails with a misleading "No space left".
+          hdiutil create -size 600m -fs HFS+ -volname "$APP_NAME" -srcfolder dmg -ov -format UDZO "$ASSET.dmg"
+          ls -la "$ASSET.dmg"
 
-      - name: Publish release
+      - name: Publish (create the release if needed, then upload this channel)
         if: steps.exists.outputs.released == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.ver.outputs.tag }}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "DevBrain widget ${{ steps.ver.outputs.version }}" \
-            --notes "Built from ${GITHUB_SHA::7}. New teammate: download DevBrain.dmg, drag to Applications, open, sign in, click Set up. Existing Macs update automatically." \
-            src-tauri/target/release/bundle/macos/DevBrain.app.zip \
-            src-tauri/target/release/bundle/macos/DevBrain.app.zip.sha256 \
-            src-tauri/target/release/bundle/macos/DevBrain.dmg
+          cd src-tauri/target/release/bundle/macos
+          gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+              --title "DevBrain widget ${{ steps.ver.outputs.version }}" \
+              --notes "Built from ${GITHUB_SHA::7}. New teammate: download DevBrain.dmg (or DevBrain-Beta.dmg for the beta channel), drag to Applications, open, sign in, click Set up. Existing Macs update automatically." || true
+          gh release upload "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$ASSET.app.zip" "$ASSET.app.zip.sha256" "$ASSET.dmg"

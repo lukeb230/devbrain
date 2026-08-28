@@ -28,6 +28,7 @@ use tauri_plugin_opener::OpenerExt;
 mod notify;
 mod setup;
 
+#[allow(dead_code)]
 const SITE: &str = "https://devbrain-seven.vercel.app";
 const SITE_HOST: &str = "devbrain-seven.vercel.app";
 const SITE_PANEL: &str = "https://devbrain-seven.vercel.app/widget";
@@ -78,7 +79,11 @@ fn load_settings(app: &AppHandle) -> Settings {
     settings_path(app)
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str::<Settings>(&s).ok())
-        .unwrap_or(Settings { corner: Corner::BottomRight, badge_scale: default_badge_scale() })
+        .unwrap_or(Settings {
+            // Beta defaults to the other corner so both channels can sit on one screen.
+            corner: if setup::is_beta() { Corner::BottomLeft } else { Corner::BottomRight },
+            badge_scale: default_badge_scale(),
+        })
 }
 
 fn save_settings(app: &AppHandle) {
@@ -364,7 +369,7 @@ fn main() {
                 "strip",
                 WebviewUrl::App("strip.html".into()),
             )
-            .title("DevBrain")
+            .title(setup::app_name())
             .decorations(false)
             .transparent(true)
             .always_on_top(true)
@@ -407,7 +412,7 @@ fn main() {
                 }
                 allowed
             })
-            .title("DevBrain")
+            .title(setup::app_name())
             .decorations(false)
             .transparent(true)
             .shadow(true)
@@ -475,7 +480,7 @@ fn main() {
             spawn_corner_watcher(app.handle().clone());
 
             // --- menu-bar (tray) icon -------------------------------------
-            let open_i = MenuItem::with_id(app, "open", "Open DevBrain panel", true, None::<&str>)?;
+            let open_i = MenuItem::with_id(app, "open", &format!("Open {} panel", setup::app_name()), true, None::<&str>)?;
             let reload_i = MenuItem::with_id(app, "reload", "Reload panel", true, None::<&str>)?;
             let pin_i = CheckMenuItem::with_id(app, "pin", "Pin panel open", true, false, None::<&str>)?;
             let bl_i = CheckMenuItem::with_id(app, "corner_bl", "Corner: Bottom Left", true, corner == Corner::BottomLeft, None::<&str>)?;
@@ -490,7 +495,7 @@ fn main() {
             let size_l = CheckMenuItem::with_id(app, "size_l", "Large", true, (scale - 1.0).abs() < 0.01, None::<&str>)?;
             let size_menu = Submenu::with_items(app, "Badge size", true, &[&size_s, &size_m, &size_l])?;
             let dash_i = MenuItem::with_id(app, "dash", "Open full dashboard…", true, None::<&str>)?;
-            let quit_i = PredefinedMenuItem::quit(app, Some("Quit DevBrain"))?;
+            let quit_i = PredefinedMenuItem::quit(app, Some(&format!("Quit {}", setup::app_name())))?;
             let menu = Menu::with_items(app, &[&open_i, &reload_i, &pin_i, &bl_i, &br_i, &size_menu, &auto_i, &dash_i, &quit_i])?;
 
             let bl_h = bl_i.clone();

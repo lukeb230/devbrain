@@ -42,6 +42,14 @@ Prefer a terminal? The one-liner still works (needs Node 18+ and git):
 curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
 ```
 
+### Beta channel (optional)
+
+There is a second, independent install called **DevBrain Beta** — its own
+app (`DevBrain Beta.app`), command (`devbrain-beta`), config (`~/.devbrain-beta`)
+and Claude Code plugin (`devbrain-beta`). It can run side by side with the
+stable one; by default its corner badge sits in the opposite corner. Install
+it from `DevBrain-Beta.dmg` on the same release, or `install.sh beta`.
+
 ### Staying current
 
 You don't do anything. Your admin pushes to `main`; your Mac pulls it on the next

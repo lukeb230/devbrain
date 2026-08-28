@@ -1,11 +1,18 @@
 {
-  "name": "devbrain-marketplace",
-  "owner": { "name": "Veriflush dev team" },
+  "name": "devbrain",
+  "owner": {
+    "name": "DevBrain"
+  },
   "plugins": [
     {
       "name": "devbrain",
       "source": "./plugin",
-      "description": "Connects your Claude to the team's DevBrain: live team context, collision checks, and the shared second brain."
+      "description": "Connects your Claude to your team's DevBrain: live team context, collision checks, team memory, and the shared second brain."
+    },
+    {
+      "name": "devbrain-beta",
+      "source": "./plugin-beta",
+      "description": "Beta channel of the DevBrain plugin \u2014 same features, talks to the beta install in ~/.devbrain-beta. Coexists with the stable plugin."
     }
   ]
-}
+}\n

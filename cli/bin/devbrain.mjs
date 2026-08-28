@@ -38,25 +38,43 @@ import { createInterface } from "node:readline/promises";
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
 const SOURCE_REPO = "lukeb230/devbrain";
 const DEFAULT_SERVER = "https://devbrain-seven.vercel.app";
-const MARKETPLACE = "devbrain-marketplace";
-const PLUGIN = "devbrain";
+const MARKETPLACE = "devbrain";
+const PLUGIN_NAME_STABLE = "devbrain";
 
 const HOME = homedir();
-const CONFIG_DIR = join(HOME, ".devbrain");
+const SELF = fileURLToPath(import.meta.url);
+// The checkout this CLI is running from (~/.devbrain*/src, or a dev clone).
+const REPO_ROOT = resolve(dirname(SELF), "..", "..");
+
+// ----------------------------------------------------------------------------
+// Channels. Two installs can coexist on one Mac — "stable" in ~/.devbrain and
+// "beta" in ~/.devbrain-beta — each with its own app, command, plugin, launchd
+// jobs and server. The channel is inferred from where this CLI lives; dev
+// clones can force it with DEVBRAIN_HOME=/path or DEVBRAIN_CHANNEL=beta.
+// ----------------------------------------------------------------------------
+function inferHome() {
+  if (process.env.DEVBRAIN_HOME) return process.env.DEVBRAIN_HOME.replace(/\/$/, "");
+  const m = SELF.match(/^(.*\/\.devbrain(?:-[a-z0-9]+)?)\/src\//);
+  if (m) return m[1];
+  return join(HOME, process.env.DEVBRAIN_CHANNEL === "beta" ? ".devbrain-beta" : ".devbrain");
+}
+const CONFIG_DIR = inferHome();
+const CHANNEL = CONFIG_DIR.endsWith("-beta") ? "beta" : "stable";
+const CH = CHANNEL === "beta"
+  ? { appName: "DevBrain Beta", app: "/Applications/DevBrain Beta.app", cmd: "devbrain-beta", plugin: "devbrain-beta", label: "com.devbrain.beta", asset: "DevBrain-Beta.app.zip", rcMark: "# devbrain-beta" }
+  : { appName: "DevBrain", app: "/Applications/DevBrain.app", cmd: "devbrain", plugin: "devbrain", label: "com.devbrain", asset: "DevBrain.app.zip", rcMark: "# devbrain" };
+
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const SRC_DIR = join(CONFIG_DIR, "src");
 const BIN_DIR = join(CONFIG_DIR, "bin");
 const AGENTS_DIR = join(HOME, "Library", "LaunchAgents");
 const CLAUDE_SETTINGS = join(HOME, ".claude", "settings.json");
-const WIDGET_APP = "/Applications/DevBrain.app";
+const WIDGET_APP = CH.app;
 // Node shipped inside the widget bundle (widget/scripts/fetch-node.sh). When
-// present it is the ONLY runtime a teammate needs; ~/.devbrain/bin/node links
-// to it so hooks, the MCP server and launchd jobs all find "node".
+// present it is the ONLY runtime a teammate needs; <home>/bin/node links to it
+// so hooks, the MCP server and launchd jobs all find "node".
 const BUNDLED_NODE = join(WIDGET_APP, "Contents", "Resources", "node", "bin", "node");
 const SRC_SHA_FILE = join(SRC_DIR, ".devbrain-sha");
-const SELF = fileURLToPath(import.meta.url);
-// The checkout this CLI is running from (~/.devbrain/src, or a dev clone).
-const REPO_ROOT = resolve(dirname(SELF), "..", "..");
 
 const cmd = process.argv[2];
 const flags = new Set(process.argv.slice(3).filter((a) => a.startsWith("--")));
@@ -240,11 +258,11 @@ function installWrapper() {
       changed = true;
     }
   }
-  const wrapper = join(BIN_DIR, "devbrain");
+  const wrapper = join(BIN_DIR, CH.cmd);
   const content = `#!/bin/sh
-# DevBrain CLI wrapper — installed by devbrain setup. Order: the Node bundled
-# with the DevBrain app, then the node on PATH, then the one that ran setup.
-NODE="$HOME/.devbrain/bin/node"
+# ${CH.appName} CLI wrapper — installed by ${CH.cmd} setup. Order: the Node bundled
+# with the ${CH.appName} app, then the node on PATH, then the one that ran setup.
+NODE="${join(BIN_DIR, "node")}"
 [ -x "$NODE" ] || NODE="$(command -v node 2>/dev/null || true)"
 [ -x "$NODE" ] || NODE="${process.execPath}"
 exec "$NODE" "${join(SRC_DIR, "cli", "bin", "devbrain.mjs")}" "$@"
@@ -252,9 +270,9 @@ exec "$NODE" "${join(SRC_DIR, "cli", "bin", "devbrain.mjs")}" "$@"
   const same = existsSync(wrapper) && readFileSync(wrapper, "utf8") === content;
   if (!same) { writeFileSync(wrapper, content); chmodSync(wrapper, 0o755); changed = true; }
   const rc = join(HOME, process.env.SHELL?.endsWith("zsh") ? ".zshrc" : ".bash_profile");
-  const line = 'export PATH="$HOME/.devbrain/bin:$PATH"  # devbrain';
+  const line = `export PATH="${BIN_DIR.replace(HOME, "$HOME")}:$PATH"  ${CH.rcMark}`;
   const rcText = existsSync(rc) ? readFileSync(rc, "utf8") : "";
-  if (!rcText.includes("# devbrain")) writeFileSync(rc, rcText + (rcText.endsWith("\n") || !rcText ? "" : "\n") + line + "\n");
+  if (!rcText.split("\n").some((l) => l.trim().endsWith(CH.rcMark))) writeFileSync(rc, rcText + (rcText.endsWith("\n") || !rcText ? "" : "\n") + line + "\n");
   return changed ? `installed${bundled ? " (node → bundled)" : ""}` : "ok";
 }
 
@@ -301,14 +319,14 @@ function updatePlugin() {
   }
   const installed = claude(["plugin", "list"]).stdout;
   const wantVer = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", ".claude-plugin", "plugin.json"), "utf8")).version;
-  const m = installed.match(new RegExp(`${PLUGIN}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
+  const m = installed.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
   const haveVer = m ? m[1] : null;
   if (!haveVer) {
-    const r = claude(["plugin", "install", `${PLUGIN}@${MARKETPLACE}`]);
+    const r = claude(["plugin", "install", `${CH.plugin}@${MARKETPLACE}`]);
     return r.status === 0 ? `installed ${wantVer}` : `install failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
   }
   if (haveVer === wantVer) return `${haveVer} up to date`;
-  const r = claude(["plugin", "update", `${PLUGIN}@${MARKETPLACE}`, "-y"]);
+  const r = claude(["plugin", "update", `${CH.plugin}@${MARKETPLACE}`, "-y"]);
   return r.status === 0
     ? `${haveVer} → ${wantVer} (applies to new Claude sessions)`
     : `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`;
@@ -323,7 +341,7 @@ function updateReminderJobs(cfg) {
   let retired = 0;
   for (const f of existsSync(AGENTS_DIR) ? readdirSync(AGENTS_DIR) : []) {
     const label = f.replace(/\.plist$/, "");
-    if (label === "com.devbrain.reminders" || label.startsWith("com.devbrain.reminders.")) { removeJob(label); retired++; }
+    if (label === `${CH.label}.reminders` || label.startsWith(`${CH.label}.reminders.`)) { removeJob(label); retired++; }
   }
   const appOk = existsSync(WIDGET_APP);
   const base = lists.length
@@ -334,13 +352,13 @@ function updateReminderJobs(cfg) {
 
 // 5. Daily self-update job (also fires on wake if a run was missed).
 function updateUpdaterJob() {
-  const xml = plistXml("com.devbrain.update",
+  const xml = plistXml(`${CH.label}.update`,
     [bundledNode() ?? process.execPath, join(SRC_DIR, "cli", "bin", "devbrain.mjs"), "update", "--quiet"],
     `  <key>StartInterval</key><integer>86400</integer>
   <key>RunAtLoad</key><false/>
-  <key>StandardOutPath</key><string>/tmp/devbrain-update.log</string>
-  <key>StandardErrorPath</key><string>/tmp/devbrain-update.log</string>`);
-  return ensureJob("com.devbrain.update", xml);
+  <key>StandardOutPath</key><string>/tmp/${CH.cmd}-update.log</string>
+  <key>StandardErrorPath</key><string>/tmp/${CH.cmd}-update.log</string>`);
+  return ensureJob(`${CH.label}.update`, xml);
 }
 
 // 6. Widget: install/replace /Applications/DevBrain.app when the checkout's
@@ -358,30 +376,30 @@ async function updateWidget() {
   const have = installedWidgetVersion();
   if (have === want) return `${have} up to date`;
 
-  const url = `https://github.com/${SOURCE_REPO}/releases/download/widget-v${want}/DevBrain.app.zip`;
+  const url = `https://github.com/${SOURCE_REPO}/releases/download/widget-v${want}/${CH.asset}`;
   const res = await fetch(url, { redirect: "follow" }).catch((e) => ({ ok: false, status: e.message }));
   if (!res.ok) {
     return res.status === 404
       ? `${want} not released yet (installed: ${have ?? "none"}) — CI builds it on the next widget push`
       : `download failed (${res.status})`;
   }
-  const tmp = join(tmpdir(), `devbrain-widget-${want}`);
+  const tmp = join(tmpdir(), `${CH.cmd}-widget-${want}`);
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
-  const zip = join(tmp, "DevBrain.app.zip");
+  const zip = join(tmp, CH.asset);
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
   // ditto preserves bundle metadata; xattr clears Gatekeeper quarantine on
   // the unsigned build so no "unidentified developer" dialog appears.
   if (run("ditto", ["-x", "-k", zip, tmp]).status !== 0) return "unzip failed";
-  const app = join(tmp, "DevBrain.app");
-  if (!existsSync(app)) return "zip did not contain DevBrain.app";
+  const app = join(tmp, `${CH.appName}.app`);
+  if (!existsSync(app)) return `zip did not contain ${CH.appName}.app`;
   run("xattr", ["-dr", "com.apple.quarantine", app]);
 
   // The bundle's binary is devbrain-widget, not DevBrain — match on the
   // bundle path so the check survives renames.
   const wasRunning = run("pgrep", ["-f", `${WIDGET_APP}/Contents/MacOS/`]).status === 0;
   if (wasRunning) {
-    run("osascript", ["-e", 'tell application "DevBrain" to quit']);
+    run("osascript", ["-e", `tell application "${CH.appName}" to quit`]);
     run("pkill", ["-f", `${WIDGET_APP}/Contents/MacOS/`]);
   }
   rmSync(WIDGET_APP, { recursive: true, force: true });
@@ -621,7 +639,7 @@ if (cmd === "doctor") {
   } else bad("source checkout", `${SRC_DIR} missing — run: devbrain setup`);
   const last = existsSync(join(CONFIG_DIR, "last-update")) ? readFileSync(join(CONFIG_DIR, "last-update"), "utf8").trim() : null;
   if (last) ok("last update", last); else bad("last update", "never — run: devbrain update");
-  if (run("launchctl", ["list", "com.devbrain.update"]).status === 0) ok("daily updater job loaded");
+  if (run("launchctl", ["list", `${CH.label}.update`]).status === 0) ok("daily updater job loaded");
   else bad("daily updater job", "not loaded — run: devbrain update");
 
   const repo = currentRepo();
@@ -649,7 +667,7 @@ if (cmd === "doctor") {
   const pl = CLAUDE ? claude(["plugin", "list"]) : { status: 1, stdout: "" };
   if (pl.status !== 0) bad("claude CLI", "not found (PATH, ~/.local/bin, ~/.claude/local, app bundle)");
   else {
-    const m = pl.stdout.match(new RegExp(`${PLUGIN}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
+    const m = pl.stdout.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
     let want = "?"; try { want = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", ".claude-plugin", "plugin.json"), "utf8")).version; } catch { /* */ }
     if (!m) bad("plugin", "not installed — run: devbrain update");
     else if (m[1] === want) ok("plugin", `${m[1]}`);
@@ -683,7 +701,7 @@ if (cmd === "ctx") {
   process.exit(0);
 }
 
-console.log(`devbrain — team second brain CLI
+console.log(`${CH.cmd} — ${CH.appName} CLI (channel: ${CHANNEL}, home: ${CONFIG_DIR})
 
 Usage:
   devbrain setup              First-time setup on this Mac (token, hooks, plugin, jobs, widget)

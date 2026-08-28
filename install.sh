@@ -16,7 +16,11 @@
 set -eu
 
 REPO="lukeb230/devbrain"
-DIR="$HOME/.devbrain/src"
+# Channel: `install.sh beta` (or DEVBRAIN_CHANNEL=beta) installs alongside a
+# stable install — separate app, command (devbrain-beta), config and jobs.
+CHANNEL="${1:-${DEVBRAIN_CHANNEL:-stable}}"
+case "$CHANNEL" in stable) HOMEDIR="$HOME/.devbrain" ;; beta) HOMEDIR="$HOME/.devbrain-beta" ;; *) echo "unknown channel: $CHANNEL" >&2; exit 1 ;; esac
+DIR="$HOMEDIR/src"
 
 say()  { printf '\033[1m→ %s\033[0m\n' "$*"; }
 fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
@@ -47,7 +51,7 @@ if [ -d "$DIR/.git" ]; then
   git -C "$DIR" pull --ff-only --quiet || fail "git pull failed in $DIR — fix and re-run."
 else
   say "Cloning $REPO into $DIR"
-  mkdir -p "$HOME/.devbrain"
+  mkdir -p "$HOMEDIR"
   git clone --depth 1 --quiet "https://github.com/$REPO.git" "$DIR" || fail "git clone failed."
 fi
 

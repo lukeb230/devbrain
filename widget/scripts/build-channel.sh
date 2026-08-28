@@ -7,6 +7,7 @@ set -eu
 CH="${1:-stable}"
 cd "$(dirname "$0")/.."
 ./scripts/fetch-node.sh
+[ -x node_modules/.bin/tauri ] || npm ci --no-audit --no-fund
 case "$CH" in
   stable) DEVBRAIN_CHANNEL=stable npm run tauri build -- --bundles app ;;
   beta)   DEVBRAIN_CHANNEL=beta npm run tauri build -- --bundles app \

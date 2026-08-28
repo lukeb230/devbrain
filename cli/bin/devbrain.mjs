@@ -37,7 +37,7 @@ import { createInterface } from "node:readline/promises";
 // The repo everything is installed from. When the repo goes private this is
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
 const SOURCE_REPO = "lukeb230/devbrain";
-const DEFAULT_SERVER = "https://devbrain.vercel.app";
+const DEFAULT_SERVER = "https://devbrain-seven.vercel.app";
 const MARKETPLACE = "devbrain-marketplace";
 const PLUGIN = "devbrain";
 

@@ -28,10 +28,10 @@ use tauri_plugin_opener::OpenerExt;
 mod notify;
 mod setup;
 
-const SITE: &str = "https://devbrain.vercel.app";
-const SITE_HOST: &str = "devbrain.vercel.app";
-const SITE_PANEL: &str = "https://devbrain.vercel.app/widget";
-const SITE_FULL: &str = "https://devbrain.vercel.app/dashboard";
+const SITE: &str = "https://devbrain-seven.vercel.app";
+const SITE_HOST: &str = "devbrain-seven.vercel.app";
+const SITE_PANEL: &str = "https://devbrain-seven.vercel.app/widget";
+const SITE_FULL: &str = "https://devbrain-seven.vercel.app/dashboard";
 
 const ZONE_HOT: f64 = 58.0; // expanded to show the badge
 const PANEL_W: f64 = 440.0;

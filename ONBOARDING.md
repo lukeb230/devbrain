@@ -5,7 +5,7 @@ team allowlist, Node 18+, and Claude Code installed.
 
 ## 1. Sign in to the dashboard
 
-Go to **https://devbrain.vercel.app** and sign in with GitHub.
+Go to **https://devbrain-seven.vercel.app** and sign in with GitHub.
 If it says you're not on the allowlist, ask your DevBrain admin to add your GitHub username.
 
 You'll land on the team dashboard — same org as everyone else: live presence,

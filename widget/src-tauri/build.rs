@@ -13,9 +13,10 @@ fn main() {
     // app command silently fails from the panel — assert it here so the two
     // can never drift.
     let site = std::env::var("DEVBRAIN_SITE")
-        .unwrap_or_else(|_| "https://devbrain-seven.vercel.app".into())
-        .trim_end_matches('/')
-        .to_string();
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty()) // an empty var (CI default, build-channel.sh) means "default"
+        .unwrap_or_else(|| "https://devbrain-seven.vercel.app".into());
     let remote = std::fs::read_to_string("capabilities/remote.json").expect("capabilities/remote.json");
     assert!(
         remote.contains(&format!("\"{site}\"")),

@@ -1,84 +1,104 @@
-# DevBrain — teammate onboarding
+# DevBrain — joining a team
 
-Ten minutes from zero to hive mind. You need: a GitHub account that's on the
-team allowlist, Node 18+, and Claude Code installed.
+About ten minutes. You need a GitHub account, Claude Code installed, and
+either an **invite link** from your team or the intention to create a team.
 
-## 1. Sign in to the dashboard
+## 1. Join (or create) the team
 
-Go to **https://devbrain-seven.vercel.app** and sign in with GitHub.
-If it says you're not on the allowlist, ask your DevBrain admin to add your GitHub username.
+- **Got an invite link?** Open it (`https://<devbrain-host>/join/…`) and sign
+  in with GitHub. You're in.
+- **No invite?** Open the DevBrain site, sign in with GitHub, and create a
+  team on the Welcome page. You become its owner; invite others from
+  **Settings → Members**.
 
-You'll land on the team dashboard — same org as everyone else: live presence,
-PRs, tasks, the brain.
+Roles: **owner** manages the team and roles · **admin** links repos, edits
+team rules, maps Reminders lists, mints invites · **member** does the
+everyday work (tasks, claims, handoffs, specs, their own tokens).
 
-## 2. Create your dev token
+## 2. Install the Mac app (that's the whole install)
 
-Dashboard → **Tokens** (top right) → label it after your machine
-(e.g. `maya-mbp`) → **Create token** → copy it immediately (shown once).
-
-## 3. Install the app (that's the whole install)
-
-Download **DevBrain.dmg** from the latest widget release
-(https://github.com/lukeb230/devbrain/releases/latest), drag DevBrain to
-Applications, and open it (first time: right-click → Open, it's not notarized).
-
-It's a menu-bar app — no Dock icon. Move your mouse into the bottom-right
-corner and click the brain, or press **Alt+Space**. Sign in with GitHub in
-the panel, then click **Set up this Mac**. That one click:
-
-- creates a dev token for this Mac (you never see or paste it)
-- installs the `devbrain` CLI, the Claude Code plugin, presence hooks and
-  the daily self-updater
-- asks macOS for **Notifications** and **Reminders** access — click Allow
-- starts syncing the shared Reminders list into the task board
-
-Nothing else to install: Node is bundled inside the app. Open a new
-terminal afterwards and run `devbrain doctor` — every line should be a
-check mark. Restart any open Claude Code session so it loads the plugin.
-
-Prefer a terminal? The one-liner still works (needs Node 18+ and git):
+Paste this in Terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
 ```
 
+It downloads the latest release, installs it to Applications and opens it.
+Nothing else to install — Node is bundled inside the app.
+
+It's a menu-bar app with no Dock icon. Move your mouse into the bottom-right
+corner and click the brain (or press **Alt+Space**). Click **Sign in** — your
+browser opens for GitHub and hands back to the app — then **Set up this Mac**.
+That one click:
+
+- creates a dev token for this Mac (you never see or paste it)
+- installs the `devbrain` CLI, the Claude Code plugin (presence hooks
+  included) and a daily self-updater
+- asks macOS for **Notifications** and **Reminders** access — click Allow
+- shows a ✓/✗ list per part; anything that failed says exactly why and how
+  to fix it, and **Re-run setup** lives in the app's Settings tab
+
+Then restart any open Claude Code session so it loads the plugin, and run
+`devbrain doctor` in a new terminal — every line should be a check mark.
+
+**Prefer the DMG?** Download `DevBrain.dmg` from the
+[latest release](https://github.com/lukeb230/devbrain/releases/latest) and
+drag it to Applications. The app isn't notarized yet, so macOS will say it is
+"damaged" (it isn't — it's unsigned). Fix, once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/DevBrain.app
+```
+
 ### Beta channel (optional)
 
-There is a second, independent install called **DevBrain Beta** — its own
-app (`DevBrain Beta.app`), command (`devbrain-beta`), config (`~/.devbrain-beta`)
-and Claude Code plugin (`devbrain-beta`). It can run side by side with the
-stable one; by default its corner badge sits in the opposite corner. Install
-it from `DevBrain-Beta.dmg` on the same release, or `install.sh beta`.
+**DevBrain Beta** is a second, independent install — its own app
+(`DevBrain Beta.app`), command (`devbrain-beta`), config (`~/.devbrain-beta`)
+and plugin (`devbrain-beta`). It runs side by side with stable; its badge
+defaults to the opposite corner. Install with
+`curl -fsSL …/install.sh | sh -s -- beta` or `DevBrain-Beta.dmg`
+(quarantine fix: `xattr -dr com.apple.quarantine "/Applications/DevBrain Beta.app"`).
 
 ### Staying current
 
-You don't do anything. Your admin pushes to `main`; your Mac pulls it on the next
-Claude Code session start (at most every 6 h) and daily via launchd — CLI,
-plugin, sync and the app itself. To force it: `devbrain update`.
+You don't do anything. Every Mac updates itself from the `main` branch on the
+next Claude Code session start (at most every 6 h) and daily via launchd —
+CLI, plugin and the app. To force it: `devbrain update`.
 
-## 4. Prove it works
+## 3. Prove it works
 
-Open a Claude Code session in any linked repo and ask:
-*"What's the team up to right now?"* — your Claude should answer from live
-DevBrain data. Meanwhile, everyone else's dashboard now shows YOU under
-"Now working."
+Open a Claude Code session in any linked repo and ask *"What's the team up to
+right now?"* — your Claude answers from live DevBrain data, and everyone
+else's dashboard shows you under "Now working".
 
 ## What you get from here on
 
 - Your Claude sees teammates' sessions, open PRs, collisions, decisions,
-  broadcasts, and the shared task board — live, every turn.
+  broadcasts and the shared task board — live, every turn.
 - It warns you before you edit a file someone else is on.
-- It follows the team rules (no direct commits to main, no self-approved
-  PRs, resolve conflicts before opening a PR, brain updates ride with
-  behavior changes).
-- Ask it "what should I work on next?" — it suggests from the task board by
-  priority and what you just touched, and checks tasks off when you finish.
+- It follows the team rules an admin toggles on the Rules tab.
+- Ask "what should I work on next?" — it suggests from the task board and
+  checks tasks off when you finish.
+- Session journals: what each session learned, tried and left unfinished is
+  searchable by the whole team (`search_team_memory`).
+
+## Terminal / headless install (no app)
+
+For a CI runner, a Linux box or a Mac without the app:
+
+1. Dashboard → **Settings → Tokens** → create a token (shown once).
+2. Either paste the one-line connect command the page shows, then
+   `curl -fsSL …/install.sh | sh -s -- --cli` (needs git + Node 18+), or
+   set `DEVBRAIN_URL` + `DEVBRAIN_TOKEN` in the environment — the plugin
+   hooks and MCP server read those when no config file exists.
 
 ## Security notes
 
 - Your dev token only lets your machine report presence and read team
-  context. It cannot touch code or infrastructure. Revoke it any time on the
-  Tokens page.
+  context. It cannot touch code or infrastructure. Revoke it any time on
+  Settings → Tokens; leaving a team revokes it automatically.
 - DevBrain's GitHub access is read-only. All code changes happen through
   your own git + PRs, reviewed by a teammate.
-- Never paste secrets into tasks, broadcasts, decisions, or `.brain/` docs.
+- Hook payloads carry file *paths* and redacted transcript excerpts — never
+  file contents. Never paste secrets into tasks, broadcasts, decisions or
+  `.brain/` docs.

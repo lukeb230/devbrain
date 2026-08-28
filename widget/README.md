@@ -1,56 +1,64 @@
-# DevBrain edge widget (Mac shell)
+# DevBrain Mac app (Tauri shell)
 
-The Grammarly-style shell: no Dock icon, a menu-bar icon up top, an
-invisible strip on the right edge of the screen — mouse over it, a
-"DevBrain" tab fades in, click it, and a panel slides out showing the live
-dashboard (opening on the last repo you worked in). Click anywhere else and
-it disappears. The panel is the live site, so every deploy updates the
-widget automatically — this app never needs rebuilding for features.
+An accessory app: no Dock icon, a menu-bar icon, and a hot zone in a bottom
+corner of the screen (right by default; beta defaults to left). Mouse into
+the corner → a round badge appears → click it (or press **Alt+Space**) and
+the panel opens showing the live site. Every deploy of the site updates the
+panel; the app itself only needs rebuilding for shell changes.
 
-## Build it (one time, on your Mac)
+The app is also the installer: on first run it signs you in through your
+browser, mints a device token and runs `devbrain bootstrap`, which installs
+the CLI, the Claude Code plugin and the daily updater. Node is bundled in
+`Contents/Resources/node`.
 
-Prerequisites (each is one command, skip any you have):
+## Build
 
-```bash
-xcode-select --install                                   # Apple build tools
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust
-```
-
-Then, in this folder:
+Prerequisites: `xcode-select --install` and Rust (`rustup`).
 
 ```bash
 npm install
-npm run tauri icon app-icon.png     # generates all icon sizes incl. .icns
-npm run tauri build
+./scripts/build-channel.sh stable    # → src-tauri/target/release/bundle/macos/DevBrain.app
+./scripts/build-channel.sh beta      # → …/DevBrain Beta.app
 ```
 
-The app lands at `src-tauri/target/release/bundle/macos/DevBrain.app`.
-Drag it to /Applications. First launch: right-click → Open (it's unsigned).
-It will vanish into the menu bar — that's success.
+`build-channel.sh` fetches the bundled Node first. The site the panel loads
+is baked in from `DEVBRAIN_SITE` (`DEVBRAIN_BETA_SITE` for beta); whatever
+you set must also be listed in `src-tauri/capabilities/remote.json` —
+`build.rs` refuses to build otherwise, because a mismatch silently breaks
+every app command from the panel.
 
-Tip: you can also just open a Claude Code session in this folder and say
-"build this Tauri app and tell me where the .app ended up."
+Local builds are unsigned and not quarantined, so they open normally. CI
+builds are ad-hoc signed; a browser download of one is quarantined and
+macOS calls it "damaged" — `install.sh` and `devbrain update` clear the flag,
+or run `xattr -dr com.apple.quarantine "/Applications/DevBrain.app"`.
+See `../docs/NOTARIZE.md` for proper signing.
 
-## Using it (v2 — corner badge)
+## Release
 
-- Mouse into the BOTTOM-RIGHT corner of the screen → a round DevBrain badge
-  pops in → click it → the panel opens out of that corner.
-- Click anywhere outside the panel to dismiss it.
-- Menu-bar icon: open panel, Reload panel (after site deploys), pin open,
-  Corner: Bottom Left / Bottom Right (remembered across restarts), launch at
-  login, open full dashboard, quit.
-- Sign in with GitHub inside the panel once; it remembers you.
+Bump `version` in `src-tauri/tauri.conf.json` and push. CI publishes
+`DevBrain.dmg`, `DevBrain-Beta.dmg`, `DevBrain.app.zip`, `DevBrain-Beta.app.zip`
+(+ `.sha256`) to release `widget-v<version>`; every Mac picks it up on its
+next `devbrain update`.
 
-## Dev mode (instant feedback while tweaking)
+## Using it
+
+- Tray menu: open panel · Reload panel · Pin panel open · Corner ·
+  Badge size · Launch at login · Open full dashboard · Quit.
+- Sign in: the panel opens your default browser for GitHub OAuth and returns
+  through the `devbrain://` (`devbrain-beta://`) URL scheme — Google/SSO-backed
+  GitHub accounts can't log in inside a webview. It remembers you.
+- Settings tab: notifications, team rules (admins), Reminders sync,
+  "Setup on this Mac" with Re-run.
+
+## Dev mode
 
 ```bash
 npm run tauri dev
 ```
 
-## Known rough edges (intentional, fix later)
+## Known rough edges
 
-- Clicking the panel focuses it (a future NSPanel refinement can make it
-  non-activating like Grammarly's).
-- Unsigned build → right-click → Open once per machine.
-- If your Dock covers the chosen corner, switch corners or enable Dock
-  auto-hide — the hot zone sits at the true screen corner.
+- Clicking the panel focuses it (an NSPanel refinement could make it
+  non-activating).
+- If the Dock covers the chosen corner, switch corners or auto-hide the
+  Dock — the hot zone sits at the true screen corner.

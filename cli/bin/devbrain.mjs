@@ -468,7 +468,8 @@ async function updateWidget() {
   const zip = join(tmp, CH.asset);
   writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
   // ditto preserves bundle metadata; xattr clears Gatekeeper quarantine so
-  // the ad-hoc-signed download is never refused as "damaged".
+  // the ad-hoc-signed download is never refused as "damaged" (see
+  // docs/NOTARIZE.md for the day this build gets a Developer ID).
   if (run("ditto", ["-x", "-k", zip, tmp]).status !== 0) return fail("widget_unzip", "unzip failed");
   const app = join(tmp, `${CH.appName}.app`);
   if (!existsSync(app)) return fail("widget_unzip", `zip did not contain ${CH.appName}.app`);

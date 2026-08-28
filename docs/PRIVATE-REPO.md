@@ -6,8 +6,8 @@ private. Nothing else in the system cares.
 
 | # | What | Where | Today | When private |
 |---|------|-------|-------|--------------|
-| 1 | Bootstrap script | `curl …/raw…/install.sh \| sh` (ONBOARDING.md) | anonymous raw URL | raw URLs 404 on private repos |
-| 2 | Source checkout | `git clone` / `git pull` of `~/.devbrain/src` (install.sh, `updateSource()` in `cli/bin/devbrain.mjs`) | anonymous HTTPS | needs a git credential |
+| 1 | Installer script | `curl …/raw…/install.sh \| sh` (ONBOARDING.md) — also downloads the release zip (#4) | anonymous raw URL | raw URLs 404 on private repos |
+| 2 | Source checkout | tarball of main from `codeload.github.com` (`fetch_source()` in the app, `updateSource()` in `cli/bin/devbrain.mjs`); `install.sh --cli` uses `git clone` | anonymous HTTPS | needs a token / git credential |
 | 3 | Claude Code plugin | `claude plugin marketplace add lukeb230/devbrain` (`updatePlugin()`) | anonymous | Claude Code clones the marketplace with the user's git credentials — works if #2 works |
 | 4 | Widget download | `https://github.com/…/releases/download/widget-vX/DevBrain.app.zip` (`updateWidget()`) | anonymous | release assets on private repos require a token; the browser-style URL redirects to a login page |
 
@@ -22,9 +22,11 @@ brew install gh && gh auth login        # once per Mac; pick HTTPS + "authentica
 
 Then:
 
-1. **Bootstrap**: replace the raw-URL curl in ONBOARDING.md with
-   `gh repo clone lukeb230/devbrain ~/.devbrain/src && ~/.devbrain/src/install.sh`
-   (install.sh already handles an existing checkout).
+1. **Installer**: the primary path is the release zip (browser downloads of
+   private-repo assets need a login). Replace the raw-URL curl in
+   ONBOARDING.md with `gh release download --repo lukeb230/devbrain --pattern DevBrain.app.zip`
+   + the same unzip/xattr/copy steps `install.sh` does, or serve `install.sh`
+   from the DevBrain site itself.
 2. **Checkout**: `gh auth login` with "authenticate git" installs a credential
    helper, so the existing `git clone` / `git pull` in `install.sh` and
    `updateSource()` keep working unchanged.

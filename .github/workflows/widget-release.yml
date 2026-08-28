@@ -11,10 +11,16 @@ name: Widget release
 # release. To ship: edit widget/**, bump "version" in tauri.conf.json, push.
 # Unbumped versions build as a check only.
 #
-# The .app is unsigned (no Apple Developer ID yet). The updater strips the
-# quarantine flag after download, so Gatekeeper's "unidentified developer"
-# dialog does not appear. Adding signing/notarization later only touches this
-# file. See docs/PRIVATE-REPO.md for what changes when the repo goes private.
+# The .app is AD-HOC signed (codesign -s -; no Apple Developer ID, not
+# notarized). Consequences, stated honestly:
+#   - install.sh and `devbrain update` strip the quarantine flag after
+#     downloading, so THOSE paths never see a Gatekeeper dialog.
+#   - a DMG/zip downloaded in a browser IS quarantined, and current macOS
+#     refuses an ad-hoc-signed quarantined app as "damaged" (there is no
+#     right-click → Open escape hatch for that dialog). The fix is one line:
+#       xattr -dr com.apple.quarantine "/Applications/DevBrain.app"
+# Signing + notarization is a ready-to-run checklist in docs/NOTARIZE.md and
+# only touches this file. See docs/PRIVATE-REPO.md for the private-repo day.
 
 on:
   push:
@@ -114,6 +120,15 @@ jobs:
           gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
               --title "DevBrain widget ${{ steps.ver.outputs.version }}" \
-              --notes "Built from ${GITHUB_SHA::7}. New teammate: download DevBrain.dmg (or DevBrain-Beta.dmg for the beta channel), drag to Applications, open, sign in, click Set up. Existing Macs update automatically." || true
+              --notes "Built from ${GITHUB_SHA::7}.
+
+New Mac — paste in Terminal (installs the app, no other prerequisites):
+    curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh
+(beta channel: append \`| sh -s -- beta\` instead of \`| sh\`)
+
+Prefer the DMG? Drag DevBrain to Applications; macOS will call the unsigned app 'damaged' until you run:
+    xattr -dr com.apple.quarantine /Applications/DevBrain.app
+
+Then: click the brain in the bottom corner (or Alt+Space) → Sign in (browser) → Set up this Mac. Existing Macs update automatically." || true
           gh release upload "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --clobber \
             "$ASSET.app.zip" "$ASSET.app.zip.sha256" "$ASSET.dmg"

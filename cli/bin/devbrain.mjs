@@ -311,7 +311,9 @@ function updatePlugin() {
   CLAUDE = findClaude();
   if (!CLAUDE) return "claude CLI not found (PATH, ~/.local/bin, ~/.claude/local, app bundle) — skipped";
   const mp = claude(["plugin", "marketplace", "list"]);
-  if (!(mp.stdout + mp.stderr).includes(MARKETPLACE)) {
+  // Exact-name match: "devbrain" must not be satisfied by "devbrain-marketplace".
+  const haveMarketplace = new RegExp(`^\\s*(?:❯\\s*)?${MARKETPLACE}\\s*$`, "m").test(mp.stdout + mp.stderr);
+  if (!haveMarketplace) {
     const a = claude(["plugin", "marketplace", "add", SOURCE_REPO]);
     if (a.status !== 0) return `marketplace add failed: ${(a.stderr || a.stdout).trim().split("\n").pop()}`;
   } else {

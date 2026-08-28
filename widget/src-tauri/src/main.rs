@@ -28,8 +28,7 @@ use tauri_plugin_opener::OpenerExt;
 mod notify;
 mod setup;
 
-#[allow(dead_code)]
-const SITE: &str = "https://devbrain-seven.vercel.app";
+pub const SITE: &str = "https://devbrain-seven.vercel.app";
 const SITE_HOST: &str = "devbrain-seven.vercel.app";
 const SITE_PANEL: &str = "https://devbrain-seven.vercel.app/widget";
 const SITE_FULL: &str = "https://devbrain-seven.vercel.app/dashboard";
@@ -342,12 +341,13 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now])
+        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -449,6 +449,19 @@ fn main() {
             place_badge(app.handle());
             place_panel(app.handle());
             setup::spawn_collector(app.handle().clone());
+
+            // devbrain[-beta]://login?token=… from the browser sign-in handoff.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let h = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    setup::handle_deep_link(&h, &event.urls());
+                });
+                // Launched by the URL (app wasn't running yet)?
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    setup::handle_deep_link(app.handle(), &urls);
+                }
+            }
             // --- attention state from the panel ---------------------------
             // The panel is authenticated and knows what needs the user; it
             // emits {level, reason}. The badge window listens for the same

@@ -11,6 +11,6 @@ cd "$(dirname "$0")/.."
 case "$CH" in
   stable) DEVBRAIN_CHANNEL=stable npm run tauri build -- --bundles app ;;
   beta)   DEVBRAIN_CHANNEL=beta npm run tauri build -- --bundles app \
-            --config '{"productName":"DevBrain Beta","identifier":"app.devbrain.desktop.beta"}' ;;
+            --config '{"productName":"DevBrain Beta","identifier":"app.devbrain.desktop.beta","plugins":{"deep-link":{"desktop":{"schemes":["devbrain-beta"]}}}}' ;;
   *) echo "unknown channel: $CH" >&2; exit 1 ;;
 esac

@@ -24,6 +24,7 @@ fn main() {
                 "setup_state",
                 "bootstrap",
                 "run_collector_now",
+                "start_browser_login",
             ]),
         ),
     )

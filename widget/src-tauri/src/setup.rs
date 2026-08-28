@@ -262,3 +262,31 @@ pub fn spawn_collector(app: AppHandle) {
         }
     });
 }
+
+/// Sign-in handoff, step 1: open the site's device-login page in the user's
+/// real browser (already logged in to GitHub there). It comes back through
+/// the app's URL scheme — see `handle_deep_link`.
+#[tauri::command]
+pub fn start_browser_login(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = format!("{}/auth/device/start?channel={}", crate::SITE, CHANNEL);
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Sign-in handoff, step 2: `devbrain[-beta]://login?token=…` arrives from
+/// the browser; load the site's device-login route INSIDE the panel so the
+/// session lands in the panel's cookie jar, then show the panel.
+pub fn handle_deep_link(app: &AppHandle, urls: &[tauri::Url]) {
+    for u in urls {
+        if u.host_str() != Some("login") {
+            continue;
+        }
+        let Some(token) = u.query_pairs().find(|(k, _)| k == "token").map(|(_, v)| v.into_owned()) else { continue };
+        if let Some(panel) = app.get_webview_window("panel") {
+            let target = format!("{}/auth/device?token={}", crate::SITE, token);
+            let _ = panel.eval(&format!("window.location.replace({:?})", target));
+            let _ = panel.show();
+            let _ = panel.set_focus();
+        }
+    }
+}

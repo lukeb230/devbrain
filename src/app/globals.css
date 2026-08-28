@@ -33,3 +33,78 @@
 .brain-prose pre code { @apply bg-transparent p-0; }
 .brain-prose strong { @apply text-slate-900; }
 .brain-prose a { @apply text-brand-600 hover:underline; }
+
+/* ============================================================================
+   Desktop panel — "instrument" theme, scoped to .wg (src/app/widget/layout.tsx).
+   The panel is a readout floating over the desktop: ink ground, one warm
+   accent (the brain), status carried by a left stripe. Everything below only
+   applies inside the panel; the dashboard keeps its light theme.
+   The utility remaps let shared components (task menu, PR badges, activity
+   feed, brain explorer) take the palette without a fork.
+   ========================================================================= */
+.wg { background: theme(colors.ink); color: theme(colors.txt); color-scheme: dark; min-height: 100vh; }
+.wg .bg-slate-50, .wg .bg-white { background-color: theme(colors.row); }
+.wg .bg-slate-100, .wg .bg-slate-200, .wg .bg-slate-900 { background-color: theme(colors.row2); }
+.wg .bg-slate-800 { background-color: theme(colors.line2); }
+.wg .hover\:bg-slate-50:hover, .wg .hover\:bg-slate-100:hover, .wg .group:hover .group-hover\:bg-slate-50, .wg .hover\:bg-slate-200:hover { background-color: theme(colors.row2); }
+.wg .text-slate-900, .wg .text-slate-800, .wg .text-slate-700, .wg .hover\:text-slate-900:hover, .wg .hover\:text-slate-700:hover, .wg .group:hover .group-hover\:text-slate-600 { color: theme(colors.txt); }
+.wg .text-slate-600, .wg .text-slate-500 { color: theme(colors.muted); }
+.wg .text-slate-400, .wg .text-slate-300 { color: theme(colors.faint); }
+.wg .text-white { color: #fff; }
+.wg .border-slate-100, .wg .border-slate-200, .wg .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: theme(colors.line); }
+.wg .border-slate-300, .wg .hover\:border-slate-300:hover { border-color: theme(colors.line2); }
+.wg .ring-slate-200 { --tw-ring-color: theme(colors.line2); }
+.wg .bg-brand-50 { background-color: #3a1f22; }
+.wg .text-brand-700, .wg .hover\:text-brand-600:hover { color: theme(colors.brand.400); }
+.wg .bg-emerald-50 { background-color: #17301f; } .wg .text-emerald-700, .wg .text-emerald-600 { color: theme(colors.go); }
+.wg .bg-amber-50 { background-color: #3a2c12; } .wg .text-amber-700, .wg .text-amber-800 { color: theme(colors.wait); } .wg .border-amber-200, .wg .border-l-amber-400 { border-color: #5a4320; }
+.wg .bg-red-50 { background-color: #3d1c1e; } .wg .text-red-700, .wg .text-red-800, .wg .text-red-600 { color: theme(colors.stop); } .wg .border-red-200 { border-color: #5a2a2d; }
+.wg .bg-violet-50 { background-color: #2a2340; } .wg .text-violet-700 { color: #b9a8ff; }
+.wg .bg-emerald-500, .wg .bg-emerald-400 { background-color: theme(colors.go); } .wg .bg-amber-400, .wg .bg-amber-500 { background-color: theme(colors.wait); } .wg .bg-red-500 { background-color: theme(colors.stop); }
+.wg .shadow, .wg .shadow-card { box-shadow: none; }
+.wg .card { background: transparent; border: 1px solid theme(colors.line); border-radius: 10px; box-shadow: none; }
+.wg .card-title { color: theme(colors.brand.400); font-family: theme(fontFamily.display); letter-spacing: .12em; }
+.wg input, .wg select, .wg textarea { background: theme(colors.ink); color: theme(colors.txt); border-color: theme(colors.line2) !important; }
+.wg input::placeholder, .wg textarea::placeholder { color: theme(colors.faint); }
+.wg input:focus, .wg select:focus, .wg textarea:focus { border-color: theme(colors.brand.500) !important; }
+.wg input[type="checkbox"] { accent-color: theme(colors.brand.500); }
+.wg code, .wg .font-mono, .wg .tabular-nums { font-family: theme(fontFamily.mono); }
+.wg .brain-prose code { background: theme(colors.row2); color: theme(colors.txt); }
+.wg .brain-prose pre { background: theme(colors.row); border-color: theme(colors.line); }
+/* Type scale: the old 10/11/12px tiers move up half a step each; mono stays small. */
+.wg .text-xs { font-size: 12.5px; line-height: 1.35; }
+.wg .text-\[11px\] { font-size: 11.5px; } .wg .text-\[10px\] { font-size: 11px; } .wg .text-\[9px\] { font-size: 10px; }
+.wg .text-sm { font-size: 13.5px; }
+/* Section head + status rows (the signature list treatment) */
+.wg-sec { display: flex; align-items: baseline; gap: 8px; padding: 0 14px 5px; font-family: theme(fontFamily.display); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: theme(colors.brand.400); }
+.wg-sec .n { font-family: theme(fontFamily.mono); font-size: 11px; color: theme(colors.muted); letter-spacing: 0; text-transform: none; font-weight: 400; }
+.wg-sec .r { margin-left: auto; font-family: theme(fontFamily.mono); font-size: 10px; color: theme(colors.faint); letter-spacing: 0; text-transform: none; font-weight: 400; }
+.wg-row { display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 11px; border-left: 3px solid transparent; font-size: 12.5px; line-height: 1.35; animation: wg-up .35s ease both; }
+.wg-row + .wg-row { border-top: 1px solid theme(colors.line); }
+.wg-row:hover { background: theme(colors.row); }
+.wg-row.go { border-left-color: theme(colors.go); } .wg-row.wait { border-left-color: theme(colors.wait); } .wg-row.stop { border-left-color: theme(colors.stop); } .wg-row.me { border-left-color: theme(colors.brand.500); }
+.wg-row .k { min-width: 0; flex: 1; }
+.wg-row .t { color: theme(colors.txt); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wg-row .s { color: theme(colors.muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.wg-row .m { font-family: theme(fontFamily.mono); font-size: 11px; color: theme(colors.faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wg-mono { font-family: theme(fontFamily.mono); font-size: 11px; color: #b8bfcf; }
+.wg-av { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font: 600 10px theme(fontFamily.display); background: theme(colors.row2); color: theme(colors.txt); border: 1px solid theme(colors.line2); flex-shrink: 0; }
+.wg-av.me { background: #3a1f22; color: theme(colors.brand.400); border-color: #5a2e31; }
+.wg-pill { font-family: theme(fontFamily.mono); font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid theme(colors.line2); color: theme(colors.muted); white-space: nowrap; }
+.wg-pill.go { color: theme(colors.go); border-color: #2a4a38; } .wg-pill.wait { color: theme(colors.wait); border-color: #4a3d21; } .wg-pill.stop { color: theme(colors.stop); border-color: #4d2628; }
+.wg-empty { padding: 4px 14px 6px; color: theme(colors.faint); font-size: 12px; }
+.wg-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 3px; border-radius: 9px; color: theme(colors.faint); font-family: theme(fontFamily.display); font-size: 10.5px; font-weight: 600; letter-spacing: .02em; }
+.wg-tab:hover { color: theme(colors.muted); }
+.wg-tab.on { color: theme(colors.brand.400); }
+.wg-tab.on > span { position: relative; }
+.wg-tab.on > span::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 14px; height: 2px; background: theme(colors.brand.500); transform: translateX(-50%); border-radius: 2px; }
+@keyframes wg-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.wg-trace { fill: none; stroke: theme(colors.brand.500); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 900; stroke-dashoffset: 900; animation: wg-draw 1.1s cubic-bezier(.4,0,.2,1) .15s forwards; }
+@keyframes wg-draw { to { stroke-dashoffset: 0; } }
+.wg-trace-fill { opacity: 0; animation: wg-fade .6s ease 1s forwards; }
+@keyframes wg-fade { to { opacity: 1; } }
+.wg-live { width: 6px; height: 6px; border-radius: 50%; background: theme(colors.go); box-shadow: 0 0 8px theme(colors.go); animation: wg-blink 2.4s ease-in-out infinite; display: inline-block; }
+@keyframes wg-blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .wg-row, .wg-trace, .wg-trace-fill, .wg-live { animation: none; stroke-dashoffset: 0; opacity: 1; }
+}

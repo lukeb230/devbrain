@@ -10,6 +10,7 @@ import { dismissAlert } from "../settings/org/alert-actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { TaskBody } from "@/components/TaskBody";
 import { BrainMark } from "@/components/BrainMark";
+import { Pulse } from "./pulse";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
 import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
@@ -502,8 +503,12 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     if (!skipped) return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} onDone={() => window.location.reload()} />;
   }
 
+  const initials = (name: string) => name.split(/[\s'’-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+  const isMe = (name: string | null | undefined) => Boolean(data.self && name && name.toLowerCase() === data.self.toLowerCase());
+  const hourAgo = Date.now() - 3600_000;
+  const peopleLastHour = new Set(data.activity.filter((a) => new Date(a.at).getTime() > hourAgo).map((a) => a.dev_label ?? "")).size;
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
+    <div className="flex h-screen flex-col bg-ink text-txt">
       <WidgetBadge
         input={{
           self: data.self,
@@ -524,11 +529,12 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           review_state: p.review_state,
         }))}
       />
-      {/* Header */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
-        <span className="flex items-center gap-1.5">
-          <BrainMark size={18} id="wg" className="flex-shrink-0 text-brand-600" />
-          <span className="text-sm font-semibold text-slate-900">DevBrain</span>
+      {/* Header — wordmark, live dot, scope, gear. No border: the pulse strip
+          below it is the divider. */}
+      <div className="flex flex-shrink-0 items-center justify-between px-3.5 pb-1 pt-3">
+        <span className="flex items-center gap-2">
+          <BrainMark size={20} id="wg" className="flex-shrink-0 drop-shadow-[0_0_6px_rgba(232,128,120,0.35)]" />
+          <span className="font-display text-[15px] font-semibold tracking-tight text-txt">DevBrain</span>
           <WidgetLive />
         </span>
         <span className="flex items-center gap-1.5">
@@ -542,7 +548,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               }}
               title="Scope — filters everything in the widget to one repo"
               className={
-                "max-w-[130px] truncate rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-700 focus:border-brand-500 focus:outline-none " +
+                "max-w-[150px] truncate rounded-md border border-line2 bg-row2 px-2 py-1 font-mono text-[11px] text-txt focus:border-brand-500 focus:outline-none " +
                 (switching ? "opacity-50" : "")
               }
             >
@@ -557,11 +563,11 @@ export function WidgetApp({ data }: { data: WidgetData }) {
             aria-label="Settings"
             title="Settings"
             className={
-              "rounded-md p-1 " +
-              (tab === "Settings" ? "bg-brand-50 text-brand-700" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700")
+              "rounded-md p-1.5 " +
+              (tab === "Settings" ? "bg-brand-50 text-brand-400" : "text-muted hover:bg-row2 hover:text-txt")
             }
           >
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
@@ -569,8 +575,16 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         </span>
       </div>
 
+      <Pulse
+        activity={data.activity}
+        events={[...data.feed.map((f) => ({ at: f.at, kind: f.kind })), ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" }))]}
+        collision={data.collisions.length > 0}
+        people={peopleLastHour}
+        prEvents={data.prs.length}
+      />
+
       {/* Content */}
-      <div className={"min-h-0 flex-1 px-3 py-2.5 " + (tab === "Home" ? "overflow-hidden" : "overflow-y-auto")}>
+      <div className={"min-h-0 flex-1 " + (tab === "Home" ? "overflow-y-auto" : "overflow-y-auto px-3 py-2.5")}>
         {tab === "Settings" && (
           <div className="space-y-2.5">
             {setup && <SetupCard state={setup} />}
@@ -741,59 +755,16 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         )}
 
         {tab === "Home" && (
-          <div className="flex h-full flex-col gap-2.5">
-            {data.collisions.length > 0 && (
-              <div className="card flex-shrink-0 border-l-4 border-l-amber-400 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Collisions</div>
-                {data.collisions.slice(0, 2).map((c) => (
-                  <div key={c.repo + c.file} className="truncate text-xs text-slate-700">
-                    <code className="text-amber-800">{c.file}</code>
-                    <span className="text-slate-400"> · {c.branches.join(" + ")}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Always visible — an empty lanes card is information too. */}
-            <div className="card flex-shrink-0 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Claimed lanes</div>
-                {data.claims.length === 0 && (
-                  <p className="text-xs text-slate-400">
-                    None active. Start a task (Tasks tab) or claim an area (Settings).
-                  </p>
-                )}
-                {data.claims.slice(0, 3).map((c) => (
-                  <div key={c.id} className="flex items-center gap-1.5 text-xs text-slate-700">
-                    <span className="font-medium">{c.dev_label}</span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {c.paths.slice(0, 2).map((p) => (
-                        <code key={p} className="mr-1 rounded bg-slate-100 px-1 text-[10px] text-slate-600">{p}</code>
-                      ))}
-                      {c.note && <span className="text-[10px] text-slate-400">{c.note}</span>}
-                    </span>
-                    {c.expires_at && (
-                      <span className="flex-shrink-0 text-[10px] text-slate-400">
-                        {Math.max(1, Math.round((new Date(c.expires_at).getTime() - Date.now()) / 3600_000))}h
-                      </span>
-                    )}
-                    <form action={releaseClaim} className="flex-shrink-0">
-                      <input type="hidden" name="repoId" value={c.repo_id} />
-                      <input type="hidden" name="id" value={c.id} />
-                      <button className="text-[10px] text-slate-400 hover:text-brand-600">release</button>
-                    </form>
-                  </div>
-                ))}
-            </div>
-
+          <div className="flex flex-col pb-2">
             {data.notice && (
-              <div className="flex-shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+              <div className="mx-3.5 mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
                 {data.notice === "owner_only" ? "Only the team owner can do that." : "Only team admins and owners can do that."}
               </div>
             )}
             {(data.alerts ?? []).length > 0 && (
-              <div className="flex-shrink-0 space-y-1">
+              <div className="mx-3.5 mt-2 space-y-1">
                 {data.alerts.map((a) => (
-                  <div key={a.id} className={"flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[11px] " + (a.severity === "error" ? "border-red-200 bg-red-50 text-red-800" : a.severity === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-700")}>
+                  <div key={a.id} className={"flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[11px] " + (a.severity === "error" ? "border-red-200 bg-red-50 text-red-800" : a.severity === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-line bg-row text-txt")}>
                     <span className="min-w-0 flex-1 truncate font-medium">{a.title}{a.count > 1 ? ` (×${a.count})` : ""}</span>
                     <form action={dismissAlert}>
                       <input type="hidden" name="id" value={a.id} />
@@ -805,68 +776,122 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               </div>
             )}
 
-            {data.handoffs.length > 0 && (
-              <div className="card flex-shrink-0 border-l-4 border-l-brand-400 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-700">Unfinished — resume?</div>
-                {data.handoffs.slice(0, 2).map((h) => (
-                  <div key={h.id} className="truncate text-xs text-slate-700">
-                    <span className="font-medium">{h.summary}</span>
-                    <span className="text-slate-400"> · {h.by} · {h.repo} · {timeAgo(h.at)}</span>
+            {data.collisions.length > 0 && (
+              <section className="mt-2.5">
+                <h2 className="wg-sec">Collision <span className="n">{data.collisions.length}</span><span className="r">{data.collisions[0].branches.length} branches</span></h2>
+                {data.collisions.slice(0, 3).map((c) => (
+                  <div key={c.repo + c.file} className="wg-row stop">
+                    <div className="k"><div className="t"><span className="wg-mono">{c.file}</span></div><div className="s">{c.branches.join(" + ")}{data.scopeAll ? ` · ${c.repo}` : ""}</div></div>
+                    <span className="wg-pill stop">contested</span>
                   </div>
                 ))}
-              </div>
+              </section>
             )}
 
-            <div className="card flex-shrink-0 px-2.5 py-2">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Now working</div>
+            <section className="mt-2.5">
+              <h2 className="wg-sec">Now working <span className="n">{data.sessions.length}</span></h2>
               {data.sessions.length === 0 ? (
-                <p className="text-xs text-slate-400">Nobody active right now.</p>
+                <p className="wg-empty">Nobody active right now.</p>
               ) : (
-                <ul className="space-y-1">
-                  {data.sessions.slice(0, 4).map((s) => (
-                    <li key={s.id} className="flex items-start gap-1.5 text-xs leading-snug">
-                      <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-emerald-500" />
-                      <span className="min-w-0">
-                        <span className="font-medium text-slate-900">{s.dev_label}</span>
-                        <span className="text-slate-400"> · {s.repo} · {timeAgo(s.last_seen)}</span>
-                        {s.summary && <span className="block truncate text-brand-600">{s.summary}</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                data.sessions.slice(0, 5).map((s) => (
+                  <div key={s.id} className={"wg-row " + (isMe(s.dev_label) ? "me" : "")}>
+                    <span className={"wg-av " + (isMe(s.dev_label) ? "me" : "")}>{initials(s.dev_label)}</span>
+                    <div className="k">
+                      <div className="t">{s.dev_label}{data.scopeAll ? <span className="wg-mono"> · {s.repo}</span> : null}</div>
+                      <div className="s">{s.summary || "working"}</div>
+                    </div>
+                    <span className="m">{isMe(s.dev_label) ? "you" : timeAgo(s.last_seen)}</span>
+                  </div>
+                ))
               )}
-            </div>
+            </section>
 
-            <div className="card min-h-0 flex-1 overflow-hidden px-2.5 py-2">
-              <div className="mb-1 flex items-baseline justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">To-dos</span>
-                <button onClick={() => setTab("Tasks")} className="text-[10px] text-slate-400 hover:text-brand-600">
-                  all ({open.length})
-                </button>
-              </div>
-              {open.length === 0 ? (
-                <p className="text-xs text-slate-400">Nothing open. Nice.</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {open.slice(0, 7).map((t) => <TaskRow key={t.id} t={t} compact />)}
-                </ul>
-              )}
-            </div>
+            {data.prs.length > 0 && (
+              <section className="mt-2.5">
+                <h2 className="wg-sec">Pull requests <span className="n">{data.prs.length}</span>{data.conflicted > 0 && <span className="r text-stop">{data.conflicted} conflicted</span>}</h2>
+                {data.prs.slice(0, 4).map((pr) => {
+                  const st = pr.mergeable_state === "dirty" ? "stop" : pr.light?.state === "green" ? "go" : pr.light?.state === "amber" || pr.light?.state === "red" ? "wait" : "";
+                  return (
+                    <a key={pr.repo_id + pr.number} href={pr.html_url ?? "#"} target="_blank" className={"wg-row " + st}>
+                      <div className="k">
+                        <div className="t"><span className="wg-mono">#{pr.number}</span> {pr.title}</div>
+                        <div className="s">{pr.author}{pr.review_state ? ` · ${pr.review_state.replace("_", " ")}` : ""}{pr.light?.reason ? ` · ${pr.light.reason}` : ""}</div>
+                      </div>
+                      {st && <span className={"wg-pill " + st}>{st === "go" ? "cleared" : st === "stop" ? "conflicts" : "waiting"}</span>}
+                    </a>
+                  );
+                })}
+                {data.prs.length > 4 && <button onClick={() => setTab("PRs")} className="wg-empty text-left text-brand-400">all {data.prs.length} →</button>}
+              </section>
+            )}
 
-            <div className="flex flex-shrink-0 gap-1.5 text-center">
-              {[
-                { label: "PRs", value: data.prs.length, warn: false, go: "PRs" as Tab },
-                { label: "Conflicts", value: data.conflicted, warn: data.conflicted > 0, go: "PRs" as Tab },
-                { label: "Collisions", value: data.collisions.length, warn: data.collisions.length > 0, go: "Home" as Tab },
-              ].map((s) => (
-                <button key={s.label} onClick={() => setTab(s.go)} className="card flex-1 px-2 py-1 hover:border-brand-300">
-                  <span className={"block text-base font-semibold tabular-nums " + (s.warn ? "text-red-600" : "text-slate-900")}>
-                    {s.value}
-                  </span>
-                  <span className="block text-[9px] font-medium uppercase tracking-wide text-slate-400">{s.label}</span>
-                </button>
+            {data.handoffs.length > 0 && (
+              <section className="mt-2.5">
+                <h2 className="wg-sec">Handoff <span className="n">{data.handoffs.length}</span></h2>
+                {data.handoffs.slice(0, 2).map((h) => (
+                  <div key={h.id} className="wg-row wait">
+                    <span className="wg-av">{initials(h.by ?? "?")}</span>
+                    <div className="k">
+                      <div className="t">{h.by} left work{h.branch ? <span className="wg-mono"> on {h.branch}</span> : null}</div>
+                      <div className="s">{h.summary}{h.remaining ? ` — ${h.remaining}` : ""}</div>
+                    </div>
+                    <span className="m">{timeAgo(h.at)}</span>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="mt-2.5">
+              <h2 className="wg-sec">Claimed lanes <span className="n">{data.claims.length}</span></h2>
+              {data.claims.length === 0 && <p className="wg-empty">None. Start a task, or claim an area in Settings.</p>}
+              {data.claims.slice(0, 3).map((c) => (
+                <div key={c.id} className={"wg-row " + (isMe(c.dev_label) ? "me" : "")}>
+                  <span className={"wg-av " + (isMe(c.dev_label) ? "me" : "")}>{initials(c.dev_label)}</span>
+                  <div className="k">
+                    <div className="t">{c.dev_label}{c.note ? <span className="font-normal text-muted"> — {c.note}</span> : null}</div>
+                    <div className="s">{c.paths.slice(0, 3).map((p) => <span key={p} className="wg-mono mr-1.5">{p}</span>)}</div>
+                  </div>
+                  {c.expires_at && <span className="m">{Math.max(1, Math.round((new Date(c.expires_at).getTime() - Date.now()) / 3600_000))}h</span>}
+                  <form action={releaseClaim} className="flex-shrink-0">
+                    <input type="hidden" name="repoId" value={c.repo_id} />
+                    <input type="hidden" name="id" value={c.id} />
+                    <button className="text-[10px] text-faint hover:text-brand-400">release</button>
+                  </form>
+                </div>
               ))}
-            </div>
+            </section>
+
+            <section className="mt-2.5">
+              <h2 className="wg-sec">Top tasks <span className="n">{open.length} open</span><button onClick={() => setTab("Tasks")} className="r hover:text-brand-400">all →</button></h2>
+              {open.length === 0 ? (
+                <p className="wg-empty">Nothing open. Nice.</p>
+              ) : (
+                open.slice(0, 6).map((t) => (
+                  <div key={t.id} className={"wg-row " + (t.priority === 1 ? "stop" : isMe(t.assigned_to) ? "me" : "")}>
+                    <form action={completeTask} className="flex-shrink-0">
+                      <input type="hidden" name="repoId" value={t.repo_id} />
+                      <input type="hidden" name="id" value={t.id} />
+                      <button title="Mark complete" className="block h-3.5 w-3.5 rounded border border-line2 hover:border-brand-500" />
+                    </form>
+                    <span className={"font-mono text-[10px] " + (t.priority === 1 ? "text-stop" : t.priority === 2 ? "text-wait" : "text-faint")}>P{t.priority}</span>
+                    <div className="k">
+                      <div className="t">{t.title}</div>
+                      <div className="s">{t.assigned_to ? (isMe(t.assigned_to) ? "assigned to you" : t.assigned_to) : "unassigned"}{t.started_by ? ` · started by ${t.started_by}` : ""}{t.tags.length ? ` · ${t.tags.join(", ")}` : ""}</div>
+                    </div>
+                    <span className="m">{timeAgo(t.created_at)}</span>
+                  </div>
+                ))
+              )}
+            </section>
+
+            {data.feed.length > 0 && (
+              <section className="mt-2.5">
+                <h2 className="wg-sec">Decided <span className="n">{data.feed.filter((f) => f.kind === "decision").length}</span><button onClick={() => setTab("Feed")} className="r hover:text-brand-400">feed →</button></h2>
+                {data.feed.slice(0, 2).map((d, i) => (
+                  <p key={i} className="wg-empty"><span className="text-muted">{d.text}</span> <span className="font-mono text-[10px]">— {d.by ?? "?"}, {timeAgo(d.at)}</span></p>
+                ))}
+              </section>
+            )}
           </div>
         )}
 
@@ -1254,35 +1279,17 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         )}
       </div>
 
-      {/* Bottom tab bar — icons only; the active tab takes the accent colour
-          and a soft tint pill. Labels stay as aria-label/title. */}
-      <div className="flex flex-shrink-0 items-stretch border-t border-slate-200 bg-white px-1 py-1.5">
+      {/* Bottom tab bar — icon + label; the active tab takes the accent and a
+          short underline. */}
+      <div className="flex flex-shrink-0 items-stretch gap-0.5 border-t border-line bg-ink px-2.5 pb-2 pt-1.5">
         {TABS.map((t) => {
           const active = tab === t;
+          const attention = t === "Tasks" ? open.some((x) => x.priority === 1 && isMe(x.assigned_to)) : t === "PRs" ? data.conflicted > 0 : false;
           return (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              aria-label={t}
-              aria-current={active ? "page" : undefined}
-              className="group relative flex flex-1 items-center justify-center py-1"
-            >
-              <span
-                className={
-                  "flex h-8 w-11 items-center justify-center rounded-lg transition-colors " +
-                  (active ? "bg-brand-50 text-brand-600" : "text-slate-400 group-hover:bg-slate-50 group-hover:text-slate-600")
-                }
-              >
-                <TabIcon tab={t} active={active} />
-              </span>
-              {/* Delayed label: appears after a deliberate hover (1.2s), gone
-                  instantly on leave — no native title tooltip. */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 rounded-md bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 shadow transition-opacity duration-150 group-hover:opacity-100 group-hover:[transition-delay:1200ms]"
-              >
-                {t}
-              </span>
+            <button key={t} onClick={() => setTab(t)} aria-label={t} aria-current={active ? "page" : undefined} className={"wg-tab relative " + (active ? "on" : "")}>
+              <TabIcon tab={t} active={active} />
+              <span>{t}</span>
+              {attention && !active && <i className="absolute right-3 top-1.5 h-1.5 w-1.5 rounded-full bg-wait" />}
             </button>
           );
         })}

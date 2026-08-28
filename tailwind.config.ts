@@ -9,6 +9,10 @@ const config: Config = {
       colors: {
         // Coral, sampled from the brain mark (#e88078 = brand-500). Hand-tuned
         // so the deeper steps stay coral rather than sliding into error red.
+        // Widget "instrument" palette (scoped to the desktop panel via .wg).
+        ink: "#0f1420", row: "#151b28", row2: "#1a2130", line: "#242c3c", line2: "#2e3748",
+        txt: "#ece7de", muted: "#8a92a6", faint: "#5d6579",
+        go: "#5ad18e", wait: "#f0b652", stop: "#ff5a5f",
         brand: {
           50: "#fdf1ef",
           100: "#fadfdb",
@@ -21,6 +25,11 @@ const config: Config = {
           800: "#9c3d36",
           900: "#7a2f2a",
         },
+      },
+      fontFamily: {
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        body: ["var(--font-body)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "Menlo", "monospace"],
       },
       boxShadow: {
         card: "0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)",

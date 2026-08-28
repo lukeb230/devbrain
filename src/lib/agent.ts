@@ -50,12 +50,33 @@ async function reserve(orgId: string | undefined): Promise<void> {
   const { supabaseAdmin } = await import("@/lib/supabase/server");
   const { data, error } = await supabaseAdmin().rpc("ai_reserve", { p_org: orgId });
   if (error) throw new Error(`ai_reserve: ${error.message}`);
-  if (data !== true) throw new AiCapExceeded(orgId);
+  if (data !== true) {
+    const { alert } = await import("@/lib/alerts");
+    await alert({ scope: { orgId }, key: `ai.cap.${new Date().toISOString().slice(0, 10)}`, severity: "warn", title: "AI budget for today is spent", detail: "Reviews, journals and digests pause until 00:00 UTC. Presence, collisions and merge lights keep running. Raise the cap on Settings → Team if this happens often." });
+    throw new AiCapExceeded(orgId);
+  }
 }
 async function record(orgId: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined) {
   if (!orgId || !usage) return;
   const { supabaseAdmin } = await import("@/lib/supabase/server");
   await supabaseAdmin().rpc("ai_record", { p_org: orgId, p_in: usage.input_tokens ?? 0, p_out: usage.output_tokens ?? 0 });
+}
+
+// Provider trouble is an ops matter: one alert per status class, resolved on
+// the next success.
+async function providerFailed(status: number, detail: string) {
+  sawProviderFailure = true;
+  const { alert } = await import("@/lib/alerts");
+  const cls = status === 401 || status === 403 ? "auth" : status === 429 ? "ratelimit" : status >= 500 ? "outage" : `http${status}`;
+  const title = cls === "auth" ? "Anthropic API key rejected" : cls === "ratelimit" ? "Anthropic rate limit hit" : cls === "outage" ? "Anthropic API errors (5xx)" : `Anthropic HTTP ${status}`;
+  await alert({ scope: "ops", key: `anthropic.${cls}`, title, detail: detail.slice(0, 300), severity: cls === "ratelimit" ? "warn" : "error" });
+}
+let sawProviderFailure = false;
+async function providerOk() {
+  if (!sawProviderFailure) return; // cheap path: nothing to close
+  sawProviderFailure = false;
+  const { resolve } = await import("@/lib/alerts");
+  for (const k of ["auth", "ratelimit", "outage"]) await resolve("ops", `anthropic.${k}`);
 }
 
 /** Minimal Messages API caller — plain fetch, no SDK dependency. */
@@ -87,10 +108,12 @@ export async function askClaude(
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    await providerFailed(res.status, detail);
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
   const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
   await record(orgId, data.usage);
+  await providerOk();
   const text = (data.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")
@@ -124,6 +147,7 @@ export async function askClaudeBlocks(
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    await providerFailed(res.status, detail);
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
   const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };

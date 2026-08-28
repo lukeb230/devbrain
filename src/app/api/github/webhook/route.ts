@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { alert } from "@/lib/alerts";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { changedFiles, prChangedFiles, prMergeableState, verifyWebhook } from "@/lib/github";
 
@@ -11,6 +12,9 @@ async function logError(admin: Admin, orgId: string | null, repoId: string | nul
       kind: "error",
       payload: { where, message: String((err as Error)?.message || err) },
     });
+    const message = String((err as Error)?.message || err).slice(0, 300);
+    await alert({ scope: "ops", key: `webhook.${where.split(":")[0]}`, title: `GitHub webhook handler failing (${where})`, detail: message });
+    if (orgId) await alert({ scope: { orgId }, key: `webhook.${where.split(":")[0]}`, severity: "warn", title: `GitHub sync hiccup (${where.split(":")[0]})`, detail: message });
   } catch { /* last resort: swallow */ }
 }
 
@@ -75,7 +79,8 @@ export async function POST(request: Request) {
         }
         for (const r of payload.repositories_removed ?? []) {
           // Removed from the installation on GitHub → soft unlink (history kept).
-          await admin.from("linked_repos").update({ unlinked_at: new Date().toISOString() }).eq("github_repo_id", r.id);
+          const { data: gone } = await admin.from("linked_repos").update({ unlinked_at: new Date().toISOString() }).eq("github_repo_id", r.id).select("org_id, full_name").maybeSingle();
+          if (gone) await alert({ scope: { orgId: gone.org_id }, key: `repo.removed.${gone.full_name}`, severity: "warn", title: `${gone.full_name} was removed from the GitHub App`, detail: "DevBrain unlinked it (history kept). Reinstall the app on the repo to relink." });
         }
         break;
       }

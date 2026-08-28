@@ -7,7 +7,8 @@ import { teamMembers } from "@/lib/members";
 import { computeMergePlan } from "@/lib/merge-order";
 import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { computeLights } from "@/lib/traffic";
-import { currentOrg } from "@/lib/org";
+import { currentOrg, hasRole } from "@/lib/org";
+import { openAlerts } from "@/lib/alerts";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
@@ -301,6 +302,7 @@ export default async function WidgetPage() {
     rules,
     self,
     repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id), full_name: r.full_name })),
+    alerts: hasRole(org.role, "admin") ? (await openAlerts(org.orgId)).map((a) => ({ id: a.id, severity: a.severity, title: a.title, count: a.count })) : [],
     scopeAll,
     digest: (() => {
       // Digests are per-repo. Scoped → that repo's; All repos → the newest,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { AlertBanner } from "@/components/AlertBanner";
 import { AppNav } from "@/components/AppNav";
 import { PrBadges } from "@/components/PrBadges";
 import { currentOrg } from "@/lib/org";
@@ -98,6 +99,7 @@ export default async function DashboardPage({
         }))}
       />
       <main className="mx-auto max-w-[1440px] px-6 py-6">
+        <AlertBanner org={org} />
         {(justUnlinked || justDeleted) && (
           <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
             {justDeleted ? `Deleted ${justDeleted} and everything under it.` : `Unlinked ${justUnlinked} — history kept. Reinstall the GitHub App on it to relink.`}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AiCapExceeded, DIGEST_SYSTEM, FOOTPRINT_SYSTEM, JOURNAL_SYSTEM, MATCH_SYSTEM, REVIEW_SYSTEM, SPEC_ASSESS_SYSTEM, SPEC_EXTRACT_SYSTEM, agentConfigured, agentModel, askClaude, extractJson, prDiff } from "@/lib/agent";
+import { alert, resolve } from "@/lib/alerts";
 import { cachedBrainDocs } from "@/lib/brain-cache";
 import { mergePrAsWriter, writerConfigured } from "@/lib/github-writer";
 import { installationOctokit } from "@/lib/github";
@@ -905,6 +906,17 @@ export async function POST(request: Request) {
 
   // Heartbeat — `devbrain doctor` and /api/v1/health read this to prove the
   // cron schedule is alive (it lives in Supabase, not in a migration).
+  // Alerting: every *_error key this tick opens/bumps an ops alert; units
+  // that ran clean close theirs. Budget-exhausted is a team notice, not an
+  // ops failure.
+  for (const unit of ["review", "automatch", "spec", "footprint", "zombie", "journal", "memory", "digest", "lights"]) {
+    const msg = did[`${unit}_error`];
+    if (typeof msg === "string" && !/ai cap reached/.test(msg)) {
+      await alert({ scope: "ops", key: `tick.${unit}`, title: `Tick unit "${unit}" failing`, detail: msg });
+    } else if (!off.has(unit)) {
+      await resolve("ops", `tick.${unit}`);
+    }
+  }
   await admin.from("system_state").upsert({ key: "last_tick", value: did, updated_at: new Date().toISOString() });
   await admin.from("system_state").upsert({ key: "tick:served", value: served, updated_at: new Date().toISOString() });
 

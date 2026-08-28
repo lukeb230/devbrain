@@ -652,6 +652,12 @@ if (cmd === "doctor") {
         const h = await res.json();
         if (h.ok) ok("agent tick alive", `last run ${h.tick.age_s}s ago${h.agent_configured ? "" : " (no ANTHROPIC_API_KEY — AI units idle)"}`);
         else bad("agent tick", h.tick.last_at ? `last heartbeat ${h.tick.age_s}s ago — check the pg_cron job (supabase/cron/agent-tick.sql)` : "never ran — schedule it with supabase/cron/agent-tick.sql");
+        if (h.alerts) {
+          const a = h.alerts;
+          const where = [a.ops_channel ? "ops webhook" : null, a.team_channels ? `${a.team_channels} team webhook${a.team_channels === 1 ? "" : "s"}` : null, a.watchdog ? "watchdog" : null].filter(Boolean).join(", ") || "in-app only";
+          if (a.team_open > 0) bad("alerts", `${a.team_open} open for your team — see the dashboard banner (delivery: ${where})`);
+          else ok("alerts", `none open for your team (delivery: ${where})`);
+        }
       }
     } catch { bad("agent tick", "health check failed"); }
   }

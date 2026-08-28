@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { mintDeviceToken, setWidgetRepo } from "./actions";
+import { dismissAlert } from "../settings/org/alert-actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { TaskBody } from "@/components/TaskBody";
 import { BrainMark } from "@/components/BrainMark";
@@ -41,6 +42,7 @@ export interface WidgetData {
   feed: { kind: string; text: string; by: string | null; at: string }[];
   journals: { id: string; repo: string; by: string; branch: string | null; summary: string; learned: string[]; tried_and_failed: string[]; remaining: string | null; at: string }[];
   handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
+  alerts: { id: string; severity: string; title: string; count: number }[];
   activity: ActivityRow[];
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
   lastRepo: { id: string; name: string } | null;
@@ -642,6 +644,20 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   </div>
                 ))}
             </div>
+
+            {(data.alerts ?? []).length > 0 && (
+              <div className="flex-shrink-0 space-y-1">
+                {data.alerts.map((a) => (
+                  <div key={a.id} className={"flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[11px] " + (a.severity === "error" ? "border-red-200 bg-red-50 text-red-800" : a.severity === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-700")}>
+                    <span className="min-w-0 flex-1 truncate font-medium">{a.title}{a.count > 1 ? ` (×${a.count})` : ""}</span>
+                    <form action={dismissAlert}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button className="opacity-70 hover:opacity-100">dismiss</button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {data.handoffs.length > 0 && (
               <div className="card flex-shrink-0 border-l-4 border-l-brand-400 px-2.5 py-1.5">

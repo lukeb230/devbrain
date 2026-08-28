@@ -18,6 +18,13 @@ export async function GET(request: Request) {
 
   const admin = supabaseAdmin();
   const { data } = await admin.from("system_state").select("value, updated_at").eq("key", "last_tick").maybeSingle();
+  const [{ count: opsOpen }, { count: orgOpen }, { count: opsChannels }, { count: orgChannels }, { data: wd }] = await Promise.all([
+    admin.from("alert_log").select("id", { count: "exact", head: true }).is("org_id", null).is("resolved_at", null),
+    admin.from("alert_log").select("id", { count: "exact", head: true }).eq("org_id", auth.org_id).is("resolved_at", null),
+    admin.from("alert_channels").select("id", { count: "exact", head: true }).is("org_id", null).eq("enabled", true),
+    admin.from("alert_channels").select("id", { count: "exact", head: true }).eq("org_id", auth.org_id).eq("enabled", true),
+    admin.from("system_state").select("value").eq("key", "ops_webhook").maybeSingle(),
+  ]);
   const at = data?.updated_at ? new Date(data.updated_at) : null;
   const age_s = at ? Math.round((Date.now() - at.getTime()) / 1000) : null;
 
@@ -30,5 +37,12 @@ export async function GET(request: Request) {
       last_result: data?.value ?? null,
     },
     agent_configured: Boolean(process.env.ANTHROPIC_API_KEY),
+    alerts: {
+      ops_open: opsOpen ?? 0,
+      team_open: orgOpen ?? 0,
+      ops_channel: Boolean(process.env.DEVBRAIN_OPS_WEBHOOK) || (opsChannels ?? 0) > 0,
+      team_channels: orgChannels ?? 0,
+      watchdog: Boolean((wd?.value as { url?: string } | null)?.url),
+    },
   });
 }

@@ -7,6 +7,7 @@ import { teamMembers } from "@/lib/members";
 import { computeMergePlan } from "@/lib/merge-order";
 import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { computeLights } from "@/lib/traffic";
+import { COOKIE } from "@/lib/cookies";
 import { currentOrg, hasRole } from "@/lib/org";
 import { openAlerts } from "@/lib/alerts";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -23,16 +24,17 @@ function esc(s: string) {
   return s.replace(/</g, "&lt;");
 }
 
-export default async function WidgetPage() {
+export default async function WidgetPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error: notice } = await searchParams;
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/?from=widget");
   const org = await currentOrg();
-  if (!org) redirect("/welcome");
+  if (!org) redirect("/welcome?from=widget");
 
-  const lastRepoId = (await cookies()).get("devbrain_last_repo")?.value ?? null;
+  const lastRepoId = (await cookies()).get(COOKIE.lastRepo)?.value ?? null;
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
@@ -303,6 +305,8 @@ export default async function WidgetPage() {
     self,
     repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id), full_name: r.full_name })),
     alerts: hasRole(org.role, "admin") ? (await openAlerts(org.orgId)).map((a) => ({ id: a.id, severity: a.severity, title: a.title, count: a.count })) : [],
+    canAdmin: hasRole(org.role, "admin"),
+    notice: notice ?? null,
     scopeAll,
     digest: (() => {
       // Digests are per-repo. Scoped → that repo's; All repos → the newest,

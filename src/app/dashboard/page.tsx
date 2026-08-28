@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { AlertBanner } from "@/components/AlertBanner";
 import { AppNav } from "@/components/AppNav";
+import { Notice } from "@/components/Notice";
 import { PrBadges } from "@/components/PrBadges";
-import { currentOrg } from "@/lib/org";
+import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { LiveAll } from "./live-all";
 
@@ -25,9 +26,9 @@ function timeAgo(iso: string) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ unlinked?: string; deleted?: string }>;
+  searchParams: Promise<{ unlinked?: string; deleted?: string; error?: string }>;
 }) {
-  const { unlinked: justUnlinked, deleted: justDeleted } = await searchParams;
+  const { unlinked: justUnlinked, deleted: justDeleted, error } = await searchParams;
   const supabase = await supabaseServer();
   const {
     data: { user },
@@ -100,6 +101,7 @@ export default async function DashboardPage({
       />
       <main className="mx-auto max-w-[1440px] px-6 py-6">
         <AlertBanner org={org} />
+        <Notice error={error} />
         {(justUnlinked || justDeleted) && (
           <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
             {justDeleted ? `Deleted ${justDeleted} and everything under it.` : `Unlinked ${justUnlinked} — history kept. Reinstall the GitHub App on it to relink.`}
@@ -114,7 +116,11 @@ export default async function DashboardPage({
           <section className="card mb-6 border-brand-200 card-pad">
             <div className="card-title mb-1 text-brand-700">Get {org.orgName} running</div>
             <ol className="mt-2 grid gap-3 text-sm text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
-              <li className="rounded-md border border-slate-200 p-3"><b>1. Link a repo.</b> <a href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain"}/installations/new`} className="text-brand-600 hover:underline">Install the GitHub App</a> on the repos your team works in.</li>
+              <li className="rounded-md border border-slate-200 p-3"><b>1. Link a repo.</b>{" "}
+                {hasRole(org.role, "admin")
+                  ? <><a href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain"}/installations/new`} className="text-brand-600 hover:underline">Install the GitHub App</a> on the repos your team works in.</>
+                  : <>Ask a team admin to install the GitHub App on the repos your team works in.</>}
+              </li>
               <li className="rounded-md border border-slate-200 p-3"><b>2. Install the Mac app.</b> It sets up the Claude Code plugin and the CLI on first run — see <Link href="/settings/setup" className="text-brand-600 hover:underline">Setup</Link>.</li>
               <li className="rounded-md border border-slate-200 p-3"><b>3. Invite your team.</b> Mint a link on <Link href="/settings/members" className="text-brand-600 hover:underline">Members</Link>; they sign in with GitHub and repeat step 2.</li>
               <li className="rounded-md border border-slate-200 p-3"><b>4. Work.</b> Presence, collisions, tasks, reviews and journals fill in as sessions run.</li>

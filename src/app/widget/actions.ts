@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { COOKIE, LAST_REPO_COOKIE_OPTS } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
@@ -24,17 +25,14 @@ export async function setWidgetRepo(repoId: string): Promise<void> {
     if (!user) return;
     const { data: repo } = await supabase
       .from("linked_repos")
-      .select("id")
+      .select("id, org_id")
       .eq("id", id)
       .single();
-    if (!repo) return;
+    const org = await currentOrg();
+    if (!repo || !org || repo.org_id !== org.orgId) return;
   }
 
-  (await cookies()).set("devbrain_last_repo", id, {
-    maxAge: 60 * 60 * 24 * 90,
-    sameSite: "lax",
-    path: "/",
-  });
+  (await cookies()).set(COOKIE.lastRepo, id, LAST_REPO_COOKIE_OPTS);
   revalidatePath("/widget");
 }
 
@@ -50,7 +48,7 @@ export async function mintDeviceToken(labelRaw: string): Promise<{ token: string
   if (!user) return { error: "not signed in" };
   const admin = supabaseAdmin();
   const ctx = await currentOrg();
-  if (!ctx) return { error: "not a member of any team yet — finish setup in the browser first" };
+  if (!ctx) return { error: "not a member of any team yet — create or join one first" };
   const membership = { org_id: ctx.orgId };
   const label = String(labelRaw || "").trim().slice(0, 60) || "devbrain-app";
   const token = "dbk_" + randomBytes(24).toString("hex");

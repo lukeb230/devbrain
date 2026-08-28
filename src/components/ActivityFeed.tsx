@@ -3,7 +3,7 @@
 //
 // Raw activity rows are one-file-per-row (perfect for Claudes, noise for
 // humans). This groups them into work entries: one line per person + task
-// phrase — "Luke — adding light/dark mode · 6 files · 2m ago" — with the
+// phrase — "maya — adding light/dark mode · 6 files · 2m ago" — with the
 // exact files tucked behind a click (native <details>, zero JS, so it
 // server-renders and stays live via the realtime refresh).
 //

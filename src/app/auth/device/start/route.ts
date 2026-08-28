@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
+import { COOKIE, NEXT_COOKIE_OPTS } from "@/lib/cookies";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
 
@@ -30,8 +31,17 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${url.origin}/?from=widget&next=${encodeURIComponent(self)}`);
   }
 
-  const token = "dbd_" + randomBytes(24).toString("hex");
+  // Signed in but on no team yet: create/join one first (full-size, in the
+  // browser), then come back here — the cookie remembers this destination.
   const admin = supabaseAdmin();
+  const { count } = await admin.from("org_members").select("org_id", { count: "exact", head: true }).eq("user_id", user.id);
+  if (!count) {
+    const res = NextResponse.redirect(`${url.origin}/welcome`);
+    res.cookies.set(COOKIE.next, self, NEXT_COOKIE_OPTS);
+    return res;
+  }
+
+  const token = "dbd_" + randomBytes(24).toString("hex");
   const { error } = await admin.from("device_logins").insert({
     user_id: user.id,
     token_hash: hashToken(token),

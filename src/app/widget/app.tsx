@@ -43,6 +43,8 @@ export interface WidgetData {
   journals: { id: string; repo: string; by: string; branch: string | null; summary: string; learned: string[]; tried_and_failed: string[]; remaining: string | null; at: string }[];
   handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
   alerts: { id: string; severity: string; title: string; count: number }[];
+  canAdmin: boolean;          // owner/admin of the active org — gates rule toggles + reminders mapping
+  notice: string | null;      // ?error= code after a refused action (see Notice)
   activity: ActivityRow[];
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
   lastRepo: { id: string; name: string } | null;
@@ -125,7 +127,7 @@ interface SetupState {
   reminders: { list: string; repo: string }[];
 }
 
-function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: WidgetData["repos"]; onDone: () => void }) {
+function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; repos: WidgetData["repos"]; canAdmin: boolean; onDone: () => void }) {
   const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
   const [syncReminders, setSyncReminders] = useState(true);
   const [list, setList] = useState("");
@@ -189,13 +191,13 @@ function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: Widge
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         <p className="text-xs leading-relaxed text-slate-600">
-          One click installs the Claude Code plugin, the CLI, presence hooks, the daily updater and — if you want — Reminders sync.
+          One click installs the CLI, the Claude Code plugin (presence hooks included), the daily updater and — if you want — Reminders sync.
           macOS will ask for two permissions along the way (Notifications, Reminders). Nothing else to install
           {state.node_ok ? " — Node is bundled with the app." : "."}
         </p>
         {!state.node_ok && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-            Bundled Node isn&apos;t runnable ({state.node}). This build may be incomplete — tell Luke.
+            Bundled Node isn&apos;t runnable ({state.node}). This build may be incomplete — re-download the latest release, or tell your team admin.
           </div>
         )}
         <label className="block text-xs">
@@ -207,7 +209,12 @@ function SetupScreen({ state, repos, onDone }: { state: SetupState; repos: Widge
           <input type="checkbox" checked={syncReminders} onChange={(e) => setSyncReminders(e.target.checked)} disabled={busy} />
           Sync the team&apos;s shared Apple Reminders lists from this Mac
         </label>
-        {syncReminders && (
+        {syncReminders && !canAdmin && (
+          <div className="ml-5 text-[11px] text-slate-500">
+            Which lists feed which repos is set by a team admin on Settings → Reminders; this Mac syncs whatever they map.
+          </div>
+        )}
+        {syncReminders && canAdmin && (
           <div className="ml-5 grid grid-cols-2 gap-2">
             <div className="col-span-2 text-[11px] text-slate-500">
               Which lists feed which repos is set once for the whole team on Settings → Reminders. Optionally map the first one here:
@@ -369,7 +376,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const done = data.tasks.filter((t) => t.status === "done").slice(0, 5);
 
   if (setup && !setup.configured) {
-    return <SetupScreen state={setup} repos={data.repos} onDone={() => window.location.reload()} />;
+    return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} onDone={() => window.location.reload()} />;
   }
 
   return (
@@ -568,19 +575,28 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   {data.rules.map((r) => (
                     <li key={r.rule} className="flex items-center justify-between gap-2">
                       <span className="min-w-0 text-xs text-slate-800">{r.label}</span>
-                      <form action={toggleRule} className="flex-shrink-0">
-                        <input type="hidden" name="repoId" value={data.lastRepo!.id} />
-                        <input type="hidden" name="rule" value={r.rule} />
-                        <input type="hidden" name="enabled" value={String(!r.on)} />
-                        <button aria-label={r.on ? "Turn off" : "Turn on"}>
+                      {data.canAdmin ? (
+                        <form action={toggleRule} className="flex-shrink-0">
+                          <input type="hidden" name="repoId" value={data.lastRepo!.id} />
+                          <input type="hidden" name="rule" value={r.rule} />
+                          <input type="hidden" name="enabled" value={String(!r.on)} />
+                          <input type="hidden" name="stay" value="1" />
+                          <button aria-label={r.on ? "Turn off" : "Turn on"}>
+                            <Switch on={r.on} small />
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="flex-shrink-0 opacity-50" title="Admins only">
                           <Switch on={r.on} small />
-                        </button>
-                      </form>
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
                 <p className="mt-1.5 text-[10px] leading-snug text-slate-400">
-                  Rules apply to every Claude working in this repo. Full details on the dashboard Rules tab.
+                  {data.canAdmin
+                    ? "Rules apply to every Claude working in this repo. Full details on the dashboard Rules tab."
+                    : "Only team admins can change rules. Full details on the dashboard Rules tab."}
                 </p>
               </div>
             )}
@@ -645,6 +661,11 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 ))}
             </div>
 
+            {data.notice && (
+              <div className="flex-shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                {data.notice === "owner_only" ? "Only the team owner can do that." : "Only team admins and owners can do that."}
+              </div>
+            )}
             {(data.alerts ?? []).length > 0 && (
               <div className="flex-shrink-0 space-y-1">
                 {data.alerts.map((a) => (
@@ -652,6 +673,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                     <span className="min-w-0 flex-1 truncate font-medium">{a.title}{a.count > 1 ? ` (×${a.count})` : ""}</span>
                     <form action={dismissAlert}>
                       <input type="hidden" name="id" value={a.id} />
+                      <input type="hidden" name="stay" value="1" />
                       <button className="opacity-70 hover:opacity-100">dismiss</button>
                     </form>
                   </div>

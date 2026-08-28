@@ -1,5 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { COOKIE, ORG_COOKIE_OPTS } from "@/lib/cookies";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // ============================================================================
@@ -10,7 +12,8 @@ import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 // "org_members … limit(1)" on its own.
 // ============================================================================
 
-export const ORG_COOKIE = "devbrain_org";
+export const ORG_COOKIE = COOKIE.org;
+export { ORG_COOKIE_OPTS };
 export type Role = "owner" | "admin" | "member";
 const RANK: Record<Role, number> = { owner: 3, admin: 2, member: 1 };
 
@@ -36,7 +39,7 @@ export const currentOrg = cache(async (): Promise<OrgContext | null> => {
     .eq("user_id", user.id)
     .order("created_at");
   if (!rows || rows.length === 0) return null;
-  const wanted = (await cookies()).get(ORG_COOKIE)?.value;
+  const wanted = (await cookies()).get(COOKIE.org)?.value;
   const pick = rows.find((r) => r.org_id === wanted) ?? rows[0];
   const org = pick.orgs as unknown as { name: string; slug: string } | null;
   const m = (user.user_metadata ?? {}) as Record<string, unknown>;
@@ -68,4 +71,22 @@ export async function requireRole(min: Role): Promise<OrgContext | null> {
   return ctx && hasRole(ctx.role, min) ? ctx : null;
 }
 
-export const ORG_COOKIE_OPTS = { maxAge: 60 * 60 * 24 * 365, sameSite: "lax" as const, path: "/" };
+// ---- "not allowed" for plain <form action> server actions -------------------
+// Actions can't return a message to a server-component form, so a refused
+// call sends the user back where they were with ?error=<code>; pages render
+// it through <Notice>. Same convention as ?unlinked= / ?invite_error=.
+export type DeniedCode = "admin_only" | "owner_only" | "link_repo_admin";
+
+export function withError(path: string, code: DeniedCode): string {
+  return `${path}${path.includes("?") ? "&" : "?"}error=${code}`;
+}
+
+/** currentOrg() or redirect back with ?error=. Never call inside try/catch —
+ *  redirect() works by throwing. */
+export async function requireRoleOrRedirect(min: Role, returnTo: string): Promise<OrgContext> {
+  const ctx = await currentOrg();
+  if (!ctx) redirect("/welcome");
+  if (!hasRole(ctx.role, min)) redirect(withError(returnTo, min === "owner" ? "owner_only" : "admin_only"));
+  return ctx;
+}
+

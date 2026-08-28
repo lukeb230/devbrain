@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BrainMark } from "@/components/BrainMark";
-import { currentOrg } from "@/lib/org";
+import { currentOrg, hasRole } from "@/lib/org";
 import { switchOrg } from "@/app/settings/org/actions";
 
 // Global top bar — wordmark, contextual tabs, account actions. Rendered on
@@ -64,12 +64,14 @@ export async function AppNav({
 
         <div className="ml-auto flex flex-shrink-0 items-center gap-3 text-sm sm:gap-4">
           {live}
-          <a
-            href={`https://github.com/apps/${appSlug}/installations/new`}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            Link repo
-          </a>
+          {org && hasRole(org.role, "admin") && (
+            <a
+              href={`https://github.com/apps/${appSlug}/installations/new`}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              Link repo
+            </a>
+          )}
           <Link href="/settings/setup" className="text-slate-500 hover:text-slate-900">
             Setup
           </Link>

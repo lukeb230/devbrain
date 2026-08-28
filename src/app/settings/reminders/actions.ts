@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/org";
+import { requireRoleOrRedirect } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // Settings → Reminders: map an Apple Reminders list to a linked repo, or
@@ -10,12 +10,7 @@ import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 async function member() {
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const ctx = await requireRole("admin");
-  if (!ctx) return null;
+  const ctx = await requireRoleOrRedirect("admin", "/settings/reminders");
   return { supabase, orgId: ctx.orgId, label: ctx.login };
 }
 

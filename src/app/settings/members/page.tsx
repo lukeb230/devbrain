@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { Notice } from "@/components/Notice";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { createInvite, removeMember, revokeInvite, setRole } from "./actions";
@@ -18,7 +19,8 @@ function timeAgo(iso: string) {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
-export default async function MembersPage() {
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const me = await currentOrg();
   if (!me) redirect("/welcome");
   const isOwner = hasRole(me.role, "owner");
@@ -46,6 +48,7 @@ export default async function MembersPage() {
         <p className="mb-5 mt-1 max-w-xl text-sm text-slate-500">
           Invite links add people to this team with one click. They sign in with GitHub, install the DevBrain app, and they&apos;re in.
         </p>
+        <Notice error={error} />
 
         <section className="card mb-6">
           <ul className="divide-y divide-slate-100">
@@ -133,7 +136,7 @@ export default async function MembersPage() {
         </section>
 
         <p className="text-xs text-slate-500">
-          Roles: <b>owner</b> manages roles, members and the team itself; <b>admin</b> also mints invites, maps Reminders and unlinks repos; <b>member</b> does everything else.
+          Roles: <b>owner</b> manages roles, members and the team itself; <b>admin</b> also mints invites, links and unlinks repos, edits team rules, connects the writer app and maps Reminders; <b>member</b> does everything else — tasks, claims, handoffs, specs, their own tokens.
         </p>
       </main>
     </>

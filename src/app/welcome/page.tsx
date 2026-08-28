@@ -6,26 +6,30 @@ import { createTeam, useInvite } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-// Landing for a signed-in user with no team yet. Also where a bad invite
-// link ends up, with the reason.
+// Landing for a signed-in user with no team yet — in the browser, or inside
+// the 440px desktop panel (?from=widget: compact layout, forms return to
+// /widget). Also where a bad invite link ends up, with the reason.
 
-export default async function WelcomePage({ searchParams }: { searchParams: Promise<{ invite_error?: string }> }) {
+export default async function WelcomePage({ searchParams }: { searchParams: Promise<{ invite_error?: string; from?: string }> }) {
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { invite_error } = await searchParams;
+  const { invite_error, from } = await searchParams;
+  const inPanel = from === "widget";
   const ctx = await currentOrg();
   const m = (user.user_metadata ?? {}) as Record<string, unknown>;
   const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "there");
+  const input = "min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none";
+  const row = inPanel ? "flex flex-col gap-2" : "flex gap-2";
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-6 py-12">
+    <main className={inPanel ? "mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 px-4 py-6" : "mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-6 py-12"}>
       <div className="text-center">
-        <BrainMark size={48} id="welcome" className="mx-auto mb-3 text-brand-600" title="DevBrain" />
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Hi {login}</h1>
-        <p className="mt-2 text-slate-600">
+        <BrainMark size={inPanel ? 32 : 48} id="welcome" className="mx-auto mb-3 text-brand-600" title="DevBrain" />
+        <h1 className={(inPanel ? "text-lg" : "text-2xl") + " font-semibold tracking-tight text-slate-900"}>Hi {login}</h1>
+        <p className={"mt-2 text-slate-600" + (inPanel ? " text-sm" : "")}>
           {ctx ? "Create another team, or join one with an invite link." : "You're signed in. Now you need a team — create one, or join with an invite link from a teammate."}
         </p>
       </div>
@@ -37,8 +41,9 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
       <section className="card card-pad">
         <h2 className="font-semibold text-slate-900">Create a team</h2>
         <p className="mb-3 mt-1 text-sm text-slate-500">You&apos;ll be its owner. Link repos and invite people next.</p>
-        <form action={createTeam} className="flex gap-2">
-          <input name="name" required maxLength={60} placeholder="Team name" className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+        <form action={createTeam} className={row}>
+          {inPanel && <input type="hidden" name="next" value="/widget" />}
+          <input name="name" required maxLength={60} placeholder="Team name" className={input} />
           <button className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">Create team</button>
         </form>
       </section>
@@ -46,15 +51,21 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
       <section className="card card-pad">
         <h2 className="font-semibold text-slate-900">Join with an invite</h2>
         <p className="mb-3 mt-1 text-sm text-slate-500">Paste the link a teammate sent you.</p>
-        <form action={useInvite} className="flex gap-2">
-          <input name="invite" required placeholder="https://…/join/…" className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+        <form action={useInvite} className={row}>
+          {inPanel && <input type="hidden" name="next" value="/widget" />}
+          <input name="invite" required placeholder="https://…/join/…" className={input} />
           <button className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Join</button>
         </form>
       </section>
 
-      {ctx && (
+      {ctx && !inPanel && (
         <p className="text-center text-sm text-slate-500">
           <a href="/dashboard" className="text-brand-600 hover:underline">Back to {ctx.orgName}</a>
+        </p>
+      )}
+      {ctx && inPanel && (
+        <p className="text-center text-sm text-slate-500">
+          <a href="/widget" className="text-brand-600 hover:underline">Back to {ctx.orgName}</a>
         </p>
       )}
       <form action="/auth/sign-out" method="post" className="text-center">

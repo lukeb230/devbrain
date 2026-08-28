@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireRoleOrRedirect, withError } from "@/lib/org";
 import { findWriterInstallation } from "@/lib/github-writer";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
@@ -11,17 +13,17 @@ export async function connectWriter(formData: FormData): Promise<void> {
   const repoId = String(formData.get("repoId") || "");
   if (!repoId) return;
 
+  // Attaches a write-capable GitHub App to the repo: admins and owners only.
+  const returnTo = `/dashboard/${repoId}/rules`;
+  const me = await requireRoleOrRedirect("admin", returnTo);
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
   const { data: repo } = await supabase
     .from("linked_repos")
     .select("id, org_id, full_name")
     .eq("id", repoId)
     .single();
   if (!repo) return;
+  if (repo.org_id !== me.orgId) redirect(withError(returnTo, "admin_only"));
 
   const installationId = await findWriterInstallation(repo.full_name);
   const admin = supabaseAdmin();
@@ -38,7 +40,7 @@ export async function connectWriter(formData: FormData): Promise<void> {
       text: installationId
         ? `Writer app connected to ${repo.full_name} (installation ${installationId})`
         : `Writer app not found on ${repo.full_name} — install it first, then reconnect`,
-      by: user.email ?? user.id,
+      by: me.login,
     },
   });
   revalidatePath(`/dashboard/${repoId}/rules`);

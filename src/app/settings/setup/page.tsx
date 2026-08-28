@@ -1,6 +1,8 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { COOKIE } from "@/lib/cookies";
+import { currentOrg } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { createToken } from "../tokens/actions";
 
@@ -8,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 // Self-checking setup page. Every step detects its own completion from
 // DevBrain's own data, so a new teammate can drive their whole onboarding
-// without anyone watching — and Luke can see exactly where someone is stuck.
+// without anyone watching — and an admin can see exactly where someone is stuck.
 
 function Step({
   n,
@@ -47,6 +49,7 @@ export default async function SetupPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  if (!(await currentOrg())) redirect("/welcome");
 
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const login = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "you");
@@ -71,8 +74,10 @@ export default async function SetupPage() {
   const hasToken = (tokens ?? []).some((t) => !t.revoked_at);
   const hasSession = (mySessions ?? []).length > 0;
   const hasActivity = (myActivity ?? []).length > 0;
-  const newToken = (await cookies()).get("devbrain_new_token")?.value;
-  const server = process.env.NEXT_PUBLIC_SITE_URL ?? "https://devbrain.vercel.app";
+  const newToken = (await cookies()).get(COOKIE.newToken)?.value;
+  const h = await headers();
+  const server = (process.env.NEXT_PUBLIC_SITE_URL || `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`).replace(/\/$/, "");
+  const installCmd = "curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh";
 
   // The paste-one-line connector: writes ~/.devbrain/config.json directly.
   // No clone, no prompts, no remote code — plain Node with the token inline.
@@ -85,72 +90,75 @@ export default async function SetupPage() {
       <main className="mx-auto max-w-2xl px-6 py-6">
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">Set up DevBrain</h1>
         <p className="mb-5 mt-1 text-sm text-slate-500">
-          Three steps, about five minutes. Each one checks itself off once it
-          works — no need to ask anyone whether it worked.
+          Install the Mac app and you&apos;re done — it does the rest. Each step
+          checks itself off once it works. The manual path is for terminals, CI,
+          or non-Mac machines.
         </p>
 
-        <Step n={1} title="Create your token" done={hasToken}>
-          {hasToken ? (
-            <p>
-              Done — you have an active token. Need a fresh one (lost it, new
-              machine)? Create another below and re-run step 2.
-            </p>
-          ) : (
-            <p className="mb-2">
-              This is what connects your machine to the team. It&apos;s shown once.
-            </p>
+        <Step n={1} title="Install the DevBrain Mac app" done={hasSession || hasActivity}>
+          <p className="mb-2">
+            Paste this in Terminal. It downloads the latest release, installs it to
+            Applications and opens it — no other prerequisites (Node is bundled).
+          </p>
+          <pre className="select-all overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">{installCmd}</pre>
+          <p className="mt-2">
+            Then click the brain in the bottom corner (or Alt+Space), <b>Sign in</b> — your
+            browser opens for GitHub — and <b>Set up this Mac</b>. That installs the{" "}
+            <code className="rounded bg-slate-100 px-1">devbrain</code> CLI, the Claude Code plugin and a daily updater.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Prefer the DMG? Grab <code className="rounded bg-slate-100 px-1">DevBrain.dmg</code> from{" "}
+            <a href="https://github.com/lukeb230/devbrain/releases/latest" target="_blank" className="text-brand-600 hover:underline">GitHub Releases</a>.
+            macOS will call it &ldquo;damaged&rdquo; (it&apos;s unsigned, not damaged) — fix with{" "}
+            <code className="rounded bg-slate-100 px-1">xattr -dr com.apple.quarantine /Applications/DevBrain.app</code> and open it again.
+          </p>
+          {(hasSession || hasActivity) && (
+            <p className="mt-2 text-emerald-800">Done — DevBrain has seen this account working. Presence, collision warnings and the task board are live for you.</p>
           )}
+        </Step>
+
+        <Step n={2} title="Manual setup (no Mac app: CI, Linux, headless agents)" done={hasToken && (hasSession || hasActivity)}>
+          <p className="mb-2">
+            Create a token{hasToken ? " (you already have one — a new one is fine too)" : ""}, then paste the command it produces.
+          </p>
           <form action={createToken} className="mt-2 flex gap-2">
             <input
               name="label"
-              placeholder={`Label (e.g. ${login}-laptop)`}
+              placeholder={`Label (e.g. ${login}-ci)`}
               className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none"
             />
             <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
               {hasToken ? "New token" : "Create token"}
             </button>
           </form>
-        </Step>
-
-        <Step n={2} title="Connect this machine" done={hasSession || hasActivity}>
-          {newToken ? (
+          {newToken && (
             <>
-              <p className="mb-2">
-                Paste this in a terminal — it writes your config file. (Contains
-                your new token; it&apos;s only shown here once.)
+              <p className="mb-2 mt-3">
+                Paste this in a terminal — it writes <code className="rounded bg-slate-100 px-1">~/.devbrain/config.json</code>. (Contains your new token; shown once.)
               </p>
-              <pre className="select-all overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">
-                {oneLiner(newToken)}
-              </pre>
+              <pre className="select-all overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">{oneLiner(newToken)}</pre>
+              <p className="mt-2 text-xs text-slate-500">
+                Then <code className="rounded bg-slate-100 px-1">{installCmd.replace("| sh", "| sh -s -- --cli")}</code> installs the CLI and plugin without the app.
+                Headless agents can instead set <code className="rounded bg-slate-100 px-1">DEVBRAIN_URL</code> and <code className="rounded bg-slate-100 px-1">DEVBRAIN_TOKEN</code>.
+              </p>
             </>
-          ) : hasSession || hasActivity ? (
-            <p>
-              Done — DevBrain has seen this account working. Presence,
-              collision warnings, and the task board are live for you.
-            </p>
-          ) : (
-            <p>
-              Create a token in step 1 (or a new one) — the exact command to
-              paste, with your token already in it, appears here right after.
-            </p>
           )}
         </Step>
 
-        <Step n={3} title="Install the plugin in Claude Code" done={hasSession}>
+        <Step n={3} title="Plugin in Claude Code" done={hasSession}>
           <p className="mb-2">
-            In any Claude Code session, run these two lines, then{" "}
-            <strong>restart the session</strong>:
+            The Mac app installs it for you. To do it by hand, run these in any Claude Code session, then <strong>restart the session</strong>:
           </p>
           <pre className="select-all overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">
 {`/plugin marketplace add lukeb230/devbrain
-/plugin install devbrain@devbrain-marketplace`}
+/plugin install devbrain@devbrain`}
           </pre>
           <p className="mt-2 text-xs text-slate-500">
-            Already installed an older version? Use{" "}
-            <code className="rounded bg-slate-100 px-1">/plugin marketplace update devbrain-marketplace</code>{" "}
-            then{" "}
-            <code className="rounded bg-slate-100 px-1">/plugin update devbrain@devbrain-marketplace</code>.
-            The plugin now carries presence itself — no CLI, no second clone.
+            Beta channel: <code className="rounded bg-slate-100 px-1">/plugin install devbrain-beta@devbrain</code>. Updating later:{" "}
+            <code className="rounded bg-slate-100 px-1">devbrain update</code>, or{" "}
+            <code className="rounded bg-slate-100 px-1">/plugin marketplace update devbrain</code> then{" "}
+            <code className="rounded bg-slate-100 px-1">/plugin update devbrain@devbrain</code>.
+            Presence hooks live inside the plugin.
           </p>
           {hasSession && (
             <p className="mt-2 text-emerald-800">
@@ -159,18 +167,6 @@ export default async function SetupPage() {
             </p>
           )}
         </Step>
-
-        <section className="card card-pad">
-          <h2 className="font-semibold text-slate-900">Optional: the desktop widget</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            A menu-bar app (no Dock icon) that hovers the team state in the corner
-            of your screen with native notifications. Ask Luke for{" "}
-            <code className="rounded bg-slate-100 px-1">DevBrain-widget.zip</code>, then paste:
-          </p>
-          <pre className="mt-2 select-all overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">
-{`unzip -o ~/Downloads/DevBrain-widget.zip -d /Applications && xattr -dr com.apple.quarantine /Applications/DevBrain.app && open /Applications/DevBrain.app`}
-          </pre>
-        </section>
       </main>
     </>
   );

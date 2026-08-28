@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentOrg } from "@/lib/org";
+import { currentOrg, hasRole, withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { installationOctokit } from "@/lib/github";
 
@@ -20,6 +20,8 @@ export async function GET(request: Request) {
   const admin = supabaseAdmin();
   const ctx = await currentOrg();
   if (!ctx) return NextResponse.redirect(`${origin}/welcome`);
+  // Linking repos into the org is an admin action — refuse before any write.
+  if (!hasRole(ctx.role, "admin")) return NextResponse.redirect(`${origin}${withError("/dashboard", "link_repo_admin")}`);
   const membership = { org_id: ctx.orgId };
 
   // Claim (or create) the installation row for this org.

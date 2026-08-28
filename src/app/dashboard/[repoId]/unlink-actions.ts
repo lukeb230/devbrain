@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/org";
+import { requireRoleOrRedirect, withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // Unlink a repository from DevBrain.
@@ -23,9 +23,11 @@ async function ownedRepo(repoId: string) {
   if (!user) return null;
   const { data: repo } = await supabase.from("linked_repos").select("id, org_id, full_name").eq("id", repoId).single();
   if (!repo) return null;
-  // Admins and owners of the repo's org only.
-  const me = await requireRole("admin");
-  if (!me || me.orgId !== repo.org_id) return null;
+  // Admins and owners of the repo's org only — refused calls bounce back
+  // to the Rules page with ?error=.
+  const returnTo = `/dashboard/${repoId}/rules`;
+  const me = await requireRoleOrRedirect("admin", returnTo);
+  if (me.orgId !== repo.org_id) redirect(withError(returnTo, "admin_only"));
   return { repo, login: me.login };
 }
 

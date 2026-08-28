@@ -6,22 +6,24 @@ import { SignInButton } from "./sign-in-button";
 export default async function LandingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ denied?: string; from?: string; next?: string }>;
+  searchParams: Promise<{ from?: string; next?: string; auth_error?: string; device_error?: string }>;
 }) {
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) redirect("/dashboard");
-  const { denied, from, next } = await searchParams;
+  const { from, next, auth_error, device_error } = await searchParams;
   // Only same-origin paths may be used as a post-login destination.
   const nextParam = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-8 px-6 text-center">
-      {denied && (
+      {(auth_error || device_error) && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-          Sign-in was refused. Try again, or ask a teammate for a fresh invite link.
+          {device_error
+            ? `The desktop sign-in link was ${device_error}. Click Sign in again in the DevBrain panel.`
+            : "Sign-in didn't complete — the GitHub hand-off was rejected or expired. Try again."}
         </p>
       )}
       <div>
@@ -40,11 +42,8 @@ export default async function LandingPage({
       </div>
       <SignInButton next={nextParam || (from === "widget" ? "/widget" : undefined)} />
       <p className="text-xs text-slate-500">
-        Sign in with GitHub, install the app on a repo, run{" "}
-        <code className="rounded bg-slate-100 px-1.5 py-0.5">
-          npx devbrain init
-        </code>{" "}
-        — that&apos;s the whole setup.
+        Sign in with GitHub, create or join a team, link a repo, and install the
+        Mac app — that&apos;s the whole setup.
       </p>
     </main>
   );

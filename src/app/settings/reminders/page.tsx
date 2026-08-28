@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { Notice } from "@/components/Notice";
+import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { mapList, unmapList } from "./actions";
 
@@ -10,12 +12,16 @@ export const dynamic = "force-dynamic";
 // the mapped lists it can see. Lists seen on any Mac but not mapped are
 // offered for mapping.
 
-export default async function RemindersSettingsPage() {
+export default async function RemindersSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  const org = await currentOrg();
+  if (!org) redirect("/welcome");
+  const isAdmin = hasRole(org.role, "admin");
 
   const [{ data: sources }, { data: sightings }, { data: repos }] = await Promise.all([
     supabase.from("reminder_sources").select("id, list_name, created_by, created_at, repo_id, linked_repos(full_name)").order("list_name"),
@@ -36,7 +42,9 @@ export default async function RemindersSettingsPage() {
           &ldquo;Hey Siri, add … to my <em>Team Inbox</em> list&rdquo; — and it becomes a task within a few minutes.
           Checking it off completes the task. Any teammate&apos;s Mac running the DevBrain app does the syncing;
           the mapping below is shared by the whole team, so it can never be split across repos.
+          {!isAdmin && " Team admins manage the mapping; you can see it here."}
         </p>
+        <Notice error={error} />
 
         <section className="card mb-6">
           <div className="border-b border-slate-100 px-4 py-3">
@@ -55,12 +63,14 @@ export default async function RemindersSettingsPage() {
                       {s.created_by ? ` · mapped by ${s.created_by}` : ""}
                     </div>
                   </div>
-                  <form action={unmapList}>
-                    <input type="hidden" name="id" value={s.id} />
-                    <button className="rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:border-red-300 hover:text-red-700">
-                      Remove
-                    </button>
-                  </form>
+                  {isAdmin && (
+                    <form action={unmapList}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <button className="rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:border-red-300 hover:text-red-700">
+                        Remove
+                      </button>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
@@ -74,6 +84,10 @@ export default async function RemindersSettingsPage() {
               Lists seen on teammates&apos; Macs appear in the picker; you can also type a name exactly as it appears in Reminders.
             </p>
           </div>
+          {!isAdmin && (
+            <p className="px-4 py-3 text-sm text-slate-500">Ask a team admin to map a list. Tell them the list name exactly as it appears in Reminders.</p>
+          )}
+          {isAdmin && (
           <form action={mapList} className="flex flex-wrap items-end gap-3 px-4 py-4">
             <label className="block text-xs">
               <span className="mb-1 block text-slate-500">Reminders list</span>
@@ -102,6 +116,7 @@ export default async function RemindersSettingsPage() {
             </label>
             <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">Map list</button>
           </form>
+          )}
           {unmapped.length > 0 && (
             <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
               Seen but not mapped: {unmapped.map((s) => s.list_name).join(" · ")}

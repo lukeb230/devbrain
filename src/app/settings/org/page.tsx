@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { Notice } from "@/components/Notice";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { leaveOrg } from "../members/actions";
@@ -8,7 +9,8 @@ import { addChannel, removeChannel, sendTestAlert } from "./alert-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function OrgSettingsPage() {
+export default async function OrgSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const me = await currentOrg();
   if (!me) redirect("/welcome");
   const isOwner = hasRole(me.role, "owner");
@@ -36,6 +38,7 @@ export default async function OrgSettingsPage() {
         <p className="mb-5 mt-1 text-sm text-slate-500">
           {memberCount ?? 0} member{memberCount === 1 ? "" : "s"} · {repoCount ?? 0} linked repo{repoCount === 1 ? "" : "s"} · you are <b>{me.role}</b>
         </p>
+        <Notice error={error} />
 
         <section className="card mb-6 card-pad">
           <h2 className="font-semibold text-slate-900">AI usage today</h2>

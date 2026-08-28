@@ -2,6 +2,9 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { COOKIE, NEW_TOKEN_COOKIE_OPTS } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
@@ -16,7 +19,7 @@ async function currentMember() {
 
 export async function createToken(formData: FormData): Promise<void> {
   const member = await currentMember();
-  if (!member) return;
+  if (!member) redirect("/welcome"); // no team yet — nothing to attach a token to
   const label =
     String(formData.get("label") || "").trim().slice(0, 60) || "my-machine";
 
@@ -31,14 +34,9 @@ export async function createToken(formData: FormData): Promise<void> {
 
   // Stash the plaintext once in a short-lived cookie so the page can show it
   // after the redirect, then it exists nowhere server-side except as a hash.
-  const { cookies } = await import("next/headers");
   // Scoped to /settings (not just /tokens) so the Setup page can render the
   // paste-one connect command with the token already embedded.
-  (await cookies()).set("devbrain_new_token", token, {
-    maxAge: 120,
-    httpOnly: false,
-    path: "/settings",
-  });
+  (await cookies()).set(COOKIE.newToken, token, NEW_TOKEN_COOKIE_OPTS);
   revalidatePath("/settings/tokens");
   revalidatePath("/settings/setup");
 }

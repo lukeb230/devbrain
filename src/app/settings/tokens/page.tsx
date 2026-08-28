@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { COOKIE } from "@/lib/cookies";
+import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createToken, revokeToken } from "./actions";
 
@@ -12,13 +14,14 @@ export default async function TokensPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  if (!(await currentOrg())) redirect("/welcome");
 
   const { data: tokens } = await supabase
     .from("dev_tokens")
     .select("id, label, created_at, revoked_at")
     .order("created_at", { ascending: false });
 
-  const newToken = (await cookies()).get("devbrain_new_token")?.value;
+  const newToken = (await cookies()).get(COOKIE.newToken)?.value;
 
   return (
     <>
@@ -27,7 +30,8 @@ export default async function TokensPage() {
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">Dev tokens</h1>
         <p className="mb-5 mt-1 text-sm text-slate-500">
           A token connects your machine&apos;s hooks (and your Claude) to
-          DevBrain. One per machine is a good habit.
+          DevBrain. One per machine is a good habit. The Mac app creates one for
+          itself on first run — create one here only for a manual, CI, or headless setup.
         </p>
 
         {newToken && (
@@ -53,7 +57,7 @@ export default async function TokensPage() {
           <form action={createToken} className="flex gap-2">
             <input
               name="label"
-              placeholder="Label (e.g. lukes-macbook)"
+              placeholder="Label (e.g. my-macbook)"
               className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <button

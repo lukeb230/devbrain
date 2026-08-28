@@ -1,9 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { COOKIE, LAST_REPO_COOKIE_OPTS } from "@/lib/cookies";
 
 // Refreshes the Supabase auth session cookie on every request so server
 // components always see a valid session. Webhook/API ingest routes are
-// excluded — they authenticate by signature or bearer token, not cookies.
+// excluded — they authenticate by signature, bearer token or cron secret,
+// not cookies (so the 2-minute tick never pays for a session refresh).
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -32,15 +34,11 @@ export async function middleware(request: NextRequest) {
   // /widget) can open straight to it instead of the team home.
   const m = request.nextUrl.pathname.match(/^\/dashboard\/([0-9a-f-]{36})/);
   if (m) {
-    response.cookies.set("devbrain_last_repo", m[1], {
-      maxAge: 60 * 60 * 24 * 90,
-      sameSite: "lax",
-      path: "/",
-    });
+    response.cookies.set(COOKIE.lastRepo, m[1], LAST_REPO_COOKIE_OPTS);
   }
   return response;
 }
 
 export const config = {
-  matcher: ["/((?!api/github|api/v1|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/github|api/v1|api/agents|_next/static|_next/image|favicon.ico).*)"],
 };

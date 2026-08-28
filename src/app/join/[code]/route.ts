@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
-import { ORG_COOKIE, ORG_COOKIE_OPTS } from "@/lib/org";
+import { COOKIE, ORG_COOKIE_OPTS, clearDevbrainCookies, readCookieHeader } from "@/lib/cookies";
+import { safeNext } from "@/lib/panel-routes";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // ============================================================================
-// Invite links — GET /join/<code>
+// Invite links — GET /join/<code>[?next=/widget]
 // Not signed in → GitHub sign-in with next= back here (the invite is the
 // authorisation, so no allowlist applies). Signed in → validate the code,
 // add the membership with the invite's role, make that org the active one,
-// and land on the dashboard — or wherever devbrain_next points (the desktop
-// app's sign-in hand-off sets it so the deep link back still fires).
+// and land on the dashboard — or wherever ?next= / devbrain_next points
+// (the desktop panel passes next=/widget; the browser sign-in hand-off sets
+// the cookie so the deep link back to the app still fires).
 // ============================================================================
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const url = new URL(request.url);
-  const self = `/join/${encodeURIComponent(code)}`;
-  const fail = (why: string) => NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent(why)}`);
+  const explicitNext = safeNext(url.searchParams.get("next"), "");
+  const inPanel = explicitNext === "/widget";
+  const self = `/join/${encodeURIComponent(code)}${explicitNext ? `?next=${encodeURIComponent(explicitNext)}` : ""}`;
+  const fail = (why: string) =>
+    NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent(why)}${inPanel ? "&from=widget" : ""}`);
 
   const supabase = await supabaseServer();
   const {
@@ -44,13 +49,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     await admin.from("events").insert({ org_id: inv.org_id, repo_id: null, kind: "member_joined", payload: { login, role: inv.role, invite: inv.id } });
   }
 
-  const cookieNext = (() => {
-    const mm = /(?:^|;\s*)devbrain_next=([^;]+)/.exec(request.headers.get("cookie") ?? "");
-    try { return mm ? decodeURIComponent(mm[1]) : ""; } catch { return ""; }
-  })();
-  const next = cookieNext.startsWith("/") && !cookieNext.startsWith("//") && !cookieNext.startsWith("/join/") ? cookieNext : "/dashboard?joined=1";
+  const cookieNext = readCookieHeader(request.headers.get("cookie"), COOKIE.next);
+  const candidate = explicitNext || cookieNext;
+  const next = candidate && !candidate.startsWith("/join/") ? safeNext(candidate, "/dashboard?joined=1") : "/dashboard?joined=1";
   const res = NextResponse.redirect(`${url.origin}${next}`);
-  res.cookies.set(ORG_COOKIE, inv.org_id, ORG_COOKIE_OPTS);
-  if (cookieNext) res.cookies.set("devbrain_next", "", { maxAge: 0, path: "/" });
+  res.cookies.set(COOKIE.org, inv.org_id, ORG_COOKIE_OPTS);
+  clearDevbrainCookies(res.cookies, [{ name: COOKIE.lastRepo, path: "/" }, ...(cookieNext ? [{ name: COOKIE.next, path: "/" }] : [])]);
   return res;
 }

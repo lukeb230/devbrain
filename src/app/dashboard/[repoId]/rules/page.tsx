@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
+import { Notice } from "@/components/Notice";
 import { writerConfigured } from "@/lib/github-writer";
+import { currentOrg, hasRole } from "@/lib/org";
 import { FEATURE_CATALOG, RULES_CATALOG as CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { supabaseServer } from "@/lib/supabase/server";
 import { toggleRule } from "./actions";
@@ -13,17 +15,47 @@ export const dynamic = "force-dynamic";
 // branch protection is the enforcement layer humans click on (Documentarian
 // mode keeps DevBrain write-free). Each rule shows a deep link to enforce it.
 
+// A switch that only admins can flip; members see the state, greyed.
+function RuleSwitch({ repoId, rule, on, enabledValue, usable, isAdmin }: { repoId: string; rule: string; on: boolean; enabledValue: boolean; usable: boolean; isAdmin: boolean }) {
+  const cls =
+    "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors " +
+    (on ? "bg-brand-600" : "bg-slate-200") +
+    (usable && isAdmin ? "" : " cursor-not-allowed opacity-50");
+  const knob = <span className={"inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " + (on ? "translate-x-6" : "translate-x-1")} />;
+  if (!isAdmin || !usable) {
+    return (
+      <span className={cls} title={!isAdmin ? "Admins only" : "Connect the writer app first"} aria-disabled="true">
+        {knob}
+      </span>
+    );
+  }
+  return (
+    <form action={toggleRule}>
+      <input type="hidden" name="repoId" value={repoId} />
+      <input type="hidden" name="rule" value={rule} />
+      <input type="hidden" name="enabled" value={String(enabledValue)} />
+      <button className={cls} aria-label={on ? "Turn off" : "Turn on"}>{knob}</button>
+    </form>
+  );
+}
+
 export default async function RulesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ repoId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { repoId } = await params;
+  const { error } = await searchParams;
   const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  const org = await currentOrg();
+  if (!org) redirect("/welcome");
+  const isAdmin = hasRole(org.role, "admin");
 
   const { data: repo } = await supabase
     .from("linked_repos")
@@ -63,7 +95,9 @@ export default async function RulesPage({
           follow them automatically. Rules with a GitHub link are also
           enforceable at the merge button via branch protection (a human clicks
           that on; DevBrain never holds write access).
+          {!isAdmin && <span className="chip ml-2 bg-slate-100 text-slate-500">admins change these</span>}
         </p>
+        <Notice error={error} />
 
         <section className="card">
           <ul className="divide-y divide-slate-100">
@@ -84,25 +118,7 @@ export default async function RulesPage({
                       </a>
                     )}
                   </div>
-                  <form action={toggleRule}>
-                    <input type="hidden" name="repoId" value={repo.id} />
-                    <input type="hidden" name="rule" value={c.rule} />
-                    <input type="hidden" name="enabled" value={String(!on)} />
-                    <button
-                      className={
-                        "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors " +
-                        (on ? "bg-brand-600" : "bg-slate-200")
-                      }
-                      aria-label={on ? "Turn off" : "Turn on"}
-                    >
-                      <span
-                        className={
-                          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " +
-                          (on ? "translate-x-6" : "translate-x-1")
-                        }
-                      />
-                    </button>
-                  </form>
+                  <RuleSwitch repoId={repo.id} rule={c.rule} on={on} enabledValue={!on} usable={true} isAdmin={isAdmin} />
                 </li>
               );
             })}
@@ -123,25 +139,7 @@ export default async function RulesPage({
                     <div className="font-medium text-slate-900">{c.label}</div>
                     <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{c.detail}</div>
                   </div>
-                  <form action={toggleRule}>
-                    <input type="hidden" name="repoId" value={repo.id} />
-                    <input type="hidden" name="rule" value={c.rule} />
-                    <input type="hidden" name="enabled" value={String(!on)} />
-                    <button
-                      className={
-                        "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors " +
-                        (on ? "bg-brand-600" : "bg-slate-200")
-                      }
-                      aria-label={on ? "Turn off" : "Turn on"}
-                    >
-                      <span
-                        className={
-                          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " +
-                          (on ? "translate-x-6" : "translate-x-1")
-                        }
-                      />
-                    </button>
-                  </form>
+                  <RuleSwitch repoId={repo.id} rule={c.rule} on={on} enabledValue={!on} usable={true} isAdmin={isAdmin} />
                 </li>
               );
             })}
@@ -179,6 +177,9 @@ export default async function RulesPage({
                 <code className="rounded bg-slate-100 px-1">DEVBRAIN_GHW_PRIVATE_KEY</code> in Vercel.
               </p>
             ) : (
+              !isAdmin ? (
+              <p className="mt-2 text-xs text-slate-500">A team admin connects the writer app.</p>
+            ) : (
               <div className="mt-2 flex items-center gap-3 text-xs">
                 {writerSlug && (
                   <a
@@ -196,7 +197,7 @@ export default async function RulesPage({
                   </button>
                 </form>
               </div>
-            )}
+            ))}
           </div>
           <ul className="divide-y divide-slate-100">
             {WRITER_CATALOG.map((c) => {
@@ -208,33 +209,18 @@ export default async function RulesPage({
                     <div className="font-medium text-slate-900">{c.label}</div>
                     <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{c.detail}</div>
                   </div>
-                  <form action={toggleRule}>
-                    <input type="hidden" name="repoId" value={repo.id} />
-                    <input type="hidden" name="rule" value={c.rule} />
-                    <input type="hidden" name="enabled" value={String(!(state.get(c.rule) ?? false))} />
-                    <button
-                      disabled={!usable}
-                      className={
-                        "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors " +
-                        (on ? "bg-brand-600" : "bg-slate-200") +
-                        (usable ? "" : " cursor-not-allowed opacity-50")
-                      }
-                      aria-label={on ? "Turn off" : "Turn on"}
-                    >
-                      <span
-                        className={
-                          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " +
-                          (on ? "translate-x-6" : "translate-x-1")
-                        }
-                      />
-                    </button>
-                  </form>
+                  <RuleSwitch repoId={repo.id} rule={c.rule} on={on} enabledValue={!(state.get(c.rule) ?? false)} usable={usable} isAdmin={isAdmin} />
                 </li>
               );
             })}
           </ul>
         </section>
 
+        {!isAdmin ? (
+          <section className="card mt-6">
+            <p className="p-4 text-sm text-slate-500">Only team admins and owners can unlink or delete this repository.</p>
+          </section>
+        ) : (
         <section className="card mt-6 border-red-100">
           <div className="border-b border-slate-100 p-4">
             <h2 className="font-semibold text-slate-900">Unlink this repository</h2>
@@ -266,6 +252,7 @@ export default async function RulesPage({
             </form>
           </div>
         </section>
+        )}
       </main>
     </>
   );

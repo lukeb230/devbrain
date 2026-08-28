@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { COOKIE, NEXT_COOKIE_OPTS, readCookieHeader } from "@/lib/cookies";
+import { safeNext } from "@/lib/panel-routes";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -9,12 +11,8 @@ export async function GET(request: Request) {
   // Where to land: ?next= from the sign-in button, else the devbrain_next
   // cookie it set (the desktop panel relies on this — it must return to
   // /widget, never /dashboard, which the panel opens in the browser).
-  const cookieNext = (() => {
-    const m = /(?:^|;\s*)devbrain_next=([^;]+)/.exec(request.headers.get("cookie") ?? "");
-    try { return m ? decodeURIComponent(m[1]) : ""; } catch { return ""; }
-  })();
-  const nextRaw = searchParams.get("next") || cookieNext || "";
-  const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
+  const cookieNext = readCookieHeader(request.headers.get("cookie"), COOKIE.next);
+  const next = safeNext(searchParams.get("next") || cookieNext, "/dashboard");
 
   if (code) {
     const supabase = await supabaseServer();
@@ -33,7 +31,7 @@ export async function GET(request: Request) {
         if (next.startsWith("/join/")) return NextResponse.redirect(`${origin}${next}`);
         const res = NextResponse.redirect(`${origin}/welcome`);
         // Keep the desktop hand-off destination alive across /welcome.
-        if (next !== "/dashboard") res.cookies.set("devbrain_next", next, { maxAge: 900, path: "/", sameSite: "lax" });
+        if (next !== "/dashboard") res.cookies.set(COOKIE.next, next, NEXT_COOKIE_OPTS);
         return res;
       }
       return NextResponse.redirect(`${origin}${next}`);

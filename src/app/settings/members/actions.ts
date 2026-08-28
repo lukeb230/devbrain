@@ -2,14 +2,16 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { currentOrg, requireRole, type Role } from "@/lib/org";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { COOKIE, clearDevbrainCookies } from "@/lib/cookies";
+import { currentOrg, requireRoleOrRedirect, type Role } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // Members page: invite links (admin+), roles and removal (owner).
 
 export async function createInvite(formData: FormData): Promise<void> {
-  const me = await requireRole("admin");
-  if (!me) return;
+  const me = await requireRoleOrRedirect("admin", "/settings/members");
   const role = formData.get("role") === "admin" ? "admin" : "member";
   const single = formData.get("single") === "on";
   await supabaseAdmin().from("org_invites").insert({
@@ -23,16 +25,14 @@ export async function createInvite(formData: FormData): Promise<void> {
 }
 
 export async function revokeInvite(formData: FormData): Promise<void> {
-  const me = await requireRole("admin");
-  if (!me) return;
+  const me = await requireRoleOrRedirect("admin", "/settings/members");
   const id = String(formData.get("id") || "");
   await supabaseAdmin().from("org_invites").update({ revoked_at: new Date().toISOString() }).eq("id", id).eq("org_id", me.orgId);
   revalidatePath("/settings/members");
 }
 
 export async function setRole(formData: FormData): Promise<void> {
-  const me = await requireRole("owner");
-  if (!me) return;
+  const me = await requireRoleOrRedirect("owner", "/settings/members");
   const userId = String(formData.get("userId") || "");
   const role = String(formData.get("role") || "") as Role;
   if (!["owner", "admin", "member"].includes(role) || !userId) return;
@@ -47,8 +47,7 @@ export async function setRole(formData: FormData): Promise<void> {
 }
 
 export async function removeMember(formData: FormData): Promise<void> {
-  const me = await requireRole("owner");
-  if (!me) return;
+  const me = await requireRoleOrRedirect("owner", "/settings/members");
   const userId = String(formData.get("userId") || "");
   if (!userId || userId === me.userId) return;
   const admin = supabaseAdmin();
@@ -68,5 +67,6 @@ export async function leaveOrg(): Promise<void> {
   }
   await admin.from("org_members").delete().eq("org_id", me.orgId).eq("user_id", me.userId);
   await admin.from("dev_tokens").update({ revoked_at: new Date().toISOString() }).eq("org_id", me.orgId).eq("user_id", me.userId).is("revoked_at", null);
-  revalidatePath("/", "layout");
+  clearDevbrainCookies(await cookies(), [{ name: COOKIE.org, path: "/" }, { name: COOKIE.lastRepo, path: "/" }]);
+  redirect("/dashboard"); // falls back to another membership, or /welcome
 }

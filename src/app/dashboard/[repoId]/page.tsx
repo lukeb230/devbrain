@@ -522,9 +522,9 @@ export default async function RepoPage({
               <h2 className="card-title mb-3">Activity (24h)</h2>
               {!activity || activity.length === 0 ? (
                 <p className="text-sm text-slate-500">
-                  No agent/editor activity reported yet. Run{" "}
-                  <code className="rounded bg-slate-100 px-1">devbrain init</code> on a
-                  dev machine to start streaming presence.
+                  No agent/editor activity reported yet. Install the DevBrain Mac app on a
+                  dev machine (see <Link href="/settings/setup" className="text-brand-600 hover:underline">Setup</Link>)
+                  to start streaming presence.
                 </p>
               ) : (
                 <ActivityFeed rows={activity} limit={14} />

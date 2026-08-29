@@ -11,6 +11,7 @@ import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { BrainMark } from "@/components/BrainMark";
 import { Pulse } from "./pulse";
 import { applyThemePref, readThemePref, type ThemePref } from "./theme";
+import { switchOrg } from "../settings/org/actions";
 import { WidgetBrain } from "./brain";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
@@ -46,7 +47,10 @@ export interface WidgetData {
   journals: { id: string; repo: string; by: string; branch: string | null; summary: string; learned: string[]; tried_and_failed: string[]; remaining: string | null; at: string }[];
   handoffs: { id: string; repo_id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
   alerts: { id: string; severity: string; title: string; count: number }[];
-  canAdmin: boolean;          // owner/admin of the active org — gates rule toggles + reminders mapping
+  canAdmin: boolean;
+  teamId: string;
+  teamName: string;
+  teams: { id: string; name: string }[];          // owner/admin of the active org — gates rule toggles + reminders mapping
   notice: string | null;      // ?error= code after a refused action (see Notice)
   activity: ActivityRow[];
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
@@ -609,7 +613,24 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               SETTINGS · <span className="text-brand-400">&nbsp;this Mac</span>&nbsp;· notifications {prefs.enabled ? "on" : "off"}{setup?.reminders_on ? " · reminders on" : ""}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pb-3">
-              <section className="mt-2">
+              {data.teams.length > 1 && (
+                <section className="mt-2">
+                  <h2 className="wg-sec">Team <span className="n">{data.teamName}</span></h2>
+                  <p className="wg-empty">The panel keeps its own sign-in, so switching here is separate from your browser.</p>
+                  {data.teams.map((t) => (
+                    <form key={t.id} action={switchOrg} className="wg-row">
+                      <input type="hidden" name="orgId" value={t.id} />
+                      <input type="hidden" name="stay" value="1" />
+                      <div className="k"><div className="t">{t.name}</div></div>
+                      {t.id === data.teamId
+                        ? <span className="wg-pill go">current</span>
+                        : <button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Switch</button>}
+                    </form>
+                  ))}
+                </section>
+              )}
+
+              <section className="mt-2.5">
                 <h2 className="wg-sec">Appearance <span className="n">{themePref === "system" ? "follows macOS" : themePref}</span>
                   <span className="ml-auto inline-flex rounded-md border border-line2 bg-ink p-0.5">
                     {([["system", "System", "◐"], ["light", "Light", "☀"], ["dark", "Dark", "☾"]] as const).map(([k, label, glyph]) => (

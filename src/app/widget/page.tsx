@@ -308,6 +308,9 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
     repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id), full_name: r.full_name })),
     alerts: hasRole(org.role, "admin") ? (await openAlerts(org.orgId)).map((a) => ({ id: a.id, severity: a.severity, title: a.title, count: a.count })) : [],
     canAdmin: hasRole(org.role, "admin"),
+    teamId: org.orgId,
+    teamName: org.orgName,
+    teams: org.orgs.map((o) => ({ id: o.id, name: o.name })),
     notice: notice ?? null,
     scopeAll,
     digest: (() => {

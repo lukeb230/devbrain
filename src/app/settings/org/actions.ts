@@ -14,7 +14,7 @@ export async function switchOrg(formData: FormData): Promise<void> {
   const jar = await cookies();
   jar.set(COOKIE.org, id, ORG_COOKIE_OPTS);
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }]); // never carry a repo across teams
-  redirect("/dashboard");
+  redirect(formData.get("stay") ? "/widget" : "/dashboard");
 }
 
 export async function renameOrg(formData: FormData): Promise<void> {

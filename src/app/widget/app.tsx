@@ -11,6 +11,7 @@ import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { TaskBody } from "@/components/TaskBody";
 import { BrainMark } from "@/components/BrainMark";
 import { Pulse } from "./pulse";
+import { WidgetBrain } from "./brain";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
 import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
@@ -1084,20 +1085,9 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
         {tab === "Brain" && (
           data.brain ? (
-            <div>
-              <div className="mb-1.5 text-[10px] text-slate-400">{data.brain.repoName} · main</div>
-              <BrainExplorer
-                notes={data.brain.notes}
-                nodes={data.brain.nodes}
-                edges={data.brain.edges}
-                initialSlug="index"
-                repoId={data.brain.repoId}
-                branch={null}
-                searchable
-              />
-            </div>
+            <WidgetBrain notes={data.brain.notes} nodes={data.brain.nodes} edges={data.brain.edges} initialSlug="index" repoName={data.brain.repoName} />
           ) : (
-            <p className="text-xs text-slate-400">Open a repo on the dashboard once and its brain shows here.</p>
+            <p className="wg-empty mt-3">Pick a repo in the header — its .brain/ notes show here.</p>
           )
         )}
 

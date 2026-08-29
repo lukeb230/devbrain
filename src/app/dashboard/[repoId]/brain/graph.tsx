@@ -36,13 +36,11 @@ export function BrainGraph({
   nodes,
   edges,
   selected,
-  onSelect,
-}: {
+  onSelect, colors = GRAPH_COLORS }: {
   nodes: GNode[];
   edges: GEdge[];
   selected: string | null;
-  onSelect: (slug: string | null) => void;
-}) {
+  onSelect: (slug: string | null) => void; colors?: Record<string, string> }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const bodies = useRef(new Map<string, Body>());
   const alpha = useRef(1); // simulation temperature; decays, reheats on touch
@@ -358,7 +356,7 @@ export function BrainGraph({
           if (!b) return null;
           const isHover = hover === n.slug;
           const r = (5 + Math.min(9, n.degree * 1.4)) * (isHover ? 1.25 : 1);
-          const c = GRAPH_COLORS[n.type] ?? "#94a3b8";
+          const c = colors[n.type] ?? "#94a3b8";
           const fontSize = 9.5;
           return (
             <g

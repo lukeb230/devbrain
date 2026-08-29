@@ -108,3 +108,8 @@
 @media (prefers-reduced-motion: reduce) {
   .wg-row, .wg-trace, .wg-trace-fill, .wg-live { animation: none; stroke-dashoffset: 0; opacity: 1; }
 }
+
+/* Brain tab inside the panel: graph strokes and search dropdown on ink */
+.wg .wg-brain-search input { width: 100%; }
+.wg svg line { stroke: #3a4356; }
+.wg svg text { fill: #8a92a6; }

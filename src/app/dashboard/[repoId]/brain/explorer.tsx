@@ -12,7 +12,7 @@ import { BrainGraph, type GEdge, type GNode } from "./graph";
 // Typeahead search over note titles. Prefix matches rank first, then
 // word-boundary matches, then anywhere-substring. Arrow keys + Enter,
 // click to open; selecting a result opens the note AND highlights its node.
-function BrainSearch({
+export function BrainSearch({
   notes,
   onPick,
 }: {

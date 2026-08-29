@@ -8,6 +8,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { BrainSearch, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { BrainGraph, type GEdge, type GNode } from "../dashboard/[repoId]/brain/graph";
+import { GRAPH_COLORS } from "../dashboard/[repoId]/brain/colors";
+import { useResolvedTheme } from "./theme";
 
 // Dashboard type hues, lifted for the ink ground.
 export const DARK_GRAPH_COLORS: Record<string, string> = {
@@ -21,6 +23,8 @@ export function WidgetBrain({ notes, nodes, edges, initialSlug, repoName }: { no
   const degree = useMemo(() => new Map(nodes.map((n) => [n.slug, n.degree])), [nodes]);
   const first = bySlug.has(initialSlug) ? initialSlug : (notes[0]?.slug ?? null);
   const [mode, setMode] = useState<"read" | "map">("read");
+  const theme = useResolvedTheme();
+  const COLORS = theme === "light" ? GRAPH_COLORS : DARK_GRAPH_COLORS;
   const [trail, setTrail] = useState<string[]>(first ? [first] : []);
   const selected = trail[trail.length - 1] ?? null;
   const current = selected ? bySlug.get(selected) : undefined;
@@ -45,7 +49,7 @@ export function WidgetBrain({ notes, nodes, edges, initialSlug, repoName }: { no
   const out = selected
     ? edges.filter((e) => e.a === selected || e.b === selected).map((e) => (e.a === selected ? e.b : e.a)).filter((s, i, arr) => s !== selected && !backSet.has(s) && arr.indexOf(s) === i)
     : [];
-  const Dot = ({ t }: { t?: string }) => <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: DARK_GRAPH_COLORS[t ?? ""] ?? "#8a92a6" }} />;
+  const Dot = ({ t }: { t?: string }) => <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: COLORS[t ?? ""] ?? "var(--wg-muted)" }} />;
   const Row = ({ slug, dir }: { slug: string; dir: "→" | "←" }) => (
     <button onClick={() => select(slug)} className="flex w-full items-center gap-2 border-t border-line px-3.5 py-1.5 text-left text-[12.5px] text-txt hover:bg-row">
       <Dot t={typeOf.get(slug)} />
@@ -90,7 +94,7 @@ export function WidgetBrain({ notes, nodes, edges, initialSlug, repoName }: { no
                 </h3>
                 <div className="mb-2 mt-1 font-mono text-[10px] text-faint">.brain/{current.slug}.md · {out.length} out · {backlinks.length} in</div>
                 {current.touches.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-1">{current.touches.map((f) => <code key={f} className="rounded bg-row2 px-1.5 py-px font-mono text-[10px] text-[#b8bfcf]">{f}</code>)}</div>
+                  <div className="mb-2 flex flex-wrap gap-1">{current.touches.map((f) => <code key={f} className="rounded bg-row2 px-1.5 py-px font-mono text-[10px] text-[var(--wg-code)]">{f}</code>)}</div>
                 )}
                 <div className="brain-prose text-[12.5px] leading-relaxed text-txt" onClick={onNoteClick} dangerouslySetInnerHTML={{ __html: current.html }} />
               </div>
@@ -108,10 +112,10 @@ export function WidgetBrain({ notes, nodes, edges, initialSlug, repoName }: { no
       ) : (
         <div className="relative min-h-0 flex-1">
           <div className="absolute inset-0 overflow-hidden [&_svg]:h-full [&_svg]:w-full" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px)", backgroundSize: "12px 12px" }}>
-            <BrainGraph nodes={nodes} edges={edges} selected={selected} onSelect={(s) => select(s)} colors={DARK_GRAPH_COLORS} />
+            <BrainGraph nodes={nodes} edges={edges} selected={selected} onSelect={(s) => select(s)} colors={COLORS} />
           </div>
           <div className="pointer-events-none absolute left-3.5 top-2 flex flex-wrap gap-x-2.5 gap-y-0.5 font-mono text-[10px] text-muted">
-            {Object.entries(DARK_GRAPH_COLORS).filter(([t]) => nodes.some((n) => n.type === t)).map(([t, c]) => <span key={t} className="inline-flex items-center gap-1"><i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />{t}</span>)}
+            {Object.entries(COLORS).filter(([t]) => nodes.some((n) => n.type === t)).map(([t, c]) => <span key={t} className="inline-flex items-center gap-1"><i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: c }} />{t}</span>)}
           </div>
           {current && (
             <div className="absolute bottom-3 left-3.5 right-3.5 flex items-center gap-2 rounded-xl border border-line2 bg-row px-3 py-2 text-[12.5px] text-txt">

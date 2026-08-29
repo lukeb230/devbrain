@@ -10,6 +10,7 @@ import { dismissAlert } from "../settings/org/alert-actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { BrainMark } from "@/components/BrainMark";
 import { Pulse } from "./pulse";
+import { applyThemePref, readThemePref, type ThemePref } from "./theme";
 import { WidgetBrain } from "./brain";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
@@ -470,6 +471,9 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const [switching, startSwitch] = useTransition();
   const [capture, setCapture] = useState<null | "task" | "dump" | "spec">(null);
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  const [themePref, setThemePref] = useState<ThemePref>("system");
+  useEffect(() => setThemePref(readThemePref()), []);
+  const pickTheme = (p: ThemePref) => { setThemePref(p); applyThemePref(p); };
   // "Since you were away": the previous time this panel was opened.
   const [lastOpen, setLastOpen] = useState<number | null>(null);
   useEffect(() => {
@@ -536,7 +540,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           below it is the divider. */}
       <div className="flex flex-shrink-0 items-center justify-between px-3.5 pb-1 pt-3">
         <span className="flex items-center gap-2">
-          <BrainMark size={20} id="wg" className="flex-shrink-0 drop-shadow-[0_0_6px_rgba(232,128,120,0.35)]" />
+          <BrainMark size={20} id="wg" className="flex-shrink-0 drop-shadow-[0_0_6px_var(--wg-glow)]" />
           <span className="font-display text-[15px] font-semibold tracking-tight text-txt">DevBrain</span>
           <WidgetLive />
         </span>
@@ -595,6 +599,18 @@ export function WidgetApp({ data }: { data: WidgetData }) {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pb-3">
               <section className="mt-2">
+                <h2 className="wg-sec">Appearance <span className="n">{themePref === "system" ? "follows macOS" : themePref}</span>
+                  <span className="ml-auto inline-flex rounded-md border border-line2 bg-ink p-0.5">
+                    {([["system", "System", "◐"], ["light", "Light", "☀"], ["dark", "Dark", "☾"]] as const).map(([k, label, glyph]) => (
+                      <button key={k} onClick={() => pickTheme(k)} aria-label={label} title={label} className={"inline-flex items-center gap-1 rounded px-2 py-0.5 font-display text-[10.5px] font-semibold normal-case tracking-normal " + (themePref === k ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>
+                        <span aria-hidden className="text-[12px] leading-none">{glyph}</span>{label}
+                      </button>
+                    ))}
+                  </span>
+                </h2>
+              </section>
+
+              <section className="mt-2.5">
                 <h2 className="wg-sec">Notifications <span className="n">{prefs.enabled ? "on" : "off"}</span>
                   <span className="ml-auto inline-flex items-center gap-2">
                     <span className="inline-flex rounded-md border border-line2 bg-ink p-0.5">
@@ -699,7 +715,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           for (const h of data.handoffs) if (!isMe(h.by)) needs.push({ level: "wait", title: `Handoff from ${h.by}${h.branch ? ` on ${h.branch}` : ""}`, why: h.summary, cta: <form action={pickupHandoff}><input type="hidden" name="repoId" value={h.repo_id} /><input type="hidden" name="id" value={h.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Pick up</button></form> });
           const order = { stop: 0, go: 1, wait: 2 };
           needs.sort((x, y) => order[x.level] - order[y.level]);
-          const dot = { stop: "bg-stop shadow-[0_0_8px_#ff5a5f]", go: "bg-go shadow-[0_0_8px_#5ad18e]", wait: "bg-wait" };
+          const dot = { stop: "bg-stop shadow-[0_0_8px_var(--wg-stop)]", go: "bg-go shadow-[0_0_8px_var(--wg-go)]", wait: "bg-wait" };
           const tiles = [
             { n: data.prs.length, l: "PRs", t: "PRs" as Tab, warn: false },
             { n: data.conflicted, l: data.conflicted === 1 ? "conflict" : "conflicts", t: "PRs" as Tab, warn: data.conflicted > 0 },
@@ -844,7 +860,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               YOUR WORK · <span className="text-brand-400">&nbsp;{now.length} in progress</span>&nbsp;· {queue.length} queued · team {team.length} open
               <button
                 onClick={() => setCapture((c) => (c ? null : "task"))}
-                className={"ml-auto inline-flex h-6 items-center gap-1 rounded-md border px-2 font-display text-[11px] font-semibold tracking-normal " + (capture ? "border-[#5a2e31] bg-brand-50 text-brand-400" : "border-line2 bg-row2 text-txt hover:border-brand-500")}
+                className={"ml-auto inline-flex h-6 items-center gap-1 rounded-md border px-2 font-display text-[11px] font-semibold tracking-normal " + (capture ? "border-[var(--wg-coral-line)] bg-brand-50 text-brand-400" : "border-line2 bg-row2 text-txt hover:border-brand-500")}
               >
                 <span className="text-[14px] leading-none text-brand-400">＋</span>New
               </button>
@@ -852,8 +868,8 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
             {capture && data.lastRepo && (
               <>
-                <div className="absolute inset-0 z-[4] bg-ink/60" onClick={() => setCapture(null)} />
-                <div className="absolute left-2.5 right-2.5 top-10 z-[5] overflow-hidden rounded-xl border border-line2 bg-row shadow-[0_24px_48px_rgba(0,0,0,.5)]">
+                <div className="absolute inset-0 z-[4] bg-[var(--wg-dim)]" onClick={() => setCapture(null)} />
+                <div className="absolute left-2.5 right-2.5 top-10 z-[5] overflow-hidden rounded-xl border border-line2 bg-row shadow-[var(--wg-shadow)]">
                   <div className="flex items-center gap-0.5 border-b border-line px-2 pt-2">
                     {([["task", "Task"], ["dump", "Braindump"], ["spec", "Context doc"]] as const).map(([k, label]) => (
                       <button key={k} onClick={() => setCapture(k)} className={"-mb-px border-b-2 px-2.5 pb-2 pt-1.5 font-display text-[11.5px] font-semibold " + (capture === k ? "border-brand-500 text-txt" : "border-transparent text-muted hover:text-txt")}>{label}</button>
@@ -920,12 +936,12 @@ export function WidgetApp({ data }: { data: WidgetData }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto pb-2">
               {focus ? (
-                <div className="mx-3.5 mt-2 rounded-xl border border-[#5a2e31] bg-gradient-to-b from-[#2a1a1d] to-row px-3.5 py-3">
+                <div className="mx-3.5 mt-2 rounded-xl border border-[var(--wg-coral-line)] bg-gradient-to-b from-[var(--wg-coral-deep)] to-row px-3.5 py-3">
                   <div className="flex items-baseline gap-2 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-brand-400">Now<span className="ml-auto font-mono text-[11px] font-normal normal-case tracking-normal text-muted">{age(focus)}</span></div>
                   <div className="mt-1.5 font-display text-[17px] font-semibold leading-tight tracking-tight text-txt">{focus.title}</div>
                   <div className="mt-1 text-[11.5px] text-muted">{P(focus.priority)}{focus.tags.length ? ` · ${focus.tags.join(", ")}` : ""}{focus.detail ? ` · ${focus.detail}` : ""}</div>
                   {(focus.footprint ?? []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">{(focus.footprint ?? []).slice(0, 4).map((fp) => <code key={fp} className="rounded border border-line2 bg-ink px-1.5 py-px font-mono text-[10px] text-[#b8bfcf]">{fp}</code>)}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">{(focus.footprint ?? []).slice(0, 4).map((fp) => <code key={fp} className="rounded border border-line2 bg-ink px-1.5 py-px font-mono text-[10px] text-[var(--wg-code)]">{fp}</code>)}</div>
                   )}
                   <div className="mt-2 font-mono text-[10.5px] text-go">{lane ? `▸ lane claimed · ${lane.paths[0]}${lane.paths.length > 1 ? ` +${lane.paths.length - 1}` : ""}${hoursLeft(lane.expires_at) ? ` · ${hoursLeft(lane.expires_at)}h left` : ""}` : "▸ no lane claimed"}</div>
                   <div className="mt-2.5 flex gap-1.5">
@@ -1031,14 +1047,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       <div key={pr.repo_id + pr.number} className={"relative py-2 pl-2.5 pr-3.5 text-[12.5px] " + (i > 0 ? "border-t border-line" : "")}>
                         {order.length > 0 && <span className="absolute -left-[30px] top-2 font-display text-[10px] font-semibold text-faint">{order.indexOf(pr.number) === -1 ? "" : order.indexOf(pr.number) + 1}</span>}
                         <span className={"absolute -left-3 top-2.5 h-3 w-3 rounded-full border-2 bg-ink " + node[k]} />
-                        <a href={pr.html_url ?? "#"} target="_blank" className="font-medium text-txt hover:text-brand-400"><span className="font-mono text-[11px] text-[#b8bfcf]">#{pr.number}</span> {pr.title}</a>
+                        <a href={pr.html_url ?? "#"} target="_blank" className="font-medium text-txt hover:text-brand-400"><span className="font-mono text-[11px] text-[var(--wg-code)]">#{pr.number}</span> {pr.title}</a>
                         <div className="mt-0.5 text-[11.5px] text-muted">{pr.author}{pr.review_state ? ` · ${pr.review_state.replace("_", " ")}` : " · review pending"}{pr.draft ? " · draft" : ""}{data.scopeAll ? ` · ${pr.repo}` : ""}</div>
                         {(pr.light?.reason || reason.get(pr.number)) && (
                           <div className={"mt-1 font-mono text-[10.5px] " + why[k]}>▸ {pr.light?.reason ?? ""}{pr.light?.reason && reason.get(pr.number) ? " — " : ""}{reason.get(pr.number) ?? ""}</div>
                         )}
                         {pr.ai && (
                           <div className="mt-1.5 flex items-start gap-1.5 text-[11.5px] leading-snug text-muted">
-                            <span className="wg-pill flex-shrink-0 border-[#3a3352] text-[#b9a8ff]">AI · {pr.ai.verdict.replace("_", " ")}</span>
+                            <span className="wg-pill flex-shrink-0 border-[var(--wg-violet-line)] text-[var(--wg-violet)]">AI · {pr.ai.verdict.replace("_", " ")}</span>
                             <span className="min-w-0">{pr.ai.summary}</span>
                           </div>
                         )}
@@ -1068,8 +1084,8 @@ export function WidgetApp({ data }: { data: WidgetData }) {
             ...(data.journals ?? []).map((j) => ({ at: j.at, kind: "journal" as const, who: `${j.by}${j.branch ? " · " + j.branch : ""}`, body: j.summary, chips: [...j.learned.slice(0, 1).map((l) => `learned: ${l}`), ...j.tried_and_failed.slice(0, 1).map((l) => `didn't work: ${l}`), ...(j.remaining ? [`remaining: ${j.remaining}`] : [])] })),
             ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" as const, who: h.by ?? "?", body: `left work${h.branch ? " on " + h.branch : ""}: ${h.summary}` })),
           ].sort((x, y) => y.at.localeCompare(x.at));
-          const dot = { decision: "bg-brand-500", broadcast: "bg-wait", journal: "bg-[#b9a8ff]", handoff: "bg-wait" } as const;
-          const kc = { decision: "text-brand-400", broadcast: "text-wait", journal: "text-[#b9a8ff]", handoff: "text-wait" } as const;
+          const dot = { decision: "bg-brand-500", broadcast: "bg-wait", journal: "bg-[var(--wg-violet)]", handoff: "bg-wait" } as const;
+          const kc = { decision: "text-brand-400", broadcast: "text-wait", journal: "text-[var(--wg-violet)]", handoff: "text-wait" } as const;
           const hhmm = (iso: string) => { const d = new Date(iso); const now = new Date(); const same = d.toDateString() === now.toDateString(); return same ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : d.toLocaleDateString([], { month: "short", day: "numeric" }); };
           const counts = { decision: 0, broadcast: 0, journal: 0, handoff: 0 };
           for (const e of events) counts[e.kind]++;
@@ -1099,7 +1115,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                         <span className={"mr-1.5 font-display text-[10px] font-semibold uppercase tracking-[.1em] " + kc[e.kind]}>{e.kind}</span>
                         <span className="font-mono text-[11px] text-muted">{e.who}</span>
                         <div className="mt-0.5">{e.body}</div>
-                        {e.chips && e.chips.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{e.chips.map((c, j) => <span key={j} className="rounded bg-row2 px-1.5 py-px font-mono text-[10px] text-[#b8bfcf]">{c}</span>)}</div>}
+                        {e.chips && e.chips.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{e.chips.map((c, j) => <span key={j} className="rounded bg-row2 px-1.5 py-px font-mono text-[10px] text-[var(--wg-code)]">{c}</span>)}</div>}
                       </div>
                     </React.Fragment>
                   ))}

@@ -10,9 +10,11 @@ const config: Config = {
         // Coral, sampled from the brain mark (#e88078 = brand-500). Hand-tuned
         // so the deeper steps stay coral rather than sliding into error red.
         // Widget "instrument" palette (scoped to the desktop panel via .wg).
-        ink: "#0f1420", row: "#151b28", row2: "#1a2130", line: "#242c3c", line2: "#2e3748",
-        txt: "#ece7de", muted: "#8a92a6", faint: "#5d6579",
-        go: "#5ad18e", wait: "#f0b652", stop: "#ff5a5f",
+        // Values live in globals.css (.wg dark set, light set under
+        // [data-wg-theme="light"] / prefers-color-scheme) so the panel can switch.
+        ink: "var(--wg-ink)", row: "var(--wg-row)", row2: "var(--wg-row2)", line: "var(--wg-line)", line2: "var(--wg-line2)",
+        txt: "var(--wg-txt)", muted: "var(--wg-muted)", faint: "var(--wg-faint)",
+        go: "var(--wg-go)", wait: "var(--wg-wait)", stop: "var(--wg-stop)",
         brand: {
           50: "#fdf1ef",
           100: "#fadfdb",

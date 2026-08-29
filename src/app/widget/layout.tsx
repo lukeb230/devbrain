@@ -8,5 +8,12 @@ const body = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], 
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono", display: "swap" });
 
 export default function WidgetLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`wg ${display.variable} ${body.variable} ${mono.variable} font-body`}>{children}</div>;
+  // Apply the saved appearance before first paint (no flash of the wrong theme).
+  const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="light"||t==="dark")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
+  return (
+    <div className={`wg ${display.variable} ${body.variable} ${mono.variable} font-body`}>
+      <script dangerouslySetInnerHTML={{ __html: early }} />
+      {children}
+    </div>
+  );
 }

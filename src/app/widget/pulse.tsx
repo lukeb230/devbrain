@@ -61,17 +61,17 @@ export function Pulse({
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
         <defs>
           <linearGradient id="wg-g" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#e88078" stopOpacity=".22" />
-            <stop offset="1" stopColor="#e88078" stopOpacity="0" />
+            <stop offset="0" stopColor="var(--wg-accent-strong)" stopOpacity=".22" />
+            <stop offset="1" stopColor="var(--wg-accent-strong)" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path className="wg-trace-fill" d={area} fill="url(#wg-g)" />
         <path className="wg-trace" d={line} />
         {dots.map((d, i) => (
-          <circle key={i} cx={d.x} cy={yAt(d.x)} r="3" fill="#0f1420" stroke={d.kind === "handoff" ? "#f0b652" : d.kind === "broadcast" ? "#f0b652" : "#5ad18e"} strokeWidth="1.5" />
+          <circle key={i} cx={d.x} cy={yAt(d.x)} r="3" fill="var(--wg-ink)" stroke={d.kind === "handoff" || d.kind === "broadcast" ? "var(--wg-wait)" : "var(--wg-go)"} strokeWidth="1.5" />
         ))}
-        {collision && <circle cx={W - 12} cy={yAt(W - 12)} r="3" fill="#ff5a5f" stroke="#ff5a5f" strokeWidth="1.5" />}
-        <line x1={W - 12} y1="8" x2={W - 12} y2={H - 4} stroke="#ece7de" strokeWidth="1" strokeDasharray="2 3" opacity=".6" />
+        {collision && <circle cx={W - 12} cy={yAt(W - 12)} r="3" fill="var(--wg-stop)" stroke="var(--wg-stop)" strokeWidth="1.5" />}
+        <line x1={W - 12} y1="8" x2={W - 12} y2={H - 4} stroke="var(--wg-txt)" strokeWidth="1" strokeDasharray="2 3" opacity=".6" />
       </svg>
       <div className="absolute bottom-0.5 left-0 right-0 flex justify-between font-mono text-[10px] text-faint">
         <span>−60m</span><span>−30m</span><span>now</span>

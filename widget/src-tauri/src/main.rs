@@ -351,7 +351,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login])
+        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login, setup::open_external])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

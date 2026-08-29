@@ -18,6 +18,7 @@
     "allow-setup-state",
     "allow-bootstrap",
     "allow-run-collector-now",
-    "allow-start-browser-login"
+    "allow-start-browser-login",
+    "allow-open-external"
   ]
 }

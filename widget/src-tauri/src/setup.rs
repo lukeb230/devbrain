@@ -344,6 +344,20 @@ pub fn spawn_collector(app: AppHandle) {
     });
 }
 
+/// Open a link in the user's real browser. The panel is a remote page, so
+/// only http(s) is allowed through — never file:// or a custom scheme.
+/// `target="_blank"` in the webview asks for a new window, which this shell
+/// deliberately never creates, so every outward link comes through here.
+#[tauri::command]
+pub fn open_external(app: AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let ok = url.starts_with("https://") || url.starts_with("http://");
+    if !ok {
+        return Err("only http(s) links can be opened".into());
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
 /// Sign-in handoff, step 1: open the site's device-login page in the user's
 /// real browser (already logged in to GitHub there). It comes back through
 /// the app's URL scheme — see `handle_deep_link`.

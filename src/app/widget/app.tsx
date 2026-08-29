@@ -425,6 +425,17 @@ function PinButton({ t }: { t: { id: string; repo_id: string; pinned: boolean } 
   );
 }
 
+// Outward links. `target="_blank"` asks the webview for a new window, which
+// the shell never creates — so inside the app every external link goes
+// through the opener command instead. In a browser it behaves normally.
+function openExternal(e: React.MouseEvent, url: string) {
+  const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
+  if (!core || !url || url === "#") return;
+  e.preventDefault();
+  const abs = url.startsWith("http") ? url : `${window.location.origin}${url}`;
+  void core.invoke("open_external", { url: abs }).catch(() => window.open(abs, "_blank"));
+}
+
 function Switch({ on, small }: { on: boolean; small?: boolean }) {
   const h = small ? "h-5 w-9" : "h-6 w-11";
   const knob = small ? "h-3.5 w-3.5" : "h-4 w-4";
@@ -649,7 +660,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <h2 className="wg-sec">This Mac <span className="n">{setup.app_version ? `v${setup.app_version}` : ""}</span><span className={"r " + (setup.bootstrap_ok === false ? "text-stop" : setup.bootstrap_ok ? "text-go" : "")}>{setup.bootstrap_ok === false ? "needs attention" : setup.bootstrap_ok ? "complete" : ""}</span></h2>
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-1 text-[12px]">
                     <span className="text-muted">Setup</span><span className="font-mono text-[11px] text-txt">{setup.bootstrap_at ? `ran ${new Date(setup.bootstrap_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "never run"}{setup.bootstrap_failed.length ? ` · failed: ${setup.bootstrap_failed.join(", ")}` : setup.bootstrap_ok ? " · all parts ok" : ""}</span><SetupCard state={setup} inline />
-                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/settings/reminders" target="_blank" className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
+                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/settings/reminders" target="_blank" onClick={(e) => openExternal(e, "/settings/reminders")} className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
                     <span className="text-muted">Updates</span><span className="font-mono text-[11px] text-txt">daily + on session start</span><span />
                   </div>
                 </section>
@@ -694,7 +705,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 </section>
               )}
 
-              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"} target="_blank" className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open full dashboard →</a> <span className="text-faint">History, Rules, repo management.</span></p>
+              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"} target="_blank" onClick={(e) => openExternal(e, data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open full dashboard →</a> <span className="text-faint">History, Rules, repo management.</span></p>
             </div>
           </div>
         )}
@@ -703,13 +714,13 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           type Need = { level: "stop" | "go" | "wait"; title: string; why: string; cta: React.ReactNode };
           const needs: Need[] = [];
           const go = (t: Tab, label: string) => <button onClick={() => setTab(t)} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">{label}</button>;
-          for (const pr of data.prs) if (isMe(pr.author) && pr.mergeable_state === "dirty") needs.push({ level: "stop", title: `#${pr.number} has conflicts`, why: `${pr.title} — resolve against ${pr.defaultBranch}`, cta: <a href={pr.html_url ?? "#"} target="_blank" className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Fix</a> });
+          for (const pr of data.prs) if (isMe(pr.author) && pr.mergeable_state === "dirty") needs.push({ level: "stop", title: `#${pr.number} has conflicts`, why: `${pr.title} — resolve against ${pr.defaultBranch}`, cta: <a href={pr.html_url ?? "#"} target="_blank" onClick={(e) => openExternal(e, pr.html_url ?? "#")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Fix</a> });
           const myPaths = data.claims.filter((c) => isMe(c.dev_label)).flatMap((c) => c.paths.map((p) => p.replace(/\/$/, "")));
           for (const c of data.collisions) {
             const mine = myPaths.some((p) => c.file.startsWith(p));
             needs.push({ level: mine ? "stop" : "wait", title: mine ? `Your lane is contested — ${c.file.split("/").pop()}` : `Collision — ${c.file.split("/").pop()}`, why: `${c.branches.join(" + ")}${data.scopeAll ? ` · ${c.repo}` : ""}`, cta: go("PRs", "Look") });
           }
-          for (const pr of data.prs) if (isMe(pr.author) && pr.light?.state === "green") needs.push({ level: "go", title: `#${pr.number} is cleared to land`, why: pr.light.reason, cta: <a href={pr.html_url ?? "#"} target="_blank" className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Merge</a> });
+          for (const pr of data.prs) if (isMe(pr.author) && pr.light?.state === "green") needs.push({ level: "go", title: `#${pr.number} is cleared to land`, why: pr.light.reason, cta: <a href={pr.html_url ?? "#"} target="_blank" onClick={(e) => openExternal(e, pr.html_url ?? "#")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Merge</a> });
           for (const t of open) if (t.priority === 1 && isMe(t.assigned_to) && !t.started_by) needs.push({ level: "wait", title: `P1 assigned to you — ${t.title}`, why: `${t.created_by ?? "?"} · ${timeAgo(t.created_at)}`, cta: <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Start</button></form> });
           for (const t of open) if (t.maybe_done_pr && isMe(t.assigned_to)) needs.push({ level: "wait", title: `Possibly done — ${t.title}`, why: `PR #${t.maybe_done_pr} looks like it closed it`, cta: go("Tasks", "Confirm") });
           for (const h of data.handoffs) if (!isMe(h.by)) needs.push({ level: "wait", title: `Handoff from ${h.by}${h.branch ? ` on ${h.branch}` : ""}`, why: h.summary, cta: <form action={pickupHandoff}><input type="hidden" name="repoId" value={h.repo_id} /><input type="hidden" name="id" value={h.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Pick up</button></form> });
@@ -1047,7 +1058,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       <div key={pr.repo_id + pr.number} className={"relative py-2 pl-2.5 pr-3.5 text-[12.5px] " + (i > 0 ? "border-t border-line" : "")}>
                         {order.length > 0 && <span className="absolute -left-[30px] top-2 font-display text-[10px] font-semibold text-faint">{order.indexOf(pr.number) === -1 ? "" : order.indexOf(pr.number) + 1}</span>}
                         <span className={"absolute -left-3 top-2.5 h-3 w-3 rounded-full border-2 bg-ink " + node[k]} />
-                        <a href={pr.html_url ?? "#"} target="_blank" className="font-medium text-txt hover:text-brand-400"><span className="font-mono text-[11px] text-[var(--wg-code)]">#{pr.number}</span> {pr.title}</a>
+                        <a href={pr.html_url ?? "#"} target="_blank" onClick={(e) => openExternal(e, pr.html_url ?? "#")} className="font-medium text-txt hover:text-brand-400"><span className="font-mono text-[11px] text-[var(--wg-code)]">#{pr.number}</span> {pr.title}</a>
                         <div className="mt-0.5 text-[11.5px] text-muted">{pr.author}{pr.review_state ? ` · ${pr.review_state.replace("_", " ")}` : " · review pending"}{pr.draft ? " · draft" : ""}{data.scopeAll ? ` · ${pr.repo}` : ""}</div>
                         {(pr.light?.reason || reason.get(pr.number)) && (
                           <div className={"mt-1 font-mono text-[10.5px] " + why[k]}>▸ {pr.light?.reason ?? ""}{pr.light?.reason && reason.get(pr.number) ? " — " : ""}{reason.get(pr.number) ?? ""}</div>

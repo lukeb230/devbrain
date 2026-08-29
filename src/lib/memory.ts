@@ -49,7 +49,12 @@ export function journalToMemory(j: Row): MemoryRow {
 /** events rows of kind 'decision' | 'broadcast' — payload {text, by}. */
 export function eventToMemory(e: Row): MemoryRow | null {
   if (e.kind !== "decision" && e.kind !== "broadcast") return null;
-  const p = (e.payload ?? {}) as { text?: string; by?: string };
+  const p = (e.payload ?? {}) as { text?: string; by?: string; journal_id?: string };
+  // Decisions the tick lifted out of a journal are already in the index as part
+  // of that journal's own row ("Decided: …"). They are published as events so
+  // they reach the feed and teammates' context — indexing them again would
+  // return the same sentence twice for one search.
+  if (e.kind === "decision" && p.journal_id) return null;
   const text = clip(p.text, 2000);
   if (!text) return null;
   return {

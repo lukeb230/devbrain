@@ -8,7 +8,6 @@ import React, { useEffect, useRef, useState, useTransition } from "react";
 import { mintDeviceToken, setWidgetRepo } from "./actions";
 import { dismissAlert } from "../settings/org/alert-actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
-import { TaskBody } from "@/components/TaskBody";
 import { BrainMark } from "@/components/BrainMark";
 import { Pulse } from "./pulse";
 import { WidgetBrain } from "./brain";
@@ -60,30 +59,12 @@ export interface WidgetData {
   mergePlan: { repo: string; order: { number: number; title: string; reason: string }[] } | null;
 }
 
-const LIGHT_DOT: Record<string, string> = {
-  green: "bg-emerald-500",
-  yellow: "bg-amber-400",
-  red: "bg-red-500",
-  gray: "bg-slate-300",
-};
 
-const AI_CHIP: Record<string, string> = {
-  looks_good: "bg-emerald-50 text-emerald-700",
-  caution: "bg-amber-50 text-amber-700",
-  risky: "bg-red-50 text-red-700",
-  skipped: "bg-slate-100 text-slate-500",
-};
 
 const TABS = ["Home", "Tasks", "PRs", "Brain", "Feed"] as const;
 type Tab = (typeof TABS)[number];
 type View = Tab | "Settings";
 
-const PRIO: Record<number, string> = {
-  1: "bg-red-50 text-red-700",
-  2: "bg-amber-50 text-amber-700",
-  3: "bg-brand-50 text-brand-700",
-  4: "bg-slate-100 text-slate-600",
-};
 
 function timeAgo(iso: string) {
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -94,24 +75,6 @@ function timeAgo(iso: string) {
   return `${Math.floor(hr / 24)}d`;
 }
 
-function TaskRow({ t, compact }: { t: WidgetData["tasks"][number]; compact?: boolean }) {
-  return (
-    <li className="flex items-start gap-2">
-      <form action={completeTask} className="mt-0.5 flex-shrink-0">
-        <input type="hidden" name="repoId" value={t.repo_id} />
-        <input type="hidden" name="id" value={t.id} />
-        <button
-          title="Mark complete"
-          className="block rounded border border-slate-300 bg-white hover:border-brand-600 hover:bg-brand-50"
-          style={{ height: 14, width: 14 }}
-        />
-      </form>
-      <span className={`chip mt-0.5 flex-shrink-0 px-1 py-0 text-[10px] ${PRIO[t.priority] ?? PRIO[4]}`}>P{t.priority}</span>
-      <TaskBody size="sm" title={t.title} detail={t.detail} />
-      {!compact && t.assigned_to && <span className="flex-shrink-0 text-[10px] text-brand-600">{t.assigned_to}</span>}
-    </li>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // First-run setup, shown inside the desktop app until ~/.devbrain/config.json

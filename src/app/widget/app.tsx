@@ -480,7 +480,13 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     }
   }, [data.deploy]);
   const [switching, startSwitch] = useTransition();
-  const [capture, setCapture] = useState<"dump" | "spec">("dump");
+  const [capture, setCapture] = useState<null | "task" | "dump" | "spec">(null);
+  const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCapture(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   const [testResult, setTestResult] = useState<DeliveryResult | "sending" | null>(null);
   const runTest = async () => {
@@ -895,248 +901,195 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           </div>
         )}
 
-        {tab === "Tasks" && (
-          <div className="space-y-2.5">
-            {data.lastRepo && (
-              <div className="card border-l-4 border-l-brand-400 px-2.5 py-2">
-                <div className="mb-1.5 flex gap-1">
-                  {([
-                    { key: "dump", label: "Braindump" },
-                    { key: "spec", label: "Context doc" },
-                  ] as const).map((m) => (
-                    <button
-                      key={m.key}
-                      onClick={() => setCapture(m.key)}
-                      className={
-                        "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider " +
-                        (capture === m.key
-                          ? "bg-brand-600 text-white"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200")
-                      }
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-                {capture === "dump" ? (
-                  <form action={braindumpTasks}>
-                    <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                    <textarea
-                      name="dump"
-                      required
-                      rows={2}
-                      placeholder="Dictate or type everything on your mind — DevBrain splits it into tasks…"
-                      className="w-full resize-y rounded border border-slate-200 px-2 py-1 text-xs leading-snug focus:border-brand-500 focus:outline-none"
-                    />
-                    <button className="mt-1 rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
-                      Turn into tasks
-                    </button>
-                  </form>
-                ) : (
-                  <form action={uploadSpec}>
-                    <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                    <input type="hidden" name="stay" value="1" />
-                    <textarea
-                      name="text"
-                      required
-                      rows={3}
-                      placeholder="Paste a spec, brief, or a whole reply from another Claude session — DevBrain works out what's already built and what isn't…"
-                      className="w-full resize-y rounded border border-slate-200 px-2 py-1 text-xs leading-snug focus:border-brand-500 focus:outline-none"
-                    />
-                    <input
-                      name="title"
-                      placeholder="Title (optional)"
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
-                    />
-                    <button className="mt-1 rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
-                      Add context
-                    </button>
-                    <p className="mt-1 text-[10px] leading-snug text-slate-400">
-                      Analyzed within ~2 min — you&apos;ll get a notification, then review it on the dashboard.
-                    </p>
-                  </form>
-                )}
-              </div>
-            )}
-            {data.lastRepo && (
-              <form action={createTask} className="card space-y-1.5 px-2.5 py-2">
-                <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                <div className="flex gap-1.5">
-                  <input
-                    name="title"
-                    required
-                    placeholder={`Add task to ${data.lastRepo.name}…`}
-                    className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
-                  />
-                  <select name="priority" defaultValue="3" className="rounded border border-slate-200 px-1 py-1 text-xs">
-                    <option value="1">P1</option>
-                    <option value="2">P2</option>
-                    <option value="3">P3</option>
-                    <option value="4">P4</option>
-                  </select>
-                  <select name="assignee" defaultValue="" className="w-20 rounded border border-slate-200 px-1 py-1 text-xs">
-                    <option value="">Anyone</option>
-                    {data.members.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <input
-                  name="detail"
-                  placeholder="Optional detail"
-                  className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
-                />
-                <div className="flex flex-wrap items-center gap-1">
-                  {["bug", "feature", "ui", "backend", "plugin", "brain", "docs", "refactor"].map((tag) => (
-                    <label key={tag} className="cursor-pointer">
-                      <input type="checkbox" name="tags" value={tag} className="peer sr-only" />
-                      <span className="chip border border-slate-200 bg-white px-1 py-0 text-[10px] text-slate-500 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white">
-                        {tag}
-                      </span>
-                    </label>
-                  ))}
-                  <input
-                    name="customTags"
-                    placeholder="+custom"
-                    className="w-16 rounded border border-slate-200 px-1 py-0.5 text-[10px] focus:border-brand-500 focus:outline-none"
-                  />
-                  <button className="ml-auto rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
-                    Add
-                  </button>
-                </div>
+        {tab === "Tasks" && (() => {
+          const mine = open.filter((t) => isMe(t.started_by) || isMe(t.assigned_to));
+          const now = open.filter((t) => isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
+          const focus = now[0] ?? null;
+          const queue = open.filter((t) => isMe(t.assigned_to) && !isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
+          const team = open.filter((t) => !isMe(t.assigned_to) && !isMe(t.started_by));
+          const maybe = open.filter((t) => t.maybe_done_pr);
+          const counts = new Map<string, number>();
+          for (const t of team) counts.set(t.assigned_to ?? "", (counts.get(t.assigned_to ?? "") ?? 0) + 1);
+          const people = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+          const teamShown = teamFilter === null ? team : team.filter((t) => (t.assigned_to ?? "") === teamFilter);
+          const lane = focus ? data.claims.find((c) => isMe(c.dev_label) && c.repo_id === focus.repo_id) : null;
+          const hoursLeft = (iso: string | null) => (iso ? Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 3600_000)) : null);
+          const age = (t: { created_at: string }) => timeAgo(t.created_at);
+          const P = (p: number) => <span className={"font-mono text-[10px] " + (p === 1 ? "text-stop" : p === 2 ? "text-wait" : p === 3 ? "text-muted" : "text-faint")}>P{p}</span>;
+          const Row = ({ t, action }: { t: (typeof open)[number]; action?: React.ReactNode }) => (
+            <div className={"wg-row " + (t.priority === 1 ? "stop" : isMe(t.assigned_to) || isMe(t.started_by) ? "me" : "")}>
+              <form action={completeTask} className="flex-shrink-0">
+                <input type="hidden" name="repoId" value={t.repo_id} />
+                <input type="hidden" name="id" value={t.id} />
+                <button title="Mark complete" className="block h-3.5 w-3.5 rounded border border-line2 hover:border-brand-500" />
               </form>
-            )}
-
-            {open.length === 0 ? (
-              <div className="card px-2.5 py-2">
-                <p className="text-xs text-slate-400">No open tasks.</p>
+              <div className="k">
+                <div className="t">{t.title}</div>
+                <div className="s">{t.assigned_to ? (isMe(t.assigned_to) ? "you" : t.assigned_to) : "unassigned"}{t.started_by ? ` · started by ${isMe(t.started_by) ? "you" : t.started_by}` : ""}{t.tags.length ? ` · ${t.tags.join(", ")}` : ""}{data.scopeAll ? ` · ${t.repo}` : ""}</div>
               </div>
-            ) : (
-              [1, 2, 3, 4].map((p) => {
-                const group = open.filter((t) => t.priority === p);
-                if (group.length === 0) return null;
-                return (
-                  <div key={p} className="card px-2.5 py-2">
-                    <div className="mb-1.5 flex items-baseline gap-1.5">
-                      <span className={`chip px-1 py-0 text-[10px] ${PRIO[p]}`}>
-                        P{p} · {p === 1 ? "Critical" : p === 2 ? "High" : p === 3 ? "Medium" : "Low"}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{group.length}</span>
-                    </div>
-                    <ul className="space-y-2">
-                      {group.map((t) => (
-                        <li key={t.id} className="text-xs">
-                          <div className="flex items-start gap-2">
-                            <form action={completeTask} className="mt-0.5 flex-shrink-0">
-                              <input type="hidden" name="repoId" value={t.repo_id} />
-                              <input type="hidden" name="id" value={t.id} />
-                              <button
-                                title="Mark complete"
-                                className="block rounded border border-slate-300 bg-white hover:border-brand-600 hover:bg-brand-50"
-                                style={{ height: 14, width: 14 }}
-                              />
-                            </form>
-                            <TaskBody size="sm" title={t.title} detail={t.detail} />
-                            <TaskMenu
-                              compact
-                              task={{
-                                id: t.id,
-                                repo_id: t.repo_id,
-                                title: t.title,
-                                detail: t.detail,
-                                priority: t.priority,
-                                tags: t.tags,
-                                assigned_to: t.assigned_to,
-                              }}
-                              members={data.members}
-                            />
-                          </div>
-                          {t.maybe_done_pr && (
-                            <div className="ml-6 mt-0.5 flex items-center gap-1.5">
-                              <span className="chip bg-amber-50 px-1 py-0 text-[10px] text-amber-800">
-                                possibly done by #{t.maybe_done_pr}
-                              </span>
-                              <form action={confirmMaybeDone}>
-                                <input type="hidden" name="repoId" value={t.repo_id} />
-                                <input type="hidden" name="id" value={t.id} />
-                                <button className="text-[10px] font-medium text-amber-700 hover:underline">Yes, done</button>
-                              </form>
-                              <form action={dismissMaybeDone}>
-                                <input type="hidden" name="repoId" value={t.repo_id} />
-                                <input type="hidden" name="id" value={t.id} />
-                                <button className="text-[10px] text-slate-400 hover:underline">Still open</button>
-                              </form>
-                            </div>
-                          )}
-                          <div className="ml-6 mt-0.5 flex flex-wrap items-center gap-1">
-                            {t.started_by && (
-                              <span className="chip bg-emerald-50 px-1 py-0 text-[10px] text-emerald-700">
-                                in progress · {t.started_by}
-                              </span>
-                            )}
-                            {t.tags.map((tag) => (
-                              <span key={tag} className="chip bg-slate-100 px-1 py-0 text-[10px] text-slate-500">{tag}</span>
-                            ))}
-                            {(t.footprint ?? []).slice(0, 2).map((fp) => (
-                              <code key={fp} className="rounded bg-slate-50 px-1 text-[10px] text-slate-500 ring-1 ring-slate-200">{fp}</code>
-                            ))}
-                            <span className="text-[10px] text-slate-400">
-                              {t.created_by} · {timeAgo(t.created_at)}
-                            </span>
-                            {!t.started_by && (
-                              <form action={startTask}>
-                                <input type="hidden" name="repoId" value={t.repo_id} />
-                                <input type="hidden" name="id" value={t.id} />
-                                <button className="rounded border border-slate-200 px-1.5 py-0 text-[10px] font-medium text-slate-500 hover:border-brand-500 hover:text-brand-600">
-                                  Start
-                                </button>
-                              </form>
-                            )}
-                            <form action={assignTask} className="ml-auto flex items-center gap-1">
-                              <input type="hidden" name="repoId" value={t.repo_id} />
-                              <input type="hidden" name="id" value={t.id} />
-                              <select
-                                name="assignee"
-                                defaultValue={t.assigned_to ?? ""}
-                                className="rounded border border-slate-200 px-1 py-0 text-[10px] text-slate-600"
-                              >
-                                <option value="">Unassigned</option>
-                                {data.members.map((m) => <option key={m} value={m}>{m}</option>)}
-                              </select>
-                              <button className="rounded border border-slate-200 px-1 py-0 text-[10px] text-slate-400 hover:border-brand-500 hover:text-brand-600">
-                                Set
-                              </button>
-                            </form>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+              {P(t.priority)}
+              <span className="m">{age(t)}</span>
+              {action}
+              <TaskMenu compact task={{ id: t.id, repo_id: t.repo_id, title: t.title, detail: t.detail, priority: t.priority, tags: t.tags, assigned_to: t.assigned_to }} members={data.members} />
+            </div>
+          );
+          return (
+          <div className="relative -mx-3 -my-2.5 flex h-full flex-col">
+            {/* Strip: counts + the capture trigger */}
+            <div className="mx-3.5 mb-1.5 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
+              YOUR WORK · <span className="text-brand-400">&nbsp;{now.length} in progress</span>&nbsp;· {queue.length} queued · team {team.length} open
+              <button
+                onClick={() => setCapture((c) => (c ? null : "task"))}
+                className={"ml-auto inline-flex h-6 items-center gap-1 rounded-md border px-2 font-display text-[11px] font-semibold tracking-normal " + (capture ? "border-[#5a2e31] bg-brand-50 text-brand-400" : "border-line2 bg-row2 text-txt hover:border-brand-500")}
+              >
+                <span className="text-[14px] leading-none text-brand-400">＋</span>New
+              </button>
+            </div>
+
+            {capture && data.lastRepo && (
+              <>
+                <div className="absolute inset-0 z-[4] bg-ink/60" onClick={() => setCapture(null)} />
+                <div className="absolute left-2.5 right-2.5 top-10 z-[5] overflow-hidden rounded-xl border border-line2 bg-row shadow-[0_24px_48px_rgba(0,0,0,.5)]">
+                  <div className="flex items-center gap-0.5 border-b border-line px-2 pt-2">
+                    {([["task", "Task"], ["dump", "Braindump"], ["spec", "Context doc"]] as const).map(([k, label]) => (
+                      <button key={k} onClick={() => setCapture(k)} className={"-mb-px border-b-2 px-2.5 pb-2 pt-1.5 font-display text-[11.5px] font-semibold " + (capture === k ? "border-brand-500 text-txt" : "border-transparent text-muted hover:text-txt")}>{label}</button>
+                    ))}
+                    <span className="ml-auto flex items-center gap-1.5 pb-2 font-mono text-[10px] text-faint"><i className="inline-block h-1.5 w-1.5 rounded-full bg-go" />{data.lastRepo.name}</span>
                   </div>
-                );
-              })
+                  {capture === "task" && (
+                    <form action={createTask} className="flex flex-col gap-2 px-3 pb-3 pt-2.5">
+                      <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                      <input name="title" required autoFocus placeholder="What needs doing?" className="w-full rounded-md border border-line2 bg-ink px-2.5 py-2 text-[13.5px] text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      <div className="flex gap-1.5">
+                        <select name="priority" defaultValue="3" className="rounded-md border border-line2 bg-ink px-1.5 py-1.5 font-mono text-[11.5px] text-txt">
+                          <option value="1">P1 · Critical</option><option value="2">P2 · High</option><option value="3">P3 · Medium</option><option value="4">P4 · Low</option>
+                        </select>
+                        <select name="assignee" defaultValue="" className="rounded-md border border-line2 bg-ink px-1.5 py-1.5 font-mono text-[11.5px] text-txt">
+                          <option value="">Anyone</option>
+                          {data.members.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <input name="detail" placeholder="Detail (optional)" className="min-w-0 flex-1 rounded-md border border-line2 bg-ink px-2 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {["bug", "feature", "ui", "backend", "plugin", "brain", "docs", "refactor"].map((tag) => (
+                          <label key={tag} className="cursor-pointer">
+                            <input type="checkbox" name="tags" value={tag} className="peer sr-only" />
+                            <span className="rounded-full border border-line2 px-2 py-0.5 font-mono text-[10.5px] text-muted peer-checked:border-brand-500 peer-checked:text-brand-400">{tag}</span>
+                          </label>
+                        ))}
+                        <input name="customTags" placeholder="+custom" className="w-16 rounded-full border border-line2 bg-ink px-2 py-0.5 font-mono text-[10.5px] text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      </div>
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <span className="flex-1 font-mono text-[10px] text-faint">↵ adds · esc closes</span>
+                        <button type="button" onClick={() => setCapture(null)} className="rounded-md border border-line2 px-3 py-1.5 font-display text-xs font-semibold text-muted">Cancel</button>
+                        <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Add task</button>
+                      </div>
+                    </form>
+                  )}
+                  {capture === "dump" && (
+                    <form action={braindumpTasks} className="flex flex-col gap-2 px-3 pb-3 pt-2.5">
+                      <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                      <textarea name="dump" required autoFocus rows={5} placeholder="Everything on your mind — DevBrain splits it into tasks and skips duplicates." className="w-full resize-none rounded-md border border-line2 bg-ink px-2.5 py-2 text-xs leading-relaxed text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <span className="flex-1 font-mono text-[10px] text-faint">dictate or type · duplicates are skipped</span>
+                        <button type="button" onClick={() => setCapture(null)} className="rounded-md border border-line2 px-3 py-1.5 font-display text-xs font-semibold text-muted">Cancel</button>
+                        <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Turn into tasks</button>
+                      </div>
+                    </form>
+                  )}
+                  {capture === "spec" && (
+                    <form action={uploadSpec} className="flex flex-col gap-2 px-3 pb-3 pt-2.5">
+                      <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                      <input type="hidden" name="stay" value="1" />
+                      <textarea name="text" required autoFocus rows={4} placeholder="Paste a spec, brief, or a whole reply from another Claude session — DevBrain works out what's built and what isn't." className="w-full resize-none rounded-md border border-line2 bg-ink px-2.5 py-2 text-xs leading-relaxed text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      <input name="title" placeholder="Title (optional)" className="w-full rounded-md border border-line2 bg-ink px-2.5 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <span className="flex-1 font-mono text-[10px] text-faint">analyzed in ~2 min · you get a notification</span>
+                        <button type="button" onClick={() => setCapture(null)} className="rounded-md border border-line2 px-3 py-1.5 font-display text-xs font-semibold text-muted">Cancel</button>
+                        <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Add context</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </>
             )}
 
-            {done.length > 0 && (
-              <div className="card px-2.5 py-2">
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Completed <span className="normal-case">· auto-removes at 72h</span>
+            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+              {focus ? (
+                <div className="mx-3.5 mt-2 rounded-xl border border-[#5a2e31] bg-gradient-to-b from-[#2a1a1d] to-row px-3.5 py-3">
+                  <div className="flex items-baseline gap-2 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-brand-400">Now<span className="ml-auto font-mono text-[11px] font-normal normal-case tracking-normal text-muted">{age(focus)}</span></div>
+                  <div className="mt-1.5 font-display text-[17px] font-semibold leading-tight tracking-tight text-txt">{focus.title}</div>
+                  <div className="mt-1 text-[11.5px] text-muted">{P(focus.priority)}{focus.tags.length ? ` · ${focus.tags.join(", ")}` : ""}{focus.detail ? ` · ${focus.detail}` : ""}</div>
+                  {(focus.footprint ?? []).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">{(focus.footprint ?? []).slice(0, 4).map((fp) => <code key={fp} className="rounded border border-line2 bg-ink px-1.5 py-px font-mono text-[10px] text-[#b8bfcf]">{fp}</code>)}</div>
+                  )}
+                  <div className="mt-2 font-mono text-[10.5px] text-go">{lane ? `▸ lane claimed · ${lane.paths[0]}${lane.paths.length > 1 ? ` +${lane.paths.length - 1}` : ""}${hoursLeft(lane.expires_at) ? ` · ${hoursLeft(lane.expires_at)}h left` : ""}` : "▸ no lane claimed"}</div>
+                  <div className="mt-2.5 flex gap-1.5">
+                    <form action={completeTask}><input type="hidden" name="repoId" value={focus.repo_id} /><input type="hidden" name="id" value={focus.id} /><button className="rounded-md bg-brand-600 px-2.5 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700">Mark done</button></form>
+                    <TaskMenu compact task={{ id: focus.id, repo_id: focus.repo_id, title: focus.title, detail: focus.detail, priority: focus.priority, tags: focus.tags, assigned_to: focus.assigned_to }} members={data.members} />
+                  </div>
                 </div>
-                <ul className="space-y-1">
-                  {done.map((t) => (
-                    <li key={t.id} className="flex items-baseline gap-1.5 text-xs">
-                      <span className="text-emerald-600">✓</span>
-                      <span className="min-w-0 flex-1 truncate text-slate-400 line-through">{t.title}</span>
-                      <span className="flex-shrink-0 text-[10px] text-slate-400">{t.done_by}</span>
-                      <form action={reopenTask} className="flex-shrink-0">
-                        <input type="hidden" name="repoId" value={t.repo_id} />
-                        <input type="hidden" name="id" value={t.id} />
-                        <button className="text-[10px] text-slate-400 hover:text-brand-600">Reopen</button>
-                      </form>
-                    </li>
+              ) : (
+                <div className="mx-3.5 mt-2 rounded-xl border border-dashed border-line2 px-3.5 py-3 text-xs text-faint">Nothing in progress. Start one from your queue below — or tell your Claude which task you&apos;re taking and it will start it for you.</div>
+              )}
+              {now.length > 1 && <p className="wg-empty">+{now.length - 1} more in progress: {now.slice(1).map((t) => t.title).join(" · ")}</p>}
+
+              <section className="mt-2.5">
+                <h2 className="wg-sec">Next for you <span className="n">{queue.length}</span></h2>
+                {queue.length === 0 ? <p className="wg-empty">Nothing queued for you.</p> : queue.map((t, i) => (
+                  <div key={t.id} className="wg-row">
+                    <span className="w-3.5 text-right font-mono text-[11px] text-faint">{i + 1}</span>
+                    <div className="k"><div className="t">{t.title}</div><div className="s">{t.tags.join(", ")}{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
+                    {P(t.priority)}<span className="m">{age(t)}</span>
+                    <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Start</button></form>
+                  </div>
+                ))}
+              </section>
+
+              <section className="mt-2.5">
+                <h2 className="wg-sec">Team <span className="n">{team.length} open</span></h2>
+                {people.length > 0 && (
+                  <div className="flex gap-1.5 overflow-x-auto px-3.5 pb-1.5">
+                    {people.map(([who, n]) => (
+                      <button key={who} onClick={() => setTeamFilter(teamFilter === who ? null : who)} className={"flex flex-shrink-0 items-center gap-1.5 rounded-full border py-1 pl-1.5 pr-2.5 text-[11.5px] " + (teamFilter === who ? "border-brand-500 bg-brand-50 text-txt" : "border-line2 text-muted")}>
+                        <span className="wg-av" style={{ width: 18, height: 18, fontSize: 9 }}>{who ? initials(who) : "—"}</span>{who || "Unassigned"} <span className={"font-mono text-[11px] " + (teamFilter === who ? "text-brand-400" : "text-faint")}>{n}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {teamShown.length === 0 ? <p className="wg-empty">Nothing open for the team.</p> : teamShown.map((t) => <Row key={t.id} t={t} />)}
+              </section>
+
+              {maybe.length > 0 && (
+                <section className="mt-2.5">
+                  <h2 className="wg-sec text-wait">Possibly done <span className="n">{maybe.length}</span></h2>
+                  {maybe.map((t) => (
+                    <div key={t.id} className="wg-row wait">
+                      <div className="k"><div className="t">{t.title}</div><div className="s">closed by PR #{t.maybe_done_pr}?</div></div>
+                      <form action={confirmMaybeDone}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-go hover:underline">Yes, done</button></form>
+                      <form action={dismissMaybeDone}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="text-[11px] text-faint hover:text-txt">Still open</button></form>
+                    </div>
                   ))}
-                </ul>
-              </div>
-            )}
+                </section>
+              )}
+
+              {done.length > 0 && (
+                <section className="mt-2.5">
+                  <h2 className="wg-sec text-go">Done today <span className="n">{done.length}</span><span className="r">auto-clears at 72h</span></h2>
+                  {done.map((t) => (
+                    <div key={t.id} className="wg-row opacity-60">
+                      <span className="block h-3.5 w-3.5 flex-shrink-0 rounded border border-go bg-go" />
+                      <div className="k"><div className="t line-through">{t.title}</div><div className="s">{t.done_by}</div></div>
+                      <form action={reopenTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="text-[11px] text-faint hover:text-brand-400">Reopen</button></form>
+                    </div>
+                  ))}
+                </section>
+              )}
+              {!data.lastRepo && <p className="wg-empty">Pick a repo in the header to add tasks.</p>}
+            </div>
           </div>
-        )}
+          );
+        })()}
 
         {tab === "PRs" && (
           <div className="space-y-2.5">

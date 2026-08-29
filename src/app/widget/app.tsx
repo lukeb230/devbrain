@@ -4,7 +4,7 @@
 // (tasks + who's working — the glance content), and a bottom tab bar for
 // Tasks / PRs / Brain / Feed. Tab switches are instant (pure client state).
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import { mintDeviceToken, setWidgetRepo } from "./actions";
 import { dismissAlert } from "../settings/org/alert-actions";
 import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
@@ -339,7 +339,7 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
 }
 
 // Settings → "Setup on this Mac": last outcome + re-run without re-minting.
-function SetupCard({ state }: { state: SetupState }) {
+function SetupCard({ state, inline }: { state: SetupState; inline?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<BootstrapResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -350,6 +350,15 @@ function SetupCard({ state }: { state: SetupState }) {
     finally { setBusy(false); }
   };
   const status = result ? (result.ok ? "ok" : "failed") : state.bootstrap_ok === false ? "failed" : state.bootstrap_ok ? "ok" : null;
+  if (inline) {
+    return (
+      <span className="text-right">
+        <button onClick={() => void rerun()} disabled={busy} className="font-display text-[11px] font-semibold text-brand-400 hover:underline disabled:opacity-50">{busy ? "Running…" : "Re-run"}</button>
+        {err && <span className="block text-[10px] text-stop">✗ {err}</span>}
+        {result && <span className={"block font-mono text-[10px] " + (result.ok ? "text-go" : "text-stop")}>{result.ok ? "all parts ok" : `failed: ${result.failed.join(", ")}`}</span>}
+      </span>
+    );
+  }
   return (
     <div className="card px-2.5 py-2">
       <div className="mb-1 flex items-center justify-between">
@@ -592,170 +601,96 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       {/* Content */}
       <div className={"min-h-0 flex-1 " + (tab === "Home" ? "overflow-y-auto" : "overflow-y-auto px-3 py-2.5")}>
         {tab === "Settings" && (
-          <div className="space-y-2.5">
-            {setup && <SetupCard state={setup} />}
-            <div className="card px-2.5 py-2">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Notifications</span>
-                <button onClick={() => setPref("enabled", !prefs.enabled)} aria-label="Toggle notifications">
-                  <Switch on={prefs.enabled} small />
-                </button>
-              </div>
-              <div className={"mb-2 " + (prefs.enabled ? "" : "pointer-events-none opacity-40")}>
-                <div className="mb-1 text-[10px] font-medium text-slate-500">Notify me about</div>
-                <div className="flex gap-1">
-                  {([
-                    { key: "all", label: "All repos" },
-                    { key: "repo", label: "Active repo only" },
-                  ] as const).map((o) => (
-                    <button
-                      key={o.key}
-                      onClick={() => {
-                        const next = { ...prefs, scope: o.key };
-                        setPrefs(next);
-                        writePrefs(next);
-                      }}
-                      className={
-                        "flex-1 rounded border px-1.5 py-1 text-[10px] font-medium " +
-                        (prefs.scope === o.key
-                          ? "border-brand-600 bg-brand-600 text-white"
-                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")
-                      }
-                    >
-                      {o.label}
-                    </button>
+          <div className="-mx-3 -my-2.5 flex h-full flex-col">
+            <div className="mx-3.5 mb-1 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
+              SETTINGS · <span className="text-brand-400">&nbsp;this Mac</span>&nbsp;· notifications {prefs.enabled ? "on" : "off"}{setup?.reminders_on ? " · reminders on" : ""}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+              <section className="mt-2">
+                <h2 className="wg-sec">Notifications <span className="n">{prefs.enabled ? "on" : "off"}</span>
+                  <span className="ml-auto inline-flex items-center gap-2">
+                    <span className="inline-flex rounded-md border border-line2 bg-ink p-0.5">
+                      {([{ key: "all", label: "All repos" }, { key: "repo", label: "This repo" }] as const).map((o) => (
+                        <button key={o.key} onClick={() => { const next = { ...prefs, scope: o.key }; setPrefs(next); writePrefs(next); }} className={"rounded px-2 py-0.5 font-display text-[10.5px] font-semibold normal-case tracking-normal " + (prefs.scope === o.key ? "bg-row2 text-txt" : "text-muted")}>{o.label}</button>
+                      ))}
+                    </span>
+                    <button onClick={() => setPref("enabled", !prefs.enabled)} aria-label="Toggle notifications"><Switch on={prefs.enabled} small /></button>
+                  </span>
+                </h2>
+                {prefs.scope === "repo" && data.scopeAll && <p className="wg-empty text-wait">No repo selected in the header — nothing will notify until you pick one.</p>}
+                <div className={prefs.enabled ? "" : "pointer-events-none opacity-40"}>
+                  {NOTIF_ROWS.map((r) => (
+                    <div key={r.key} className="wg-row">
+                      <div className="k"><div className="t">{r.label}</div><div className="s">{r.detail}</div></div>
+                      <button onClick={() => setPref(r.key, !prefs[r.key])} aria-label={`Toggle ${r.label}`}><Switch on={prefs[r.key]} small /></button>
+                    </div>
                   ))}
                 </div>
-                {prefs.scope === "repo" && data.scopeAll && (
-                  <p className="mt-1 text-[10px] leading-snug text-amber-700">
-                    No repo selected in the header — nothing will notify until you pick one.
-                  </p>
-                )}
-              </div>
-              <ul className={"space-y-2 " + (prefs.enabled ? "" : "pointer-events-none opacity-40")}>
-                {NOTIF_ROWS.map((r) => (
-                  <li key={r.key} className="flex items-center justify-between gap-2">
-                    <span className="min-w-0">
-                      <span className="block text-xs font-medium text-slate-800">{r.label}</span>
-                      <span className="block text-[10px] leading-snug text-slate-400">{r.detail}</span>
+                <div className="wg-empty">
+                  <button onClick={() => void runTest()} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Send a test notification →</button>
+                  {testResult && (
+                    <span className="ml-2 text-[11px]">
+                      {testResult === "sending" ? <span className="text-faint">Sending…</span>
+                        : testResult.ok ? <span className="text-go">Delivered via {testResult.via}.{testResult.native_error && <span className="block text-wait">native path skipped: {testResult.native_error}</span>}</span>
+                        : testResult.reason === "denied" ? <span className="text-wait">Turned off for DevBrain in macOS. <button onClick={openNotificationSettings} className="underline">Open System Settings → Notifications</button></span>
+                        : testResult.reason === "unsupported" ? <span className="text-muted">No notification channel here — use the desktop app.</span>
+                        : <span className="text-stop">Couldn&apos;t deliver: {testResult.detail || "unknown error"}</span>}
                     </span>
-                    <button onClick={() => setPref(r.key, !prefs[r.key])} aria-label={`Toggle ${r.label}`}>
-                      <Switch on={prefs[r.key]} small />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => void runTest()}
-                className="mt-2 rounded border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:border-brand-500 hover:text-brand-600"
-              >
-                Send test notification
-              </button>
-              {testResult && (
-                <div className="mt-1.5 text-[11px]">
-                  {testResult === "sending" ? (
-                    <span className="text-slate-400">Sending…</span>
-                  ) : testResult.ok ? (
-                    <span className="text-emerald-700">
-                      Delivered via {testResult.via} — check the top-right of your screen.
-                      {testResult.native_error && <span className="block text-amber-700">native path skipped: {testResult.native_error}</span>}
-                    </span>
-                  ) : testResult.reason === "denied" ? (
-                    <span className="text-amber-700">
-                      Notifications are turned off for DevBrain.{" "}
-                      <button onClick={openNotificationSettings} className="underline">Open System Settings → Notifications</button>
-                    </span>
-                  ) : testResult.reason === "unsupported" ? (
-                    <span className="text-slate-500">No notification channel here — use the desktop widget.</span>
-                  ) : (
-                    <span className="text-red-700">Couldn&apos;t deliver: {testResult.detail || "unknown error"}</span>
                   )}
                 </div>
-              )}
-            </div>
+              </section>
 
-            {data.lastRepo && (
-              <div className="card px-2.5 py-2">
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Claim an area <span className="normal-case">· {data.lastRepo.name}</span>
-                </div>
-                <p className="mb-1.5 text-[10px] leading-snug text-slate-400">
-                  Working outside Claude Code? Claim your lane — teammates&apos; Claudes route around it.
-                </p>
-                <form action={createClaim} className="space-y-1.5">
-                  <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                  <input
-                    name="paths"
-                    required
-                    placeholder="Paths, comma-separated (e.g. src/auth/)"
-                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
-                  />
-                  <div className="flex gap-1.5">
-                    <input
-                      name="note"
-                      placeholder="What you're doing"
-                      className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 text-xs focus:border-brand-500 focus:outline-none"
-                    />
-                    <select name="hours" defaultValue="4" className="rounded border border-slate-200 px-1 py-1 text-xs">
-                      <option value="1">1h</option>
-                      <option value="2">2h</option>
-                      <option value="4">4h</option>
-                      <option value="8">8h</option>
-                    </select>
-                    <button className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">
-                      Claim
-                    </button>
+              {setup && (
+                <section className="mt-2.5">
+                  <h2 className="wg-sec">This Mac <span className="n">{setup.app_version ? `v${setup.app_version}` : ""}</span><span className={"r " + (setup.bootstrap_ok === false ? "text-stop" : setup.bootstrap_ok ? "text-go" : "")}>{setup.bootstrap_ok === false ? "needs attention" : setup.bootstrap_ok ? "complete" : ""}</span></h2>
+                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-1 text-[12px]">
+                    <span className="text-muted">Setup</span><span className="font-mono text-[11px] text-txt">{setup.bootstrap_at ? `ran ${new Date(setup.bootstrap_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "never run"}{setup.bootstrap_failed.length ? ` · failed: ${setup.bootstrap_failed.join(", ")}` : setup.bootstrap_ok ? " · all parts ok" : ""}</span><SetupCard state={setup} inline />
+                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/settings/reminders" target="_blank" className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
+                    <span className="text-muted">Updates</span><span className="font-mono text-[11px] text-txt">daily + on session start</span><span />
                   </div>
-                </form>
-              </div>
-            )}
+                </section>
+              )}
 
-            {data.lastRepo && data.rules.length > 0 && (
-              <div className="card px-2.5 py-2">
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Team rules <span className="normal-case">· {data.lastRepo.name}</span>
-                </div>
-                <ul className="space-y-2">
+              {data.lastRepo && data.rules.length > 0 && (
+                <section className="mt-2.5">
+                  <h2 className="wg-sec">Team rules <span className="n">{data.lastRepo.name}</span><span className="r">{data.canAdmin ? "" : "admins change these"}</span></h2>
                   {data.rules.map((r) => (
-                    <li key={r.rule} className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 text-xs text-slate-800">{r.label}</span>
+                    <div key={r.rule} className="wg-row">
+                      <div className="k"><div className="t">{r.label}</div></div>
                       {data.canAdmin ? (
                         <form action={toggleRule} className="flex-shrink-0">
                           <input type="hidden" name="repoId" value={data.lastRepo!.id} />
                           <input type="hidden" name="rule" value={r.rule} />
                           <input type="hidden" name="enabled" value={String(!r.on)} />
                           <input type="hidden" name="stay" value="1" />
-                          <button aria-label={r.on ? "Turn off" : "Turn on"}>
-                            <Switch on={r.on} small />
-                          </button>
+                          <button aria-label={r.on ? "Turn off" : "Turn on"}><Switch on={r.on} small /></button>
                         </form>
                       ) : (
-                        <span className="flex-shrink-0 opacity-50" title="Admins only">
-                          <Switch on={r.on} small />
-                        </span>
+                        <span className="flex-shrink-0 opacity-50" title="Admins only"><Switch on={r.on} small /></span>
                       )}
-                    </li>
+                    </div>
                   ))}
-                </ul>
-                <p className="mt-1.5 text-[10px] leading-snug text-slate-400">
-                  {data.canAdmin
-                    ? "Rules apply to every Claude working in this repo. Full details on the dashboard Rules tab."
-                    : "Only team admins can change rules. Full details on the dashboard Rules tab."}
-                </p>
-              </div>
-            )}
+                  <p className="wg-empty">Rules apply to every Claude working in this repo. Full details on the dashboard Rules tab.</p>
+                </section>
+              )}
 
-            <div className="card px-2.5 py-2">
-              <a
-                href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"}
-                target="_blank"
-                className="text-xs font-medium text-brand-600 hover:underline"
-              >
-                Open full dashboard
-              </a>
-              <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
-                Opens in your browser with History, Rules, and repo management.
-              </p>
+              {data.lastRepo && (
+                <section className="mt-2.5">
+                  <h2 className="wg-sec">Claim a lane <span className="n">{data.lastRepo.name}</span></h2>
+                  <p className="wg-empty">Working outside Claude Code? Claim your paths — teammates&apos; Claudes route around them.</p>
+                  <form action={createClaim} className="flex flex-col gap-1.5 px-3.5 pb-1">
+                    <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                    <input name="paths" required placeholder="Paths, comma-separated (e.g. src/auth/)" className="w-full rounded-md border border-line2 bg-ink px-2.5 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                    <div className="flex gap-1.5">
+                      <input name="note" placeholder="What you're doing" className="min-w-0 flex-1 rounded-md border border-line2 bg-ink px-2.5 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
+                      <select name="hours" defaultValue="4" className="rounded-md border border-line2 bg-ink px-1.5 py-1.5 font-mono text-[11px] text-txt"><option value="1">1h</option><option value="2">2h</option><option value="4">4h</option><option value="8">8h</option></select>
+                      <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Claim</button>
+                    </div>
+                  </form>
+                </section>
+              )}
+
+              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"} target="_blank" className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open full dashboard →</a> <span className="text-faint">History, Rules, repo management.</span></p>
             </div>
           </div>
         )}
@@ -1091,65 +1026,61 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           );
         })()}
 
-        {tab === "PRs" && (
-          <div className="space-y-2.5">
-          {data.mergePlan && (
-            <div className="card border-l-4 border-l-amber-400 px-2.5 py-2">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
-                Suggested merge order <span className="normal-case text-slate-400">· {data.mergePlan.repo}</span>
-              </div>
-              <ol className="space-y-1">
-                {data.mergePlan.order.map((s, i) => (
-                  <li key={s.number} className="flex items-start gap-1.5 text-[11px] leading-snug">
-                    <span className="mt-px flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-[9px] font-bold text-white">
-                      {i + 1}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="font-medium text-slate-800">#{s.number} {s.title}</span>
-                      <span className="block text-[10px] text-slate-500">{s.reason}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
+        {tab === "PRs" && (() => {
+          const order = data.mergePlan?.order.map((o) => o.number) ?? [];
+          const reason = new Map((data.mergePlan?.order ?? []).map((o) => [o.number, o.reason]));
+          const sorted = [...data.prs].sort((x, y) => {
+            const ix = order.indexOf(x.number), iy = order.indexOf(y.number);
+            if (ix !== -1 || iy !== -1) return (ix === -1 ? 99 : ix) - (iy === -1 ? 99 : iy);
+            return 0;
+          });
+          const st = (pr: (typeof sorted)[number]) => pr.mergeable_state === "dirty" ? "stop" : pr.light?.state === "green" ? "go" : pr.light?.state === "red" ? "stop" : pr.light?.state === "amber" || pr.review_state === "changes_requested" ? "wait" : "";
+          const node = { go: "border-go bg-go", wait: "border-wait", stop: "border-stop bg-stop", "": "border-muted" } as const;
+          const why = { go: "text-go", wait: "text-wait", stop: "text-stop", "": "text-faint" } as const;
+          return (
+          <div className="-mx-3 -my-2.5 flex h-full flex-col">
+            <div className="mx-3.5 mb-1 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
+              PULL REQUESTS · <span className="text-brand-400">&nbsp;{data.prs.length} open</span>{data.conflicted > 0 ? <>&nbsp;· <span className="text-stop">{data.conflicted} conflicted</span></> : null}{data.mergePlan ? " · order below" : ""}
             </div>
-          )}
-          <div className="card px-2.5 py-2">
-            {data.prs.length === 0 ? (
-              <p className="text-xs text-slate-400">No open pull requests.</p>
-            ) : (
-              <ul className="space-y-2.5">
-                {data.prs.map((pr) => (
-                  <li key={pr.repo_id + pr.number} className="text-xs leading-snug">
-                    <a href={pr.html_url ?? "#"} target="_blank" className="font-medium text-slate-900 hover:text-brand-600">
-                      <span className="text-slate-400">#{pr.number}</span> {pr.title}
-                    </a>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                      <PrBadges pr={pr} defaultBranch={pr.defaultBranch} />
-                      <span className="text-[10px] text-slate-400">{pr.repo} · {pr.author}</span>
-                    </div>
-                    {pr.light && (
-                      <div className="mt-0.5 flex items-center gap-1.5">
-                        <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${LIGHT_DOT[pr.light.state] ?? LIGHT_DOT.gray}`} />
-                        <span className={"text-[10px] leading-snug " + (pr.light.state === "green" ? "font-medium text-emerald-700" : "text-slate-500")}>
-                          {pr.light.reason}
-                        </span>
+            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+              {data.mergePlan && data.mergePlan.order.length > 1 && (
+                <div className="mx-3.5 mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-muted">
+                  <span className="text-faint">merge order</span>
+                  {data.mergePlan.order.map((o, i) => <span key={o.number} className="flex items-center gap-1.5"><span className="rounded border border-line2 px-1.5 text-txt">#{o.number}</span>{i < data.mergePlan!.order.length - 1 && <span className="text-faint">→</span>}</span>)}
+                  {!data.scopeAll ? null : <span className="text-faint">· {data.mergePlan.repo}</span>}
+                </div>
+              )}
+              {sorted.length === 0 ? (
+                <p className="wg-empty mt-3">No open pull requests.</p>
+              ) : (
+                <div className="relative mt-2 ml-7 before:absolute before:bottom-3.5 before:left-[-7px] before:top-3.5 before:w-0.5 before:bg-line2">
+                  {sorted.map((pr, i) => {
+                    const k = st(pr);
+                    return (
+                      <div key={pr.repo_id + pr.number} className={"relative py-2 pl-2.5 pr-3.5 text-[12.5px] " + (i > 0 ? "border-t border-line" : "")}>
+                        {order.length > 0 && <span className="absolute -left-[30px] top-2 font-display text-[10px] font-semibold text-faint">{order.indexOf(pr.number) === -1 ? "" : order.indexOf(pr.number) + 1}</span>}
+                        <span className={"absolute -left-3 top-2.5 h-3 w-3 rounded-full border-2 bg-ink " + node[k]} />
+                        <a href={pr.html_url ?? "#"} target="_blank" className="font-medium text-txt hover:text-brand-400"><span className="font-mono text-[11px] text-[#b8bfcf]">#{pr.number}</span> {pr.title}</a>
+                        <div className="mt-0.5 text-[11.5px] text-muted">{pr.author}{pr.review_state ? ` · ${pr.review_state.replace("_", " ")}` : " · review pending"}{pr.draft ? " · draft" : ""}{data.scopeAll ? ` · ${pr.repo}` : ""}</div>
+                        {(pr.light?.reason || reason.get(pr.number)) && (
+                          <div className={"mt-1 font-mono text-[10.5px] " + why[k]}>▸ {pr.light?.reason ?? ""}{pr.light?.reason && reason.get(pr.number) ? " — " : ""}{reason.get(pr.number) ?? ""}</div>
+                        )}
+                        {pr.ai && (
+                          <div className="mt-1.5 flex items-start gap-1.5 text-[11.5px] leading-snug text-muted">
+                            <span className="wg-pill flex-shrink-0 border-[#3a3352] text-[#b9a8ff]">AI · {pr.ai.verdict.replace("_", " ")}</span>
+                            <span className="min-w-0">{pr.ai.summary}</span>
+                          </div>
+                        )}
+                        <div className="mt-1"><PrBadges pr={pr} defaultBranch={pr.defaultBranch} /></div>
                       </div>
-                    )}
-                    {pr.ai && (
-                      <div className="mt-1 flex items-start gap-1.5">
-                        <span className={`chip flex-shrink-0 px-1 py-0 text-[10px] ${AI_CHIP[pr.ai.verdict] ?? AI_CHIP.caution}`}>
-                          AI: {pr.ai.verdict.replace("_", " ")}
-                        </span>
-                        <span className="min-w-0 text-[10px] leading-snug text-slate-500">{pr.ai.summary}</span>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-          </div>
-        )}
+          );
+        })()}
 
         {tab === "Brain" && (
           data.brain ? (
@@ -1170,66 +1101,60 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           )
         )}
 
-        {tab === "Feed" && (
-          <div className="space-y-2.5">
-            {data.digest && (
-              <div className="card border-l-4 border-l-brand-400 px-2.5 py-2">
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand-700">
-                  Standup <span className="normal-case text-slate-400">· {data.digest.repo} · {data.digest.day}</span>
-                </div>
-                <p className="whitespace-pre-line text-xs leading-relaxed text-slate-700">{data.digest.body}</p>
-              </div>
-            )}
-            {(data.journals ?? []).length > 0 && (
-              <div className="card px-2.5 py-2">
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Session journals</div>
-                <ul className="space-y-2">
-                  {data.journals.map((j) => (
-                    <li key={j.id} className="text-xs leading-snug text-slate-700">
-                      <div className="mb-0.5 text-[10px] text-slate-400">
-                        <span className="font-semibold text-slate-600">{j.by}</span>
-                        {j.branch ? ` · ${j.branch}` : ""} · {j.repo} · {timeAgo(j.at)}
-                      </div>
-                      <p>{j.summary}</p>
-                      {(j.learned.length > 0 || j.tried_and_failed.length > 0 || j.remaining) && (
-                        <details className="mt-0.5">
-                          <summary className="cursor-pointer text-[10px] text-brand-700">details</summary>
-                          <ul className="mt-1 space-y-0.5 pl-3 text-[11px] text-slate-600">
-                            {j.learned.map((l, i) => <li key={"l" + i}>· learned: {l}</li>)}
-                            {j.tried_and_failed.map((l, i) => <li key={"f" + i}>· didn&apos;t work: {l}</li>)}
-                            {j.remaining && <li>· remaining: {j.remaining}</li>}
-                          </ul>
-                        </details>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <div className="card px-2.5 py-2">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Broadcasts & decisions</div>
-              {data.feed.length === 0 ? (
-                <p className="text-xs text-slate-400">Quiet.</p>
+        {tab === "Feed" && (() => {
+          type Ev = { at: string; kind: "decision" | "broadcast" | "journal" | "handoff"; who: string; body: string; chips?: string[] };
+          const events: Ev[] = [
+            ...data.feed.map((f) => ({ at: f.at, kind: (f.kind === "broadcast" ? "broadcast" : "decision") as Ev["kind"], who: f.by ?? "?", body: f.text })),
+            ...(data.journals ?? []).map((j) => ({ at: j.at, kind: "journal" as const, who: `${j.by}${j.branch ? " · " + j.branch : ""}`, body: j.summary, chips: [...j.learned.slice(0, 1).map((l) => `learned: ${l}`), ...j.tried_and_failed.slice(0, 1).map((l) => `didn't work: ${l}`), ...(j.remaining ? [`remaining: ${j.remaining}`] : [])] })),
+            ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" as const, who: h.by ?? "?", body: `left work${h.branch ? " on " + h.branch : ""}: ${h.summary}` })),
+          ].sort((x, y) => y.at.localeCompare(x.at));
+          const dot = { decision: "bg-brand-500", broadcast: "bg-wait", journal: "bg-[#b9a8ff]", handoff: "bg-wait" } as const;
+          const kc = { decision: "text-brand-400", broadcast: "text-wait", journal: "text-[#b9a8ff]", handoff: "text-wait" } as const;
+          const hhmm = (iso: string) => { const d = new Date(iso); const now = new Date(); const same = d.toDateString() === now.toDateString(); return same ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : d.toLocaleDateString([], { month: "short", day: "numeric" }); };
+          const counts = { decision: 0, broadcast: 0, journal: 0, handoff: 0 };
+          for (const e of events) counts[e.kind]++;
+          return (
+          <div className="-mx-3 -my-2.5 flex h-full flex-col">
+            <div className="mx-3.5 mb-1 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
+              FEED · <span className="text-brand-400">&nbsp;{counts.decision} decisions</span>&nbsp;· {counts.broadcast} broadcasts · {counts.journal} journals
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+              {data.digest && (
+                <details className="mx-3.5 mt-2 rounded-xl border border-line2 bg-row px-3 py-2.5">
+                  <summary className="flex cursor-pointer list-none items-baseline gap-2 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-brand-400">Standup · {data.digest.repo}<span className="ml-auto font-mono text-[10px] font-normal normal-case tracking-normal text-faint">{data.digest.day} · tap to expand</span></summary>
+                  <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-txt">{data.digest.body}</p>
+                </details>
+              )}
+              {events.length === 0 ? (
+                <p className="wg-empty mt-3">Quiet. Claudes post here via broadcast and log_decision; journals arrive as sessions end.</p>
               ) : (
-                <ul className="space-y-1.5">
-                  {data.feed.map((d, i) => (
-                    <li key={i} className="text-xs leading-snug text-slate-700">
-                      <span className={"chip mr-1 px-1 py-0 text-[10px] " + (d.kind === "broadcast" ? "bg-amber-50 text-amber-700" : "bg-brand-50 text-brand-700")}>
-                        {d.kind === "broadcast" ? "B" : "D"}
-                      </span>
-                      {d.text}
-                      <span className="text-[10px] text-slate-400"> · {d.by} · {timeAgo(d.at)}</span>
-                    </li>
+                <div className="mt-2 grid grid-cols-[46px_1fr]">
+                  {events.slice(0, 40).map((e, i) => (
+                    <React.Fragment key={i}>
+                      <div className="relative pr-2.5 pt-2 text-right font-mono text-[10px] text-faint">
+                        {hhmm(e.at)}
+                        <span className={"absolute -right-1 top-3 h-2 w-2 rounded-full " + dot[e.kind]} />
+                      </div>
+                      <div className="border-l-2 border-line py-1.5 pl-3 pr-3.5 text-[12.5px] text-txt">
+                        <span className={"mr-1.5 font-display text-[10px] font-semibold uppercase tracking-[.1em] " + kc[e.kind]}>{e.kind}</span>
+                        <span className="font-mono text-[11px] text-muted">{e.who}</span>
+                        <div className="mt-0.5">{e.body}</div>
+                        {e.chips && e.chips.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{e.chips.map((c, j) => <span key={j} className="rounded bg-row2 px-1.5 py-px font-mono text-[10px] text-[#b8bfcf]">{c}</span>)}</div>}
+                      </div>
+                    </React.Fragment>
                   ))}
-                </ul>
+                </div>
+              )}
+              {data.activity.length > 0 && (
+                <section className="mt-3">
+                  <h2 className="wg-sec">Recent work <span className="n">24h</span></h2>
+                  <div className="px-3.5"><ActivityFeed rows={data.activity} limit={8} /></div>
+                </section>
               )}
             </div>
-            <div className="card px-2.5 py-2">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recent work</div>
-              <ActivityFeed rows={data.activity} limit={8} />
-            </div>
           </div>
-        )}
+        );
+        })()}
       </div>
 
       {/* Bottom tab bar — icon + label; the active tab takes the accent and a

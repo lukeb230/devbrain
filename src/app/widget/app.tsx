@@ -18,7 +18,7 @@ import { pickupHandoff } from "../dashboard/[repoId]/handoff-actions";
 import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
 import { uploadSpec } from "../dashboard/[repoId]/specs/actions";
-import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask } from "../dashboard/[repoId]/tasks/actions";
+import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask, togglePin } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetBadge } from "./badge";
@@ -39,7 +39,7 @@ export interface WidgetData {
   sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
-  tasks: { id: string; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null; started_by: string | null; footprint: string[] | null }[];
+  tasks: { id: string; pinned: boolean; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null; started_by: string | null; footprint: string[] | null }[];
   claims: { id: string; repo_id: string; repo: string; dev_label: string; paths: string[]; note: string | null; expires_at: string | null }[];
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
@@ -447,6 +447,20 @@ function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
   }
 }
 
+// Pin / unpin a task to Home. Filled when pinned.
+function PinButton({ t }: { t: { id: string; repo_id: string; pinned: boolean } }) {
+  return (
+    <form action={togglePin} className="flex-shrink-0">
+      <input type="hidden" name="repoId" value={t.repo_id} />
+      <input type="hidden" name="id" value={t.id} />
+      <input type="hidden" name="pinned" value={String(!t.pinned)} />
+      <button title={t.pinned ? "Unpin from Home" : "Pin to Home"} aria-label={t.pinned ? "Unpin from Home" : "Pin to Home"} className={"grid h-5 w-5 place-items-center rounded " + (t.pinned ? "text-brand-400" : "text-faint hover:text-muted")}>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill={t.pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4l5 5-4 1-3 3v5l-2-2-3-3-4 4 0-0 4-4-3-3-2-2h5l3-3z" /></svg>
+      </button>
+    </form>
+  );
+}
+
 function Switch({ on, small }: { on: boolean; small?: boolean }) {
   const h = small ? "h-5 w-9" : "h-6 w-11";
   const knob = small ? "h-3.5 w-3.5" : "h-4 w-4";
@@ -770,6 +784,32 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               ))}
             </div>
 
+            {/* Tasks that matter now: pinned, then P1s, then your P2s */}
+            {(() => {
+              const seen = new Set<string>();
+              const pick = (pred: (t: (typeof open)[number]) => boolean) => open.filter((t) => !seen.has(t.id) && pred(t)).map((t) => { seen.add(t.id); return t; });
+              const list = [...pick((t) => t.pinned), ...pick((t) => t.priority === 1), ...pick((t) => t.priority === 2 && isMe(t.assigned_to))].slice(0, 6);
+              return (
+                <section className="mt-3">
+                  <h2 className="wg-sec">Tasks <span className="n">{list.length ? `${list.length} that matter` : "0"}</span><button onClick={() => setTab("Tasks")} className="r hover:text-brand-400">all {open.length} →</button></h2>
+                  {list.length === 0 ? (
+                    <p className="wg-empty">No pinned or critical tasks. Pin any task from the Tasks tab to keep it here.</p>
+                  ) : list.map((t) => (
+                    <div key={t.id} className={"wg-row " + (t.priority === 1 ? "stop" : isMe(t.assigned_to) || isMe(t.started_by) ? "me" : "")}>
+                      <form action={completeTask} className="flex-shrink-0"><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button title="Mark complete" className="block h-3.5 w-3.5 rounded border border-line2 hover:border-brand-500" /></form>
+                      <span className={"font-mono text-[10px] " + (t.priority === 1 ? "text-stop" : t.priority === 2 ? "text-wait" : "text-faint")}>P{t.priority}</span>
+                      <div className="k">
+                        <div className="t">{t.title}</div>
+                        <div className="s">{t.pinned ? "pinned · " : ""}{t.assigned_to ? (isMe(t.assigned_to) ? "you" : t.assigned_to) : "unassigned"}{t.started_by ? ` · started by ${isMe(t.started_by) ? "you" : t.started_by}` : ""}{data.scopeAll ? ` · ${t.repo}` : ""}</div>
+                      </div>
+                      {!t.started_by && isMe(t.assigned_to) && <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Start</button></form>}
+                      <PinButton t={t} />
+                    </div>
+                  ))}
+                </section>
+              );
+            })()}
+
             {/* Team now — presence lives only here */}
             <section className="mt-3">
               <h2 className="wg-sec">Team now <span className="n">{data.sessions.length}</span></h2>
@@ -830,6 +870,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               {P(t.priority)}
               <span className="m">{age(t)}</span>
               {action}
+              <PinButton t={t} />
               <TaskMenu compact task={{ id: t.id, repo_id: t.repo_id, title: t.title, detail: t.detail, priority: t.priority, tags: t.tags, assigned_to: t.assigned_to }} members={data.members} />
             </div>
           );
@@ -926,6 +967,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <div className="mt-2 font-mono text-[10.5px] text-go">{lane ? `▸ lane claimed · ${lane.paths[0]}${lane.paths.length > 1 ? ` +${lane.paths.length - 1}` : ""}${hoursLeft(lane.expires_at) ? ` · ${hoursLeft(lane.expires_at)}h left` : ""}` : "▸ no lane claimed"}</div>
                   <div className="mt-2.5 flex gap-1.5">
                     <form action={completeTask}><input type="hidden" name="repoId" value={focus.repo_id} /><input type="hidden" name="id" value={focus.id} /><button className="rounded-md bg-brand-600 px-2.5 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700">Mark done</button></form>
+                    <span className="flex items-center"><PinButton t={focus} /></span>
                     <TaskMenu compact task={{ id: focus.id, repo_id: focus.repo_id, title: focus.title, detail: focus.detail, priority: focus.priority, tags: focus.tags, assigned_to: focus.assigned_to }} members={data.members} />
                   </div>
                 </div>
@@ -942,6 +984,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                     <div className="k"><div className="t">{t.title}</div><div className="s">{t.tags.join(", ")}{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
                     {P(t.priority)}<span className="m">{age(t)}</span>
                     <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Start</button></form>
+                    <PinButton t={t} />
                   </div>
                 ))}
               </section>

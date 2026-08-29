@@ -80,7 +80,7 @@ export async function completeTask(formData: FormData): Promise<void> {
   if (!ctx) return;
   await supabaseAdmin()
     .from("tasks")
-    .update({ status: "done", done_at: new Date().toISOString(), done_by: devName(ctx.user) })
+    .update({ status: "done", done_at: new Date().toISOString(), done_by: devName(ctx.user), pinned: false })
     .eq("id", id)
     .eq("org_id", ctx.repo.org_id);
   // Completing a task releases its lane claims automatically.
@@ -347,3 +347,16 @@ export async function deleteTask(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
 }
+
+/** Pin / unpin a task on the panel's Home tab (team-wide; cleared on completion). */
+export async function togglePin(formData: FormData): Promise<void> {
+  const repoId = String(formData.get("repoId") || "");
+  const id = String(formData.get("id") || "");
+  const pinned = String(formData.get("pinned")) === "true";
+  const ctx = await authedRepo(repoId);
+  if (!ctx || !id) return;
+  await supabaseAdmin().from("tasks").update({ pinned }).eq("id", id).eq("repo_id", ctx.repo.id);
+  revalidatePath("/widget");
+  revalidatePath(`/dashboard/${repoId}/tasks`);
+}
+

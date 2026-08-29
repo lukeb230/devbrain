@@ -14,6 +14,7 @@ import { Pulse } from "./pulse";
 import { WidgetBrain } from "./brain";
 import { PrBadges } from "@/components/PrBadges";
 import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
+import { pickupHandoff } from "../dashboard/[repoId]/handoff-actions";
 import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
 import { toggleRule } from "../dashboard/[repoId]/rules/actions";
 import { uploadSpec } from "../dashboard/[repoId]/specs/actions";
@@ -43,7 +44,7 @@ export interface WidgetData {
   members: string[];
   feed: { kind: string; text: string; by: string | null; at: string }[];
   journals: { id: string; repo: string; by: string; branch: string | null; summary: string; learned: string[]; tried_and_failed: string[]; remaining: string | null; at: string }[];
-  handoffs: { id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
+  handoffs: { id: string; repo_id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
   alerts: { id: string; severity: string; title: string; count: number }[];
   canAdmin: boolean;          // owner/admin of the active org — gates rule toggles + reminders mapping
   notice: string | null;      // ?error= code after a refused action (see Notice)
@@ -492,6 +493,15 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const [switching, startSwitch] = useTransition();
   const [capture, setCapture] = useState<null | "task" | "dump" | "spec">(null);
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  // "Since you were away": the previous time this panel was opened.
+  const [lastOpen, setLastOpen] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const prev = Number(localStorage.getItem("devbrain_last_open") || 0) || null;
+      setLastOpen(prev);
+      localStorage.setItem("devbrain_last_open", String(Date.now()));
+    } catch { /* private mode */ }
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCapture(null); };
     window.addEventListener("keydown", onKey);
@@ -696,146 +706,100 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           </div>
         )}
 
-        {tab === "Home" && (
-          <div className="flex flex-col pb-2">
-            {data.notice && (
-              <div className="mx-3.5 mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
-                {data.notice === "owner_only" ? "Only the team owner can do that." : "Only team admins and owners can do that."}
-              </div>
-            )}
+        {tab === "Home" && (() => {
+          type Need = { level: "stop" | "go" | "wait"; title: string; why: string; cta: React.ReactNode };
+          const needs: Need[] = [];
+          const go = (t: Tab, label: string) => <button onClick={() => setTab(t)} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">{label}</button>;
+          for (const pr of data.prs) if (isMe(pr.author) && pr.mergeable_state === "dirty") needs.push({ level: "stop", title: `#${pr.number} has conflicts`, why: `${pr.title} — resolve against ${pr.defaultBranch}`, cta: <a href={pr.html_url ?? "#"} target="_blank" className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Fix</a> });
+          const myPaths = data.claims.filter((c) => isMe(c.dev_label)).flatMap((c) => c.paths.map((p) => p.replace(/\/$/, "")));
+          for (const c of data.collisions) {
+            const mine = myPaths.some((p) => c.file.startsWith(p));
+            needs.push({ level: mine ? "stop" : "wait", title: mine ? `Your lane is contested — ${c.file.split("/").pop()}` : `Collision — ${c.file.split("/").pop()}`, why: `${c.branches.join(" + ")}${data.scopeAll ? ` · ${c.repo}` : ""}`, cta: go("PRs", "Look") });
+          }
+          for (const pr of data.prs) if (isMe(pr.author) && pr.light?.state === "green") needs.push({ level: "go", title: `#${pr.number} is cleared to land`, why: pr.light.reason, cta: <a href={pr.html_url ?? "#"} target="_blank" className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Merge</a> });
+          for (const t of open) if (t.priority === 1 && isMe(t.assigned_to) && !t.started_by) needs.push({ level: "wait", title: `P1 assigned to you — ${t.title}`, why: `${t.created_by ?? "?"} · ${timeAgo(t.created_at)}`, cta: <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Start</button></form> });
+          for (const t of open) if (t.maybe_done_pr && isMe(t.assigned_to)) needs.push({ level: "wait", title: `Possibly done — ${t.title}`, why: `PR #${t.maybe_done_pr} looks like it closed it`, cta: go("Tasks", "Confirm") });
+          for (const h of data.handoffs) if (!isMe(h.by)) needs.push({ level: "wait", title: `Handoff from ${h.by}${h.branch ? ` on ${h.branch}` : ""}`, why: h.summary, cta: <form action={pickupHandoff}><input type="hidden" name="repoId" value={h.repo_id} /><input type="hidden" name="id" value={h.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Pick up</button></form> });
+          const order = { stop: 0, go: 1, wait: 2 };
+          needs.sort((x, y) => order[x.level] - order[y.level]);
+          const dot = { stop: "bg-stop shadow-[0_0_8px_#ff5a5f]", go: "bg-go shadow-[0_0_8px_#5ad18e]", wait: "bg-wait" };
+          const tiles = [
+            { n: data.prs.length, l: "PRs", t: "PRs" as Tab, warn: false },
+            { n: data.conflicted, l: data.conflicted === 1 ? "conflict" : "conflicts", t: "PRs" as Tab, warn: data.conflicted > 0 },
+            { n: data.collisions.length, l: data.collisions.length === 1 ? "collision" : "collisions", t: "PRs" as Tab, warn: data.collisions.length > 0 },
+            { n: open.length, l: "tasks", t: "Tasks" as Tab, warn: false },
+          ];
+          const changes = [...data.feed.map((f) => f.at), ...(data.journals ?? []).map((j) => j.at), ...data.handoffs.map((h) => h.at)].filter((at) => lastOpen && new Date(at).getTime() > lastOpen).length;
+          const sinceLabel = lastOpen ? new Date(lastOpen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : null;
+          return (
+          <div className="flex flex-col pb-3">
+            {data.notice && <div className="mx-3.5 mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">{data.notice === "owner_only" ? "Only the team owner can do that." : "Only team admins and owners can do that."}</div>}
             {(data.alerts ?? []).length > 0 && (
               <div className="mx-3.5 mt-2 space-y-1">
                 {data.alerts.map((a) => (
                   <div key={a.id} className={"flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[11px] " + (a.severity === "error" ? "border-red-200 bg-red-50 text-red-800" : a.severity === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-line bg-row text-txt")}>
                     <span className="min-w-0 flex-1 truncate font-medium">{a.title}{a.count > 1 ? ` (×${a.count})` : ""}</span>
-                    <form action={dismissAlert}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <input type="hidden" name="stay" value="1" />
-                      <button className="opacity-70 hover:opacity-100">dismiss</button>
-                    </form>
+                    <form action={dismissAlert}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="stay" value="1" /><button className="opacity-70 hover:opacity-100">dismiss</button></form>
                   </div>
                 ))}
               </div>
             )}
 
-            {data.collisions.length > 0 && (
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Collision <span className="n">{data.collisions.length}</span><span className="r">{data.collisions[0].branches.length} branches</span></h2>
-                {data.collisions.slice(0, 3).map((c) => (
-                  <div key={c.repo + c.file} className="wg-row stop">
-                    <div className="k"><div className="t"><span className="wg-mono">{c.file}</span></div><div className="s">{c.branches.join(" + ")}{data.scopeAll ? ` · ${c.repo}` : ""}</div></div>
-                    <span className="wg-pill stop">contested</span>
-                  </div>
-                ))}
-              </section>
-            )}
+            {/* Needs you — the badge's own logic, as a list with a verb each */}
+            <div className="mx-3.5 mt-2 overflow-hidden rounded-xl border border-line2">
+              <div className="flex items-baseline gap-2 bg-row px-3 py-1.5 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-txt">Needs you <span className="font-mono text-[11px] font-normal normal-case tracking-normal text-brand-400">{needs.length}</span></div>
+              {needs.length === 0 ? (
+                <div className="px-3 py-2.5 text-[12.5px] text-faint">Nothing needs you right now.</div>
+              ) : needs.slice(0, 4).map((n, i) => (
+                <div key={i} className="flex items-center gap-2.5 border-t border-line px-3 py-2 text-[13px] text-txt">
+                  <i className={"h-2 w-2 flex-shrink-0 rounded-full " + dot[n.level]} />
+                  <div className="min-w-0 flex-1"><div className="truncate">{n.title}</div><div className="truncate text-[11.5px] text-muted">{n.why}</div></div>
+                  {n.cta}
+                </div>
+              ))}
+              {needs.length > 4 && <div className="border-t border-line px-3 py-1.5 font-mono text-[10px] text-faint">+{needs.length - 4} more</div>}
+            </div>
 
-            <section className="mt-2.5">
-              <h2 className="wg-sec">Now working <span className="n">{data.sessions.length}</span></h2>
+            {/* Count tiles — pointers into tabs, not copies of them */}
+            <div className="mx-3.5 mt-2.5 grid grid-cols-4 gap-1.5">
+              {tiles.map((t) => (
+                <button key={t.l} onClick={() => setTab(t.t)} className="rounded-lg border border-line px-2 py-2 text-center hover:border-line2">
+                  <span className={"block font-display text-[20px] font-semibold leading-none tracking-tight tabular-nums " + (t.warn ? "text-stop" : "text-txt")}>{t.n}</span>
+                  <span className="mt-1 block font-mono text-[10px] text-faint">{t.l}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Team now — presence lives only here */}
+            <section className="mt-3">
+              <h2 className="wg-sec">Team now <span className="n">{data.sessions.length}</span></h2>
               {data.sessions.length === 0 ? (
                 <p className="wg-empty">Nobody active right now.</p>
               ) : (
-                data.sessions.slice(0, 5).map((s) => (
-                  <div key={s.id} className={"wg-row " + (isMe(s.dev_label) ? "me" : "")}>
-                    <span className={"wg-av " + (isMe(s.dev_label) ? "me" : "")}>{initials(s.dev_label)}</span>
-                    <div className="k">
-                      <div className="t">{s.dev_label}{data.scopeAll ? <span className="wg-mono"> · {s.repo}</span> : null}</div>
-                      <div className="s">{s.summary || "working"}</div>
+                <div className="flex gap-2 overflow-x-auto px-3.5 pb-1">
+                  {data.sessions.slice(0, 8).map((s) => (
+                    <div key={s.id} className="flex min-w-[68px] max-w-[92px] flex-col items-center gap-1 text-center">
+                      <span className={"wg-av relative " + (isMe(s.dev_label) ? "me" : "")} style={{ width: 30, height: 30, fontSize: 12, borderRadius: 9 }}>
+                        {initials(s.dev_label)}
+                        <i className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-ink bg-go" />
+                      </span>
+                      <span className="w-full truncate text-[11px] font-medium text-txt">{isMe(s.dev_label) ? "you" : s.dev_label}</span>
+                      <span className="w-full truncate font-mono text-[10px] text-faint" title={s.summary ?? ""}>{s.summary || (data.scopeAll ? s.repo : timeAgo(s.last_seen))}</span>
                     </div>
-                    <span className="m">{isMe(s.dev_label) ? "you" : timeAgo(s.last_seen)}</span>
-                  </div>
-                ))
-              )}
-            </section>
-
-            {data.prs.length > 0 && (
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Pull requests <span className="n">{data.prs.length}</span>{data.conflicted > 0 && <span className="r text-stop">{data.conflicted} conflicted</span>}</h2>
-                {data.prs.slice(0, 4).map((pr) => {
-                  const st = pr.mergeable_state === "dirty" ? "stop" : pr.light?.state === "green" ? "go" : pr.light?.state === "amber" || pr.light?.state === "red" ? "wait" : "";
-                  return (
-                    <a key={pr.repo_id + pr.number} href={pr.html_url ?? "#"} target="_blank" className={"wg-row " + st}>
-                      <div className="k">
-                        <div className="t"><span className="wg-mono">#{pr.number}</span> {pr.title}</div>
-                        <div className="s">{pr.author}{pr.review_state ? ` · ${pr.review_state.replace("_", " ")}` : ""}{pr.light?.reason ? ` · ${pr.light.reason}` : ""}</div>
-                      </div>
-                      {st && <span className={"wg-pill " + st}>{st === "go" ? "cleared" : st === "stop" ? "conflicts" : "waiting"}</span>}
-                    </a>
-                  );
-                })}
-                {data.prs.length > 4 && <button onClick={() => setTab("PRs")} className="wg-empty text-left text-brand-400">all {data.prs.length} →</button>}
-              </section>
-            )}
-
-            {data.handoffs.length > 0 && (
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Handoff <span className="n">{data.handoffs.length}</span></h2>
-                {data.handoffs.slice(0, 2).map((h) => (
-                  <div key={h.id} className="wg-row wait">
-                    <span className="wg-av">{initials(h.by ?? "?")}</span>
-                    <div className="k">
-                      <div className="t">{h.by} left work{h.branch ? <span className="wg-mono"> on {h.branch}</span> : null}</div>
-                      <div className="s">{h.summary}{h.remaining ? ` — ${h.remaining}` : ""}</div>
-                    </div>
-                    <span className="m">{timeAgo(h.at)}</span>
-                  </div>
-                ))}
-              </section>
-            )}
-
-            <section className="mt-2.5">
-              <h2 className="wg-sec">Claimed lanes <span className="n">{data.claims.length}</span></h2>
-              {data.claims.length === 0 && <p className="wg-empty">None. Start a task, or claim an area in Settings.</p>}
-              {data.claims.slice(0, 3).map((c) => (
-                <div key={c.id} className={"wg-row " + (isMe(c.dev_label) ? "me" : "")}>
-                  <span className={"wg-av " + (isMe(c.dev_label) ? "me" : "")}>{initials(c.dev_label)}</span>
-                  <div className="k">
-                    <div className="t">{c.dev_label}{c.note ? <span className="font-normal text-muted"> — {c.note}</span> : null}</div>
-                    <div className="s">{c.paths.slice(0, 3).map((p) => <span key={p} className="wg-mono mr-1.5">{p}</span>)}</div>
-                  </div>
-                  {c.expires_at && <span className="m">{Math.max(1, Math.round((new Date(c.expires_at).getTime() - Date.now()) / 3600_000))}h</span>}
-                  <form action={releaseClaim} className="flex-shrink-0">
-                    <input type="hidden" name="repoId" value={c.repo_id} />
-                    <input type="hidden" name="id" value={c.id} />
-                    <button className="text-[10px] text-faint hover:text-brand-400">release</button>
-                  </form>
+                  ))}
                 </div>
-              ))}
-            </section>
-
-            <section className="mt-2.5">
-              <h2 className="wg-sec">Top tasks <span className="n">{open.length} open</span><button onClick={() => setTab("Tasks")} className="r hover:text-brand-400">all →</button></h2>
-              {open.length === 0 ? (
-                <p className="wg-empty">Nothing open. Nice.</p>
-              ) : (
-                open.slice(0, 6).map((t) => (
-                  <div key={t.id} className={"wg-row " + (t.priority === 1 ? "stop" : isMe(t.assigned_to) ? "me" : "")}>
-                    <form action={completeTask} className="flex-shrink-0">
-                      <input type="hidden" name="repoId" value={t.repo_id} />
-                      <input type="hidden" name="id" value={t.id} />
-                      <button title="Mark complete" className="block h-3.5 w-3.5 rounded border border-line2 hover:border-brand-500" />
-                    </form>
-                    <span className={"font-mono text-[10px] " + (t.priority === 1 ? "text-stop" : t.priority === 2 ? "text-wait" : "text-faint")}>P{t.priority}</span>
-                    <div className="k">
-                      <div className="t">{t.title}</div>
-                      <div className="s">{t.assigned_to ? (isMe(t.assigned_to) ? "assigned to you" : t.assigned_to) : "unassigned"}{t.started_by ? ` · started by ${t.started_by}` : ""}{t.tags.length ? ` · ${t.tags.join(", ")}` : ""}</div>
-                    </div>
-                    <span className="m">{timeAgo(t.created_at)}</span>
-                  </div>
-                ))
               )}
             </section>
 
-            {data.feed.length > 0 && (
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Decided <span className="n">{data.feed.filter((f) => f.kind === "decision").length}</span><button onClick={() => setTab("Feed")} className="r hover:text-brand-400">feed →</button></h2>
-                {data.feed.slice(0, 2).map((d, i) => (
-                  <p key={i} className="wg-empty"><span className="text-muted">{d.text}</span> <span className="font-mono text-[10px]">— {d.by ?? "?"}, {timeAgo(d.at)}</span></p>
-                ))}
-              </section>
-            )}
+            {/* Since you were away — one line, hands off to Feed */}
+            <button onClick={() => setTab("Feed")} className="mx-3.5 mt-3 flex items-center gap-2 rounded-lg border border-line2 bg-row px-3 py-2 text-left text-[12.5px] text-txt hover:border-brand-500">
+              <span className="font-display font-semibold">{sinceLabel ? `Since ${sinceLabel}` : "Today"}</span>
+              <span className="text-muted">{changes} change{changes === 1 ? "" : "s"}{needs.length ? ` · ${needs.length} need${needs.length === 1 ? "s" : ""} you` : ""}</span>
+              <span className="ml-auto font-mono text-[10px] text-faint">feed →</span>
+            </button>
           </div>
-        )}
+          );
+        })()}
 
         {tab === "Tasks" && (() => {
           const mine = open.filter((t) => isMe(t.started_by) || isMe(t.assigned_to));

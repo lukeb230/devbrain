@@ -290,6 +290,7 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
     })),
     handoffs: fHandoffs.map((h) => ({
       id: h.id,
+      repo_id: h.repo_id,
       repo: short(h.repo_id),
       by: h.dev_label,
       branch: h.branch,

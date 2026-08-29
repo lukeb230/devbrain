@@ -5,7 +5,7 @@ import { linkifyBody, parseBrain } from "@/lib/brain";
 import { cachedBrainDocs } from "@/lib/brain-cache";
 import { teamMembers } from "@/lib/members";
 import { computeMergePlan } from "@/lib/merge-order";
-import { RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
+import { FEATURE_CATALOG, RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { computeLights } from "@/lib/traffic";
 import { COOKIE } from "@/lib/cookies";
 import { currentOrg, hasRole } from "@/lib/org";
@@ -141,6 +141,9 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
       label: c.label,
       on: state.get(c.rule) ?? true, // core rules default ON
     }));
+    for (const c of FEATURE_CATALOG) {
+      rules.push({ rule: c.rule, label: c.label, on: state.get(c.rule) ?? false }); // feature toggles default OFF
+    }
     if (lastRepo.writer_installation_id) {
       for (const c of WRITER_CATALOG) {
         rules.push({ rule: c.rule, label: c.label, on: state.get(c.rule) ?? false }); // writer rules default OFF
@@ -184,6 +187,11 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
     if (!reviewFor.has(key)) reviewFor.set(key, { verdict: r.verdict, summary: r.summary });
   }
 
+  // solo_green is per repo and defaults off — one query covers every repo the
+  // panel draws lights for (the rules fetch above only covers the last repo).
+  const { data: soloRows } = await supabase.from("policies").select("repo_id, enabled").eq("rule", "solo_green");
+  const soloGreenRepos = new Set((soloRows ?? []).filter((r) => r.enabled).map((r) => r.repo_id));
+
   // Traffic lights per repo (deterministic, same lib as the dashboard).
   const lightsByRepo = new Map<string, ReturnType<typeof computeLights>>();
   {
@@ -204,7 +212,9 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
             mergeable_state: p.mergeable_state,
             draft: p.draft,
             changed_files: (p.changed_files as string[]) ?? [],
+            ai_verdict: reviewFor.get(`${p.repo_id}#${p.number}#${p.head_sha}`)?.verdict ?? null,
           })),
+          { soloGreen: soloGreenRepos.has(rid) },
         ),
       );
     }

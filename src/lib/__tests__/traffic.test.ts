@@ -6,6 +6,44 @@ const pr = (over: Partial<MergePr>): MergePr => ({
   number: 1, title: "t", author: "a", review_state: null, mergeable_state: "clean", draft: false, changed_files: [], ...over,
 });
 
+describe("computeLights — solo_green", () => {
+  it("off (default): a team of one stays yellow no matter what the AI said", () => {
+    const l = computeLights([pr({ number: 1, ai_verdict: "looks_good" })]);
+    expect(l.get(1)).toEqual({ state: "yellow", reason: "waiting on a teammate's review" });
+  });
+
+  it("on: an AI-cleared clean PR goes green, and says why it is green", () => {
+    const l = computeLights([pr({ number: 1, ai_verdict: "looks_good" })], { soloGreen: true });
+    expect(l.get(1)).toEqual({ state: "green", reason: "AI-reviewed — no teammate to approve" });
+  });
+
+  it("on: a human approval still reads as a human approval", () => {
+    const l = computeLights([pr({ number: 1, review_state: "approved" })], { soloGreen: true });
+    expect(l.get(1)?.reason).toBe("cleared to land — press merge");
+  });
+
+  it("on: it never speaks of an absent teammate to a team of one", () => {
+    const none = computeLights([pr({ number: 1 })], { soloGreen: true });
+    expect(none.get(1)).toEqual({ state: "yellow", reason: "waiting on the AI review" });
+    const flagged = computeLights([pr({ number: 2, ai_verdict: "caution" })], { soloGreen: true });
+    expect(flagged.get(2)?.reason).toBe("the AI review flagged something — read it before merging");
+  });
+
+  it("on: it never overrides conflicts, drafts, or changes requested", () => {
+    const l = computeLights(
+      [
+        pr({ number: 1, ai_verdict: "looks_good", mergeable_state: "dirty" }),
+        pr({ number: 2, ai_verdict: "looks_good", draft: true }),
+        pr({ number: 3, ai_verdict: "looks_good", review_state: "changes_requested" }),
+      ],
+      { soloGreen: true },
+    );
+    expect(l.get(1)?.state).toBe("red");
+    expect(l.get(2)?.state).toBe("gray");
+    expect(l.get(3)?.state).toBe("red");
+  });
+});
+
 describe("computeLights", () => {
   it("draft → gray, conflicts → red, changes requested → red, unreviewed → yellow", () => {
     const l = computeLights([

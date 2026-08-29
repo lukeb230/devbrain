@@ -49,3 +49,17 @@ describe("memory index builders", () => {
     expect(f.by).toBe("luke");
   });
 });
+
+describe("eventToMemory — journal-derived decisions", () => {
+  it("skips decisions lifted from a journal (the journal row already carries them)", () => {
+    expect(
+      eventToMemory({ id: 1, kind: "decision", repo_id: "r", at: "2026-01-01", payload: { text: "chose X over Y", by: "Nova", journal_id: "j1" } }),
+    ).toBeNull();
+  });
+
+  it("still indexes decisions logged directly by a teammate", () => {
+    const m = eventToMemory({ id: 2, kind: "decision", repo_id: "r", at: "2026-01-01", payload: { text: "chose X over Y", by: "Nova" } });
+    expect(m?.title).toBe("chose X over Y");
+    expect(m?.by_label).toBe("Nova");
+  });
+});

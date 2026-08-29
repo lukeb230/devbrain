@@ -24,6 +24,9 @@ export interface MergePr {
   mergeable_state: string | null;
   draft: boolean;
   changed_files: string[];
+  /** Latest DevBrain AI review verdict for this head sha, when one exists.
+   *  Only consulted under the solo_green policy. */
+  ai_verdict?: string | null;
 }
 
 export interface OverlapPair {

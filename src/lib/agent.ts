@@ -235,7 +235,13 @@ Respond with ONLY a JSON object, no prose around it:
   "summary": "one or two sentences — what this PR does and your overall read",
   "points": [{"kind": "risk" | "suggestion", "text": "specific, actionable observation with file/line context"}]
 }
-Rules: at most 5 points, each self-contained. "risky" = a probable bug or security issue; "caution" = worth a careful human look; "looks_good" = ship it after normal review. An empty points array is fine for clean PRs.`;
+Rules: at most 5 points, each self-contained. An empty points array is fine for clean PRs.
+
+The verdict follows from the points you actually made, so decide the points first:
+- "risky" — at least one point is a probable bug or a security issue.
+- "caution" — at least one risk point that is not clearly a bug.
+- "looks_good" — no risk points at all, however many suggestions you have.
+Suggestions never downgrade a verdict. A PR you would ship after normal review is "looks_good" even when you have several suggestions about it; saying "caution" about a clean diff spends the team's attention for nothing.`;
 
 export const FOOTPRINT_SYSTEM = `You predict which parts of a repository each task will touch, so a dispatcher can hand teammates non-overlapping work. You get the repo's directory structure and a list of tasks.
 

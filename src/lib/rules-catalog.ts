@@ -62,6 +62,12 @@ export const WRITER_CATALOG: RuleDef[] = [
 // Feature toggles — DEFAULT OFF, per repo. No writer app needed.
 export const FEATURE_CATALOG: RuleDef[] = [
   {
+    rule: "solo_green",
+    label: "Let the AI review clear a PR when you work alone",
+    detail:
+      "A merge light only turns green once a teammate approves, so on a one-person team it never leaves yellow. With this on, a conflict-free PR that DevBrain's own review marked 'looks good' turns green and says 'AI-reviewed — no teammate to approve' — never that a person signed off. GitHub branch protection still decides what can actually merge.",
+  },
+  {
     rule: "journals",
     label: "Session journals (team memory)",
     detail:

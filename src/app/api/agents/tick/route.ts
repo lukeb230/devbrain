@@ -8,6 +8,7 @@ import { brainToMemory, eventToMemory, handoffToMemory, journalToMemory, reviewT
 import { fetchBrainDocs } from "@/lib/github";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeLights } from "@/lib/traffic";
+import { deriveVerdict, type ReviewPoint } from "@/lib/review";
 
 // ============================================================================
 // Agent tick — called every 2 minutes by pg_cron (Supabase) via pg_net.
@@ -115,13 +116,11 @@ export async function POST(request: Request) {
           target.org_id,
         );
         const parsed = extractJson(raw);
-        const verdictRaw = String(parsed?.verdict ?? "caution");
-        const verdict = ["looks_good", "caution", "risky"].includes(verdictRaw) ? verdictRaw : "caution";
-        const points = Array.isArray(parsed?.points)
+        const points: ReviewPoint[] = Array.isArray(parsed?.points)
           ? (parsed!.points as { kind?: string; text?: string }[])
               .filter((p) => p && typeof p.text === "string" && p.text.trim())
               .slice(0, 5)
-              .map((p) => ({
+              .map((p): ReviewPoint => ({
                 kind: p.kind === "risk" || p.kind === "brain" ? p.kind : "suggestion",
                 text: String(p.text).slice(0, 500),
               }))
@@ -143,6 +142,8 @@ export async function POST(request: Request) {
             text: "Code changes with no .brain/ update in the same PR — the team rule expects the matching brain note to ride along.",
           });
         }
+        // Derived last, so the brain point above can still move the verdict.
+        const verdict = deriveVerdict(parsed, points);
         await admin.from("pr_reviews").insert({
           org_id: target.org_id,
           repo_id: target.repo_id,
@@ -535,9 +536,22 @@ export async function POST(request: Request) {
   if (!off.has("lights")) try {
     const { data: allOpen } = await admin
       .from("prs")
-      .select("repo_id, org_id, number, title, author, review_state, mergeable_state, draft, changed_files, light")
+      .select("repo_id, org_id, number, title, author, head_sha, review_state, mergeable_state, draft, changed_files, light")
       .eq("state", "open")
       .limit(100);
+    // Latest AI verdict per open head sha, and the per-repo solo_green policy —
+    // both only matter to repos that turned solo_green on, but two small reads
+    // keep the per-repo loop free of round trips.
+    const [{ data: verdictRows }, { data: soloRows }] = await Promise.all([
+      admin.from("pr_reviews").select("repo_id, pr_number, head_sha, verdict, created_at").order("created_at", { ascending: false }).limit(200),
+      admin.from("policies").select("repo_id, enabled").eq("rule", "solo_green"),
+    ]);
+    const verdictFor = new Map<string, string>();
+    for (const r of verdictRows ?? []) {
+      const key = `${r.repo_id}#${r.pr_number}#${r.head_sha}`;
+      if (!verdictFor.has(key)) verdictFor.set(key, r.verdict);
+    }
+    const soloGreenRepos = new Set((soloRows ?? []).filter((r) => r.enabled).map((r) => r.repo_id));
     const byRepo = new Map<string, NonNullable<typeof allOpen>>();
     for (const pr of allOpen ?? []) {
       if (!byRepo.has(pr.repo_id)) byRepo.set(pr.repo_id, []);
@@ -556,7 +570,9 @@ export async function POST(request: Request) {
           mergeable_state: p.mergeable_state,
           draft: p.draft,
           changed_files: (p.changed_files as string[]) ?? [],
+          ai_verdict: verdictFor.get(`${p.repo_id}#${p.number}#${p.head_sha}`) ?? null,
         })),
+        { soloGreen: soloGreenRepos.has(repoId) },
       );
 
       // Auto-merge enabled on this repo?
@@ -584,7 +600,10 @@ export async function POST(request: Request) {
             .eq("number", pr.number);
           if (light.state === "green") {
             greens++;
-            if (autoMergeOn && writerInstall && fullName) {
+            // A bot may press merge on a PR a person approved. It may not press
+            // merge on one only the AI cleared: solo_green exists so a lone dev
+            // can SEE a PR is ready, not so a PR can go in with no human in it.
+            if (autoMergeOn && writerInstall && fullName && pr.review_state === "approved") {
               const result = await mergePrAsWriter(writerInstall, fullName, pr.number);
               if (result.merged) {
                 autoMerged++;
@@ -731,7 +750,7 @@ export async function POST(request: Request) {
         const j = extractJson(raw);
         const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => String(x).slice(0, 400)).slice(0, 8) : []);
         if (j && typeof j.summary === "string" && j.summary.trim()) {
-          await admin.from("journals").insert({
+          const { data: journalRow } = await admin.from("journals").insert({
             org_id: row.org_id,
             repo_id: row.repo_id,
             session_id: row.session_id,
@@ -748,7 +767,25 @@ export async function POST(request: Request) {
             files: arr(j.files).slice(0, 12),
             model: agentModel(),
             session_started_at: sess?.started_at ?? null,
-          });
+          }).select("id").single();
+          // Decisions the summariser recovered are real team decisions — the
+          // only reason they were second-class is that they arrived by a
+          // different road than log_decision. Publish them to the same stream,
+          // so they reach the feed, the dashboard, team memory and every
+          // teammate's injected context whether or not the Claude that made
+          // the call remembered to log it. One insert per journal, so the
+          // journal id is enough to keep it idempotent.
+          const journalDecisions = arr(j.decisions).slice(0, 6);
+          if (journalRow?.id && journalDecisions.length) {
+            await admin.from("events").insert(
+              journalDecisions.map((text: string) => ({
+                org_id: row.org_id,
+                repo_id: row.repo_id,
+                kind: "decision",
+                payload: { text: String(text).slice(0, 500), by: row.dev_label, journal_id: journalRow.id },
+              })),
+            );
+          }
           await admin.from("journal_queue").delete().eq("id", row.id);
           did.journal = `${row.dev_label} @ ${repo?.full_name ?? "?"}`;
         } else {

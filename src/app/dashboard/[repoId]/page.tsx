@@ -154,9 +154,16 @@ export default async function RepoPage({
     mergeable_state: p.mergeable_state,
     draft: p.draft,
     changed_files: (p.changed_files as string[]) ?? [],
+    ai_verdict: p.head_sha ? reviewFor.get(`${p.number}:${p.head_sha}`)?.verdict ?? null : null,
   }));
+  const { data: soloRow } = await supabase
+    .from("policies")
+    .select("enabled")
+    .eq("repo_id", repo.id)
+    .eq("rule", "solo_green")
+    .maybeSingle();
   const mergePlan = computeMergePlan(lightPrs);
-  const lights = computeLights(lightPrs);
+  const lights = computeLights(lightPrs, { soloGreen: soloRow?.enabled === true });
 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
   const doneTasks = (tasks ?? [])

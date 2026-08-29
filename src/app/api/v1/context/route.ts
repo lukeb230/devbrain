@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   const [prs, sessions, activity, claims, policies, decisions, broadcasts, tasks, handoffs] = await Promise.all([
     admin
       .from("prs")
-      .select("number, title, author, head_branch, review_state, mergeable_state, draft, changed_files, html_url")
+      .select("number, title, author, head_branch, head_sha, review_state, mergeable_state, draft, changed_files, html_url")
       .eq("repo_id", repo.id)
       .eq("state", "open")
       .order("updated_at", { ascending: false }),

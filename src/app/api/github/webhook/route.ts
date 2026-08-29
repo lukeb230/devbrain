@@ -289,12 +289,23 @@ export async function POST(request: Request) {
       case "pull_request_review": {
         const repo = await repoByGithubId(admin, payload.repository.id);
         if (!repo) break;
+        // GitHub sends a review state on every action, but only two of them
+        // bear on whether a PR is cleared to land. Writing the state verbatim
+        // let a comment-only review overwrite an approval: a green PR would
+        // silently drop to "waiting on a teammate's review" because somebody
+        // replied in a thread. GitHub itself keeps the approval.
+        const action = String(payload.action ?? "");
+        const state = String(payload.review?.state ?? "").toLowerCase();
+        let next: string | null | undefined;
+        if (action === "submitted" && (state === "approved" || state === "changes_requested")) {
+          next = state;
+        } else if (action === "dismissed") {
+          next = null; // approval withdrawn — back to waiting
+        }
+        if (next === undefined) break; // commented, edited: no bearing on the light
         await admin
           .from("prs")
-          .update({
-            review_state: payload.review.state, // approved | changes_requested | commented
-            updated_at: new Date().toISOString(),
-          })
+          .update({ review_state: next, updated_at: new Date().toISOString() })
           .eq("repo_id", repo.id)
           .eq("number", payload.pull_request.number);
         break;

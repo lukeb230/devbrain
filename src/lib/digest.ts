@@ -145,7 +145,15 @@ export function buildDigest(rows: DigestRows) {
   );
 
   // Merge traffic lights — deterministic; relay a green light to your human
-  // ("your PR is cleared to land") when relevant.
+  // ("your PR is cleared to land") when relevant. The verdict is matched on the
+  // head sha, not just the PR number: a review of an older sha must not clear a
+  // diff nobody has looked at.
+  const soloGreen = (rows.policies ?? []).some((p) => p.rule === "solo_green" && p.enabled);
+  const verdictForSha = new Map<string, string>();
+  for (const r of rows.reviews ?? []) {
+    const key = `${r.pr_number}#${r.head_sha}`;
+    if (!verdictForSha.has(key)) verdictForSha.set(key, r.verdict);
+  }
   const contextLights = computeLights(
     (rows.prs ?? []).map((p) => ({
       number: p.number,
@@ -155,7 +163,9 @@ export function buildDigest(rows: DigestRows) {
       mergeable_state: p.mergeable_state,
       draft: p.draft,
       changed_files: (p.changed_files as string[]) ?? [],
+      ai_verdict: verdictForSha.get(`${p.number}#${p.head_sha}`) ?? null,
     })),
+    { soloGreen },
   );
 
   return {

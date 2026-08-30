@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { BrainMark } from "@/components/BrainMark";
 import { supabaseServer } from "@/lib/supabase/server";
 import { SignInButton } from "./sign-in-button";
@@ -45,6 +46,10 @@ export default async function LandingPage({
         Sign in with GitHub, create or join a team, link a repo, and install the
         Mac app — that&apos;s the whole setup.
       </p>
+      <footer className="mt-4 flex gap-4 text-xs text-slate-400">
+        <Link href="/privacy" className="hover:text-slate-600 hover:underline">Privacy</Link>
+        <Link href="/terms" className="hover:text-slate-600 hover:underline">Terms</Link>
+      </footer>
     </main>
   );
 }

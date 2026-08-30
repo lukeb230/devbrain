@@ -14,7 +14,7 @@ export async function resolveDevToken(authHeader: string | null) {
   const admin = supabaseAdmin();
   const { data } = await admin
     .from("dev_tokens")
-    .select("id, org_id, user_id, label, last_used_at")
+    .select("id, org_id, user_id, label, last_used_at, parent_token_id")
     .eq("token_hash", hashToken(token))
     .is("revoked_at", null)
     .single();
@@ -25,5 +25,5 @@ export async function resolveDevToken(authHeader: string | null) {
   if (Date.now() - last > 5 * 60_000) {
     admin.from("dev_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", data.id).then(() => {}, () => {});
   }
-  return { org_id: data.org_id, user_id: data.user_id, label: data.label };
+  return { org_id: data.org_id, user_id: data.user_id, label: data.label, token_id: data.id as string, parent_token_id: (data.parent_token_id as string | null) ?? null };
 }

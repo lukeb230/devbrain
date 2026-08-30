@@ -192,6 +192,22 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
   const { data: soloRows } = await supabase.from("policies").select("repo_id, enabled").eq("rule", "solo_green");
   const soloGreenRepos = new Set((soloRows ?? []).filter((r) => r.enabled).map((r) => r.repo_id));
 
+  // Spawned-session grouping: children render under their parent identity.
+  // Lineage lives in dev_tokens (parent_token_id) and identity is the label,
+  // so map label → the root token's label, case-insensitively.
+  const { data: tokRows } = await supabase
+    .from("dev_tokens")
+    .select("id, label, parent_token_id")
+    .eq("org_id", org.orgId)
+    .is("revoked_at", null);
+  const byId = new Map((tokRows ?? []).map((t) => [t.id, t]));
+  const rootOf = new Map<string, string>();
+  for (const t of tokRows ?? []) {
+    let cur = t, hops = 0;
+    while (cur.parent_token_id && byId.has(cur.parent_token_id) && hops++ < 4) cur = byId.get(cur.parent_token_id)!;
+    rootOf.set(t.label.toLowerCase(), cur.label);
+  }
+
   // Traffic lights per repo (deterministic, same lib as the dashboard).
   const lightsByRepo = new Map<string, ReturnType<typeof computeLights>>();
   {
@@ -229,6 +245,7 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
       id: String(s.id),
       repo: short(s.repo_id),
       dev_label: s.dev_label,
+      root: rootOf.get(String(s.dev_label ?? "").toLowerCase()) ?? s.dev_label,
       summary: s.summary,
       last_seen: s.last_seen,
     })),

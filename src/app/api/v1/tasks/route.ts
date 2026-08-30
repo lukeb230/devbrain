@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
+import { pickSuggestedNext } from "@/lib/lanes";
 
 // ============================================================================
 // Task board API for agents (Bearer <dev token>).
@@ -185,6 +186,56 @@ export async function POST(request: Request) {
           ? "Your lane is claimed — teammates' Claudes will route around these paths for 8h (released automatically when the task completes)."
           : "No footprint predicted yet — no lane claimed; check who_is_editing before touching shared files.",
     });
+  }
+
+  // Dispatch: the highest-priority open task whose predicted lane doesn't
+  // overlap anyone else's active claims or started work. Returns the pick —
+  // it does NOT start it; the caller decides, then calls start_task (atomic).
+  if (action === "next") {
+    const [{ data: tasks }, { data: claims }] = await Promise.all([
+      admin
+        .from("tasks")
+        .select("id, title, priority, tags, assigned_to, started_by, footprint, created_at")
+        .eq("repo_id", repo.id)
+        .eq("status", "open")
+        .order("priority")
+        .order("created_at"),
+      admin
+        .from("claims")
+        .select("dev_label, paths")
+        .eq("repo_id", repo.id)
+        .is("released_at", null)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`),
+    ]);
+    const you = auth.label.toLowerCase();
+    const busy: string[] = [];
+    for (const c of claims ?? []) {
+      if (String(c.dev_label ?? "").toLowerCase() === you) continue;
+      for (const p of (c.paths as string[]) ?? []) busy.push(p);
+    }
+    for (const t of tasks ?? []) {
+      if (!t.started_by || t.started_by.toLowerCase() === you) continue;
+      for (const p of (t.footprint as string[] | null) ?? []) busy.push(p);
+    }
+    const pick = pickSuggestedNext(
+      (tasks ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        tags: (t.tags as string[]) ?? [],
+        assigned_to: t.assigned_to,
+        started_by: t.started_by,
+        footprint: (t.footprint as string[] | null) ?? null,
+        created_at: t.created_at,
+      })),
+      auth.label,
+      busy,
+    );
+    return NextResponse.json(
+      pick
+        ? { ok: true, next: pick }
+        : { ok: true, next: null, reason: (tasks ?? []).length === 0 ? "the board is empty" : "every open task overlaps someone's active lane" },
+    );
   }
 
   return NextResponse.json({ error: "unknown action" }, { status: 400 });

@@ -57,3 +57,21 @@ export function httpHint(status, cmd = "devbrain") {
   if (status === 401) return `DevBrain: this Mac's token was rejected — run \`${cmd} setup --reconfigure\` (new token from Settings → Tokens).`;
   return null;
 }
+
+/** Filesystem-safe slug for a session label: "Luke · 2" → "luke-2". */
+export function sessionSlug(label) {
+  const s = String(label ?? "").toLowerCase().normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return s || "session";
+}
+
+/** Next free clone directory name for a repo: "owner/name" → "name-2", "name-3"… */
+export function nextCloneName(repoFull, existing) {
+  const base = String(repoFull).split("/").pop().replace(/[^a-zA-Z0-9._-]/g, "-") || "repo";
+  const taken = new Set(existing);
+  for (let n = 2; n <= 99; n++) {
+    const c = `${base}-${n}`;
+    if (!taken.has(c)) return c;
+  }
+  throw new Error("no free clone name");
+}

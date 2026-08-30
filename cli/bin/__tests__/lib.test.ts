@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults } from "../lib.mjs";
+import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "../lib.mjs";
 
 describe("compareVersions", () => {
   it("compares numerically per component", () => {
@@ -44,5 +44,21 @@ describe("httpHint", () => {
     expect(httpHint(404)).toBeNull();
     expect(httpHint(500)).toBeNull();
     expect(httpHint(0)).toBeNull();
+  });
+});
+
+describe("sessionSlug", () => {
+  it("makes label filesystem-safe", () => {
+    expect(sessionSlug("Luke's MacBook · 2")).toBe("luke-s-macbook-2");
+  });
+  it("never returns empty", () => {
+    expect(sessionSlug("···")).toBe("session");
+  });
+});
+
+describe("nextCloneName", () => {
+  it("starts at -2 and fills gaps", () => {
+    expect(nextCloneName("lukeb230/faketeam-desk", [])).toBe("faketeam-desk-2");
+    expect(nextCloneName("lukeb230/faketeam-desk", ["faketeam-desk-2", "faketeam-desk-4"])).toBe("faketeam-desk-3");
   });
 });

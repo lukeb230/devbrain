@@ -41,7 +41,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
-import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults } from "./lib.mjs";
+import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "./lib.mjs";
 
 // The repo everything is installed from. When the repo goes private this is
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
@@ -844,6 +844,139 @@ if (cmd === "ctx") {
   process.exit(res.ok ? 0 : 1);
 }
 
+
+// ---------------------------------------------------------------------------
+// Spawned sessions — run several Claudes as separate teammates on this Mac.
+//   spawn [--label X] [--dir path] [--print]   mint/reuse a child identity,
+//       ensure a working copy, and launch `claude` here with DEVBRAIN_HOME set
+//   sessions                                    list this identity's children
+//   stop <label> | stop --all                   revoke server-side (releases
+//       claims, ends presence); close the terminal yourself if still open
+// ---------------------------------------------------------------------------
+const SESSIONS_DIR = join(CONFIG_DIR, "sessions");
+const CLONES_DIR = join(CONFIG_DIR, "clones");
+
+if (cmd === "spawn") {
+  const config = loadConfig();
+  const argLabel = process.argv.includes("--label") ? process.argv[process.argv.indexOf("--label") + 1] : null;
+  const argDir = process.argv.includes("--dir") ? process.argv[process.argv.indexOf("--dir") + 1] : null;
+  const printOnly = process.argv.includes("--print");
+
+  // Reuse: same label → same identity + same clone, across restarts.
+  let sess = null;
+  if (argLabel) {
+    const dir = join(SESSIONS_DIR, sessionSlug(argLabel));
+    if (existsSync(join(dir, "meta.json"))) {
+      const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8"));
+      const probe = await fetch(`${config.server}/api/v1/context?repo=none/none`, {
+        headers: { Authorization: `Bearer ${JSON.parse(readFileSync(join(dir, "config.json"), "utf8")).token}` },
+      });
+      if (probe.status !== 401) sess = { dir, meta };
+      // 401 = token was revoked; fall through and mint fresh under the same label.
+    }
+  }
+
+  if (!sess) {
+    const res = await fetch(`${config.server}/api/v1/tokens`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      body: JSON.stringify(argLabel ? { action: "mint", label: argLabel } : { action: "mint" }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { console.error(`spawn: ${body.error || `server returned ${res.status}`}`); process.exit(1); }
+    const dir = join(SESSIONS_DIR, sessionSlug(body.label));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ server: config.server, token: body.token, reminders: config.reminders ?? undefined }, null, 2) + "\n");
+    const meta = { label: body.label, token_id: body.id, created: new Date().toISOString(), clone: null };
+    writeFileSync(join(dir, "meta.json"), JSON.stringify(meta, null, 2) + "\n");
+    sess = { dir, meta };
+    console.log(`identity: ${body.label}`);
+  } else {
+    console.log(`identity: ${sess.meta.label} (reused)`);
+  }
+
+  // Working copy: --dir wins; else reuse the session's clone; else clone the
+  // current repo's origin. Two sessions in one working tree overwrite each
+  // other at the filesystem level — DevBrain can only warn about intent.
+  let clone = argDir ? argDir.replace(/^~(?=\/|$)/, HOME) : sess.meta.clone;
+  if (clone && !existsSync(clone)) clone = null;
+  if (!clone) {
+    const repo = currentRepo();
+    if (!repo) { console.error("Not inside a git repo with a GitHub remote — run from the repo, or pass --dir <clone>."); process.exit(1); }
+    const origin = sh("git remote get-url origin");
+    mkdirSync(CLONES_DIR, { recursive: true });
+    const name = nextCloneName(repo, readdirSync(CLONES_DIR));
+    clone = join(CLONES_DIR, name);
+    console.log(`cloning ${repo} → ${clone} …`);
+    const r = run("git", ["clone", "--quiet", origin, clone]);
+    if (r.status !== 0) { console.error(`git clone failed: ${(r.stderr || "").slice(0, 300)}`); process.exit(1); }
+  }
+  sess.meta.clone = clone;
+  writeFileSync(join(sess.dir, "meta.json"), JSON.stringify(sess.meta, null, 2) + "\n");
+
+  const launch = `DEVBRAIN_HOME=${JSON.stringify(sess.dir)} claude`;
+  if (printOnly) {
+    console.log(`\nRun in the terminal you want this session to live in:\n  cd ${JSON.stringify(clone)}\n  ${launch}`);
+    process.exit(0);
+  }
+  console.log(`launching claude as ${sess.meta.label} in ${clone}\n`);
+  const r = run("claude", process.argv.includes("--") ? process.argv.slice(process.argv.indexOf("--") + 1) : [], {
+    cwd: clone,
+    stdio: "inherit",
+    env: { ...process.env, DEVBRAIN_HOME: sess.dir },
+  });
+  process.exit(r.status ?? 0);
+}
+
+if (cmd === "sessions") {
+  const config = loadConfig();
+  const res = await fetch(`${config.server}/api/v1/tokens`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+    body: JSON.stringify({ action: "list" }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { console.error(body.error || `server returned ${res.status}`); process.exit(1); }
+  const local = new Map();
+  if (existsSync(SESSIONS_DIR)) {
+    for (const d of readdirSync(SESSIONS_DIR)) {
+      try { const m = JSON.parse(readFileSync(join(SESSIONS_DIR, d, "meta.json"), "utf8")); local.set(m.label.toLowerCase(), m); } catch { /* skip */ }
+    }
+  }
+  if ((body.children ?? []).length === 0) { console.log(`No spawned sessions. Start one: ${CH.cmd} spawn`); process.exit(0); }
+  for (const c2 of body.children) {
+    const m = local.get(String(c2.label).toLowerCase());
+    const used = c2.last_used_at ? `last used ${Math.round((Date.now() - Date.parse(c2.last_used_at)) / 60000)}m ago` : "never used";
+    console.log(`  ${c2.label} — ${used}, ${c2.open_claims} open claim${c2.open_claims === 1 ? "" : "s"}${m?.clone ? `, clone ${m.clone}` : " (no clone on this Mac)"}`);
+  }
+  process.exit(0);
+}
+
+if (cmd === "stop") {
+  const config = loadConfig();
+  const target = process.argv[3];
+  if (!target) { console.error(`Usage: ${CH.cmd} stop <label> | ${CH.cmd} stop --all`); process.exit(1); }
+  const res = await fetch(`${config.server}/api/v1/tokens`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+    body: JSON.stringify({ action: "list" }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { console.error(body.error || `server returned ${res.status}`); process.exit(1); }
+  const targets = (body.children ?? []).filter((c2) => target === "--all" || c2.label.toLowerCase() === target.toLowerCase() || sessionSlug(c2.label) === sessionSlug(target));
+  if (targets.length === 0) { console.error(`No live spawned session matches "${target}".`); process.exit(1); }
+  for (const t of targets) {
+    const r = await fetch(`${config.server}/api/v1/tokens`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      body: JSON.stringify({ action: "revoke", id: t.id }),
+    });
+    console.log(r.ok ? `stopped ${t.label} (claims released, presence closed)` : `failed to stop ${t.label}`);
+  }
+  console.log("If a terminal is still running one of these, its DevBrain calls now fail cleanly — close it when convenient.");
+  process.exit(0);
+}
+
 const c = CH.cmd;
 console.log(`${c} — ${CH.appName} CLI (channel: ${CHANNEL}, home: ${CONFIG_DIR})
 
@@ -856,6 +989,9 @@ Usage:
   ${c} reminders on|off             Sync (or don't) from this Mac
   ${c} reminders add "<List>" "<owner/repo>"   Map a list for the whole team (admins)
   ${c} reminders remove "<List>"
+  ${c} spawn [--label X] [--dir D] [--print]  Launch another Claude as its own teammate (own token+clone)
+  ${c} sessions                      List this identity's spawned sessions
+  ${c} stop <label>|--all            Revoke a spawned session (releases claims, ends presence)
   ${c} doctor                       Verify the whole chain
   ${c} ctx                          Print the live context digest for the current repo
   ${c} send                         (internal — invoked by hooks)

@@ -25,6 +25,17 @@ export async function GET(request: Request) {
     admin.from("alert_channels").select("id", { count: "exact", head: true }).eq("org_id", auth.org_id).eq("enabled", true),
     admin.from("system_state").select("value").eq("key", "ops_webhook").maybeSingle(),
   ]);
+  // Journals are per-repo and default OFF — the one feature whose "off"
+  // state used to be indistinguishable from a bug. Name each repo's state.
+  const [{ data: repos }, { data: jpol }] = await Promise.all([
+    admin.from("linked_repos").select("id, full_name").eq("org_id", auth.org_id).is("unlinked_at", null),
+    admin.from("policies").select("repo_id, enabled").eq("org_id", auth.org_id).eq("rule", "journals"),
+  ]);
+  const jOn = new Set((jpol ?? []).filter((p) => p.enabled).map((p) => p.repo_id));
+  const journals = {
+    enabled: (repos ?? []).filter((r) => jOn.has(r.id)).map((r) => r.full_name),
+    disabled: (repos ?? []).filter((r) => !jOn.has(r.id)).map((r) => r.full_name),
+  };
   const at = data?.updated_at ? new Date(data.updated_at) : null;
   const age_s = at ? Math.round((Date.now() - at.getTime()) / 1000) : null;
 
@@ -37,6 +48,7 @@ export async function GET(request: Request) {
       last_result: data?.value ?? null,
     },
     agent_configured: Boolean(process.env.ANTHROPIC_API_KEY),
+    journals,
     alerts: {
       ops_open: opsOpen ?? 0,
       team_open: orgOpen ?? 0,

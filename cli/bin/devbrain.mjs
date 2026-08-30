@@ -751,6 +751,12 @@ if (cmd === "doctor") {
         const h = await res.json();
         if (h.ok) ok("agent tick alive", `last run ${h.tick.age_s}s ago${h.agent_configured ? "" : " (no ANTHROPIC_API_KEY — AI units idle)"}`);
         else bad("agent tick", h.tick.last_at ? `last heartbeat ${h.tick.age_s}s ago — check the pg_cron job (supabase/cron/agent-tick.sql)` : "never ran — schedule it with supabase/cron/agent-tick.sql");
+        if (h.journals) {
+          const j = h.journals;
+          if (j.disabled.length && !j.enabled.length) results.push(`  · session journals are OFF for ${j.disabled.join(", ")} — enable under Rules (dashboard or panel Settings)`);
+          else if (j.disabled.length) results.push(`  · session journals on for ${j.enabled.join(", ")}; off for ${j.disabled.join(", ")}`);
+          else if (j.enabled.length) ok("session journals", `on for ${j.enabled.join(", ")}`);
+        }
         if (h.alerts) {
           const a = h.alerts;
           const where = [a.ops_channel ? "ops webhook" : null, a.team_channels ? `${a.team_channels} team webhook${a.team_channels === 1 ? "" : "s"}` : null, a.watchdog ? "watchdog" : null].filter(Boolean).join(", ") || "in-app only";

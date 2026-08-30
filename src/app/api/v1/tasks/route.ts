@@ -123,39 +123,57 @@ export async function POST(request: Request) {
   if (action === "start") {
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-    const { data: task } = await admin
-      .from("tasks")
-      .select("id, title, footprint, started_by, status")
-      .eq("id", id)
-      .eq("repo_id", repo.id)
-      .single();
-    if (!task) return NextResponse.json({ error: "task not found" }, { status: 404 });
-    if (task.status !== "open") return NextResponse.json({ error: "task is not open" }, { status: 400 });
-    if (task.started_by && task.started_by.toLowerCase() !== auth.label.toLowerCase()) {
-      return NextResponse.json({ error: `already started by ${task.started_by}` }, { status: 409 });
-    }
-    await admin
+    // Take the task in ONE conditional update, so two teammates polling the
+    // board at the same moment can't both pass a check-then-write. Zero rows
+    // back means somebody else has it (or it isn't open) — we look to say which.
+    const label = auth.label.replace(/[%_\\]/g, "\\$&");
+    const { data: taken } = await admin
       .from("tasks")
       .update({ started_by: auth.label, started_at: new Date().toISOString(), assigned_to: auth.label })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("repo_id", repo.id)
+      .eq("status", "open")
+      .or(`started_by.is.null,started_by.ilike.${label}`)
+      .select("id, title, footprint");
+    const task = taken?.[0];
+    if (!task) {
+      const { data: why } = await admin.from("tasks").select("started_by, status").eq("id", id).eq("repo_id", repo.id).maybeSingle();
+      if (!why) return NextResponse.json({ error: "task not found" }, { status: 404 });
+      if (why.status !== "open") return NextResponse.json({ error: "task is not open" }, { status: 400 });
+      return NextResponse.json({ error: `already started by ${why.started_by}` }, { status: 409 });
+    }
     const footprint = Array.isArray(task.footprint) ? (task.footprint as string[]) : [];
     let claim_id: string | null = null;
     if (footprint.length > 0) {
-      const { data: claim } = await admin
+      // Idempotent: restarting your own task keeps the lane you already hold
+      // instead of stacking a fresh 8h claim on top of it every time.
+      const { data: held } = await admin
         .from("claims")
-        .insert({
-          org_id: repo.org_id,
-          repo_id: repo.id,
-          user_id: auth.user_id,
-          dev_label: auth.label,
-          paths: footprint,
-          note: `working: ${task.title}`.slice(0, 300),
-          task_id: id,
-          expires_at: new Date(Date.now() + 8 * 3600_000).toISOString(),
-        })
         .select("id")
-        .single();
-      claim_id = claim?.id ?? null;
+        .eq("task_id", id)
+        .ilike("dev_label", label)
+        .is("released_at", null)
+        .limit(1);
+      if (held?.[0]) {
+        claim_id = held[0].id;
+        await admin.from("claims").update({ expires_at: new Date(Date.now() + 8 * 3600_000).toISOString() }).eq("id", claim_id);
+      } else {
+        const { data: claim } = await admin
+          .from("claims")
+          .insert({
+            org_id: repo.org_id,
+            repo_id: repo.id,
+            user_id: auth.user_id,
+            dev_label: auth.label,
+            paths: footprint,
+            note: `working: ${task.title}`.slice(0, 300),
+            task_id: id,
+            expires_at: new Date(Date.now() + 8 * 3600_000).toISOString(),
+          })
+          .select("id")
+          .single();
+        claim_id = claim?.id ?? null;
+      }
     }
     return NextResponse.json({
       ok: true,

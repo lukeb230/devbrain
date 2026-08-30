@@ -8,6 +8,24 @@ import { resolveDevToken } from "@/lib/token";
 // Auth: Bearer <dev token>.
 // ============================================================================
 
+// A session belongs to the token label that opened it. A teammate is a label
+// (several tokens may share one user — the sandbox agents do), so ownership is
+// org + label, never user_id alone. Anything else is "not found": a token may
+// neither read another label's status phrase nor end its session.
+async function ownSession(admin: ReturnType<typeof supabaseAdmin>, id: unknown, orgId: string, label: string) {
+  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data } = await admin
+    .from("sessions")
+    .select("id, summary")
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .ilike("dev_label", label.replace(/[%_\\]/g, "\\$&"))
+    .maybeSingle();
+  return data;
+}
+
+const cap = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : null);
+
 export async function POST(request: Request) {
   const auth = await resolveDevToken(request.headers.get("authorization"));
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -41,9 +59,9 @@ export async function POST(request: Request) {
         repo_id: repo.id,
         user_id: auth.user_id,
         dev_label: auth.label,
-        branch: body.branch ?? null,
-        summary: body.summary ?? null,
-        agent_kind: body.agent ?? "claude-code",
+        branch: cap(body.branch, 200),
+        summary: cap(body.summary, 200),
+        agent_kind: cap(body.agent, 40) ?? "claude-code",
       })
       .select("id")
       .single();
@@ -55,6 +73,8 @@ export async function POST(request: Request) {
     if (!body.session_id) {
       return NextResponse.json({ error: "session_id required" }, { status: 400 });
     }
+    const own = await ownSession(admin, body.session_id, repo.org_id, auth.label);
+    if (!own) return NextResponse.json({ error: "session not found" }, { status: 404 });
     await admin
       .from("sessions")
       .update({
@@ -62,17 +82,14 @@ export async function POST(request: Request) {
         last_seen: new Date().toISOString(),
         ended_at: null,
       })
-      .eq("id", body.session_id)
-      .eq("org_id", repo.org_id);
+      .eq("id", own.id);
     return NextResponse.json({ ok: true });
   }
 
   if (kind === "session_end") {
-    await admin
-      .from("sessions")
-      .update({ ended_at: new Date().toISOString() })
-      .eq("id", body.session_id)
-      .eq("org_id", repo.org_id);
+    const own = await ownSession(admin, body.session_id, repo.org_id, auth.label);
+    if (!own) return NextResponse.json({ error: "session not found" }, { status: 404 });
+    await admin.from("sessions").update({ ended_at: new Date().toISOString() }).eq("id", own.id);
     return NextResponse.json({ ok: true });
   }
 
@@ -84,36 +101,34 @@ export async function POST(request: Request) {
   // the activity row — this is what makes the feed human-readable. The phrase
   // is captured at edit time, so a later focus change starts a new group.
   let label: string | null = null;
+  let own: { id: string; summary: string | null } | null = null;
   if (body.session_id) {
-    const { data: s } = await admin
-      .from("sessions")
-      .select("summary")
-      .eq("id", body.session_id)
-      .single();
-    label = s?.summary ?? null;
+    own = await ownSession(admin, body.session_id, repo.org_id, auth.label);
+    if (!own) return NextResponse.json({ error: "session not found" }, { status: 404 });
+    label = own.summary ?? null;
   }
   await admin.from("activity").insert({
     org_id: repo.org_id,
     repo_id: repo.id,
-    session_id: body.session_id ?? null,
+    session_id: own?.id ?? null,
     user_id: auth.user_id,
-    branch: body.branch ?? null,
-    file: body.file,
-    tool: body.tool ?? "edit",
+    branch: cap(body.branch, 200),
+    file: String(body.file).slice(0, 500),
+    tool: cap(body.tool, 40) ?? "edit",
     dev_label: auth.label,
     label,
   });
-  if (body.session_id) {
+  if (own) {
     // Activity proves the session is alive — refresh last_seen and clear any
     // premature ended_at (resilience against misfired end hooks).
     await admin
       .from("sessions")
       .update({
         last_seen: new Date().toISOString(),
-        branch: body.branch ?? null,
+        branch: cap(body.branch, 200),
         ended_at: null,
       })
-      .eq("id", body.session_id);
+      .eq("id", own.id);
   }
   return NextResponse.json({ ok: true });
 }

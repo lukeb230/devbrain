@@ -29,6 +29,22 @@ export async function createTeam(formData: FormData): Promise<void> {
   const name = String(formData.get("name") || "").trim().slice(0, 60) || `${login}'s team`;
 
   const admin = supabaseAdmin();
+
+  // Signup gate: in "invite" mode, only people who arrived through a valid
+  // invite may create a team — the invite is the authorisation. Flipping to
+  // "open" is one system_state row, no deploy. Existing members are unaffected
+  // (this path only runs when someone creates a NEW team).
+  const { data: sc } = await admin.from("system_state").select("value").eq("key", "signups").maybeSingle();
+  const mode = (sc?.value as { mode?: string } | null)?.mode ?? "invite";
+  if (mode !== "open") {
+    const { count } = await admin.from("org_members").select("org_id", { count: "exact", head: true }).eq("user_id", user.id);
+    // Someone already on a team can spin up another; a brand-new account cannot
+    // self-serve a team while signups are invite-only — they must use a link.
+    if (!count) {
+      redirect(`/welcome?invite_error=${encodeURIComponent("DevBrain is invite-only right now — ask a teammate for an invite link.")}${inPanel ? "&from=widget" : ""}`);
+    }
+  }
+
   const base = slugify(name);
   let org: { id: string } | null = null;
   for (let attempt = 0; attempt < 3 && !org; attempt++) {

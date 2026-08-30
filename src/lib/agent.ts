@@ -52,7 +52,20 @@ async function reserve(orgId: string | undefined): Promise<void> {
   if (error) throw new Error(`ai_reserve: ${error.message}`);
   if (data !== true) {
     const { alert } = await import("@/lib/alerts");
-    await alert({ scope: { orgId }, key: `ai.cap.${new Date().toISOString().slice(0, 10)}`, severity: "warn", title: "AI budget for today is spent", detail: "Reviews, journals and digests pause until 00:00 UTC. Presence, collisions and merge lights keep running. Raise the cap on Settings → Team if this happens often." });
+    const today = new Date().toISOString().slice(0, 10);
+    // Distinguish "this team spent its budget" (team notice) from "the whole
+    // platform hit its global ceiling" (ops — the operator needs to know).
+    const { data: gl } = await supabaseAdmin().from("system_state").select("value").eq("key", "ai_limits").maybeSingle();
+    const globalCap = (gl?.value as { global_daily?: number } | null)?.global_daily ?? null;
+    if (globalCap != null) {
+      const { data: sum } = await supabaseAdmin().from("ai_usage").select("calls").eq("day", today);
+      const total = (sum ?? []).reduce((a, r) => a + (r.calls ?? 0), 0);
+      if (total >= globalCap) {
+        await alert({ scope: "ops", key: `ai.global.${today}`, title: "Global AI daily ceiling reached", detail: `${total}/${globalCap} calls across all teams today. All AI units pause until 00:00 UTC. Raise system_state.ai_limits.global_daily to lift it.` });
+        throw new AiCapExceeded(orgId);
+      }
+    }
+    await alert({ scope: { orgId }, key: `ai.cap.${today}`, severity: "warn", title: "AI budget for today is spent", detail: "Reviews, journals and digests pause until 00:00 UTC. Presence, collisions and merge lights keep running. Raise the cap on Settings → Team if this happens often." });
     throw new AiCapExceeded(orgId);
   }
 }

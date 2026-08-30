@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import {
   fallbackTitle,
@@ -34,7 +35,7 @@ async function authedRepo(repoId: string) {
 export async function uploadSpec(formData: FormData): Promise<void> {
   const repoId = String(formData.get("repoId") || "");
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
 
   const file = formData.get("file");
   const pasted = String(formData.get("text") || "").trim();
@@ -110,7 +111,7 @@ export async function createTasksFromItems(formData: FormData): Promise<void> {
   const ids = formData.getAll("item").map(String).filter(Boolean);
   if (!repoId || !specId || ids.length === 0) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
   const admin = supabaseAdmin();
 
   const { data: items } = await admin
@@ -151,7 +152,7 @@ export async function dismissItem(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
   await supabaseAdmin()
     .from("spec_items")
     .update({ dismissed_at: new Date().toISOString() })
@@ -166,7 +167,7 @@ export async function restoreItem(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
   await supabaseAdmin()
     .from("spec_items")
     .update({ dismissed_at: null })
@@ -180,7 +181,7 @@ export async function deleteSpec(formData: FormData): Promise<void> {
   const specId = String(formData.get("specId") || "");
   if (!repoId || !specId) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
   await supabaseAdmin().from("specs").delete().eq("id", specId).eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/specs`);
   redirect(`/dashboard/${repoId}/specs`);
@@ -192,7 +193,7 @@ export async function requeueSpec(formData: FormData): Promise<void> {
   const specId = String(formData.get("specId") || "");
   if (!repoId || !specId) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
   await supabaseAdmin()
     .from("specs")
     .update({ status: "new", error: null })

@@ -5,12 +5,41 @@
 // human with "ask" so the edit is a conscious choice, not an accident.
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { devbrainHome, loadConfig } from "./home.mjs";
 
 function out(obj) { process.stdout.write(JSON.stringify(obj)); }
+
+// This hook runs on EVERY Edit/Write. The repo's root and remote don't change
+// between edits, so resolve them once per working directory and keep the
+// answer for a day — two subprocesses saved per edit. Invalidated if the
+// cached root no longer contains the cwd (a different checkout at the same
+// path) or no longer exists.
+function repoInfo() {
+  const cwd = process.cwd();
+  const cacheFile = join(devbrainHome(), "gitcache.json");
+  let cache = {};
+  try { cache = JSON.parse(readFileSync(cacheFile, "utf8")); } catch { /* none */ }
+  const hit = cache[cwd];
+  if (hit && Date.now() - hit.at < 86_400_000 && hit.root && cwd.startsWith(hit.root) && existsSync(join(hit.root, ".git"))) {
+    return { repo: hit.repo, root: hit.root };
+  }
+  let repo = null, root = null;
+  try {
+    const url = execSync("git remote get-url origin", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+    const m = url.match(/github\.com[:/](.+?)(\.git)?$/);
+    repo = m ? m[1] : null;
+    root = execSync("git rev-parse --show-toplevel", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim() || null;
+  } catch { /* not a repo */ }
+  if (repo && root) {
+    try {
+      const entries = Object.entries(cache).filter(([, v]) => Date.now() - v.at < 86_400_000).slice(-50);
+      writeFileSync(cacheFile, JSON.stringify(Object.fromEntries([...entries, [cwd, { repo, root, at: Date.now() }]])));
+    } catch { /* cache is optional */ }
+  }
+  return { repo, root };
+}
 
 try {
   const input = JSON.parse(readFileSync(0, "utf8"));
@@ -21,14 +50,9 @@ try {
   // fallback (Cowork, CI). No config at all → exit silently (guard is a no-op).
   const cfg = loadConfig();
   if (!cfg) process.exit(0);
-  let repo = null, rel = filePath;
-  try {
-    const url = execSync("git remote get-url origin", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
-    const m = url.match(/github\.com[:/](.+?)(\.git)?$/);
-    repo = m ? m[1] : null;
-    const root = execSync("git rev-parse --show-toplevel", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
-    if (root && filePath.startsWith(root)) rel = filePath.slice(root.length + 1);
-  } catch { /* not a repo */ }
+  const { repo, root } = repoInfo();
+  let rel = filePath;
+  if (root && filePath.startsWith(root)) rel = filePath.slice(root.length + 1);
   if (!repo) process.exit(0);
 
   // Own session id — so your own activity never flags you.

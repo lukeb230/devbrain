@@ -75,7 +75,7 @@ export async function requireRole(min: Role): Promise<OrgContext | null> {
 // Actions can't return a message to a server-component form, so a refused
 // call sends the user back where they were with ?error=<code>; pages render
 // it through <Notice>. Same convention as ?unlinked= / ?invite_error=.
-export type DeniedCode = "admin_only" | "owner_only" | "link_repo_admin";
+export type DeniedCode = "admin_only" | "owner_only" | "link_repo_admin" | "no_access";
 
 export function withError(path: string, code: DeniedCode): string {
   return `${path}${path.includes("?") ? "&" : "?"}error=${code}`;

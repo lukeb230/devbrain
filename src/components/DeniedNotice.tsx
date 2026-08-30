@@ -11,6 +11,8 @@ const TEXT: Record<DeniedCode, string> = {
   owner_only: "Only the team owner can do that.",
   link_repo_admin: "Only team admins and owners can link a repo.",
   no_access: "That didn't go through — you're not signed in to this team, or your session expired. Reload and try again.",
+  webhook_host: "Alert webhooks must be a Slack or Discord URL (https). Other hosts aren't allowed.",
+  install_owned: "That GitHub installation already belongs to another DevBrain team. Ask its owner, or install the app fresh for this team.",
 };
 
 export function DeniedNotice() {

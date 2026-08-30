@@ -31,3 +31,8 @@ export function makeLimiter(limit: number, windowMs: number, now: () => number =
 /** Presence ingest: a real session edits a few files a minute; 120/min is
  *  an order of magnitude above that and still stops a looping hook. */
 export const ingestLimiter = makeLimiter(120, 60_000);
+
+/** Public unauthenticated endpoints (invite links, device exchange): generous
+ *  per-IP ceiling that still blunts code/token guessing. */
+export const joinLimiter = makeLimiter(30, 60_000);
+export const deviceLimiter = makeLimiter(30, 60_000);

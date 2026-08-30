@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { COOKIE, ORG_COOKIE_OPTS, clearDevbrainCookies, readCookieHeader } from "@/lib/cookies";
 import { safeNext } from "@/lib/panel-routes";
+import { joinLimiter } from "@/lib/ratelimit";
+import { clientIp } from "@/lib/client-ip";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // ============================================================================
@@ -16,6 +18,9 @@ import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const url = new URL(request.url);
+  if (!joinLimiter.take(clientIp(request))) {
+    return NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent("Too many attempts — wait a minute and try again.")}`);
+  }
   const explicitNext = safeNext(url.searchParams.get("next"), "");
   const inPanel = explicitNext === "/widget";
   const self = `/join/${encodeURIComponent(code)}${explicitNext ? `?next=${encodeURIComponent(explicitNext)}` : ""}`;

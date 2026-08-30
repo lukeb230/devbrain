@@ -8,6 +8,13 @@ import { createToken, revokeToken } from "./actions";
 
 export const dynamic = "force-dynamic";
 
+function ago(iso: string) {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  if (m < 60) return `${m}m ago`;
+  if (m < 60 * 48) return `${Math.round(m / 60)}h ago`;
+  return `${Math.round(m / 1440)}d ago`;
+}
+
 export default async function TokensPage() {
   const supabase = await supabaseServer();
   const {
@@ -18,7 +25,7 @@ export default async function TokensPage() {
 
   const { data: tokens } = await supabase
     .from("dev_tokens")
-    .select("id, label, created_at, revoked_at")
+    .select("id, label, created_at, revoked_at, last_used_at")
     .order("created_at", { ascending: false });
 
   const newToken = (await cookies()).get(COOKIE.newToken)?.value;
@@ -83,7 +90,7 @@ export default async function TokensPage() {
                     </span>
                     <span className="ml-2 text-xs text-slate-500">
                       created {new Date(t.created_at).toLocaleDateString()}
-                      {t.revoked_at ? " · revoked" : ""}
+                      {t.revoked_at ? " · revoked" : t.last_used_at ? ` · last used ${ago(t.last_used_at)}` : " · never used"}
                     </span>
                   </div>
                   {!t.revoked_at && (

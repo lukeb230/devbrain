@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
+import { ingestLimiter } from "@/lib/ratelimit";
 
 // ============================================================================
 // Presence ingest — called by Claude Code hooks + git hooks via the CLI.
@@ -29,6 +30,9 @@ const cap = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : 
 export async function POST(request: Request) {
   const auth = await resolveDevToken(request.headers.get("authorization"));
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!ingestLimiter.take(`${auth.org_id}:${auth.label}`)) {
+    return NextResponse.json({ error: "rate limited — a hook is posting far faster than a session edits" }, { status: 429 });
+  }
 
   const body = await request.json().catch(() => null);
   if (!body?.repo) {

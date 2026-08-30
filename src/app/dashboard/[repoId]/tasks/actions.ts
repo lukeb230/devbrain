@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 function devName(user: { email?: string | null; user_metadata?: Record<string, unknown> }) {
@@ -39,7 +41,7 @@ export async function createTask(formData: FormData): Promise<void> {
   if (!repoId || !title) return;
 
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
 
   const assigned = String(formData.get("assignee") || "").trim();
   await supabaseAdmin().from("tasks").insert({
@@ -62,7 +64,7 @@ export async function assignTask(formData: FormData): Promise<void> {
   const assignee = String(formData.get("assignee") || "").trim();
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ assigned_to: assignee || null })
@@ -77,7 +79,7 @@ export async function completeTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ status: "done", done_at: new Date().toISOString(), done_by: devName(ctx.user), pinned: false })
@@ -98,7 +100,7 @@ export async function reopenTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ status: "open", done_at: null, done_by: null })
@@ -122,7 +124,7 @@ export async function braindumpTasks(formData: FormData): Promise<void> {
   if (!repoId || !dump) return;
 
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   const admin = supabaseAdmin();
 
   const { data: existing } = await admin
@@ -199,7 +201,7 @@ export async function confirmMaybeDone(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   const { data: task } = await supabaseAdmin()
     .from("tasks")
     .select("maybe_done_pr")
@@ -226,7 +228,7 @@ export async function dismissMaybeDone(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ maybe_done_pr: null })
@@ -243,7 +245,7 @@ export async function startTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   const admin = supabaseAdmin();
   const me = devName(ctx.user);
 
@@ -286,7 +288,7 @@ export async function updateTask(formData: FormData): Promise<void> {
   const title = String(formData.get("title") || "").trim().slice(0, 200);
   if (!repoId || !id || !title) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
 
   const detail = String(formData.get("detail") || "").trim().slice(0, 1000) || null;
   const priority = Math.min(4, Math.max(1, Number(formData.get("priority")) || 3));
@@ -335,7 +337,7 @@ export async function deleteTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) return;
+  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
   const admin = supabaseAdmin();
   await admin
     .from("claims")

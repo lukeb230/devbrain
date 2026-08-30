@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { DeniedNotice } from "@/components/DeniedNotice";
 import { BrainMark } from "@/components/BrainMark";
 import { currentOrg, hasRole } from "@/lib/org";
 import { switchOrg } from "@/app/settings/org/actions";
@@ -16,6 +18,7 @@ export async function AppNav({
   const appSlug = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
   const org = await currentOrg();
   return (
+    <>
     <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 overflow-x-auto px-4 sm:gap-6 sm:px-6">
         <Link href="/dashboard" className="flex flex-shrink-0 items-center gap-2">
@@ -93,5 +96,7 @@ export async function AppNav({
         </div>
       </div>
     </nav>
+    <Suspense fallback={null}><DeniedNotice /></Suspense>
+    </>
   );
 }

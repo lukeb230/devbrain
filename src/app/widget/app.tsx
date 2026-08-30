@@ -758,7 +758,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           const sinceLabel = lastOpen ? new Date(lastOpen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : null;
           return (
           <div className="flex flex-col pb-3">
-            {data.notice && <div className="mx-3.5 mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">{data.notice === "owner_only" ? "Only the team owner can do that." : "Only team admins and owners can do that."}</div>}
+            {data.notice && <div className="mx-3.5 mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">{data.notice === "owner_only" ? "Only the team owner can do that." : data.notice === "no_access" ? "You're not signed in to this team — reload the panel." : "Only team admins and owners can do that."}</div>}
             {(data.alerts ?? []).length > 0 && (
               <div className="mx-3.5 mt-2 space-y-1">
                 {data.alerts.map((a) => (

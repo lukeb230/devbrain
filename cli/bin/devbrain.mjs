@@ -914,13 +914,37 @@ if (cmd === "spawn") {
   sess.meta.clone = clone;
   writeFileSync(join(sess.dir, "meta.json"), JSON.stringify(sess.meta, null, 2) + "\n");
 
+  // --auto: ask DevBrain for a lane-safe task and hand it to the session as
+  // its opening message. Dispatch only suggests; start_task (atomic) decides.
+  let openingPrompt = null;
+  if (process.argv.includes("--auto")) {
+    const childCfg = JSON.parse(readFileSync(join(sess.dir, "config.json"), "utf8"));
+    let repoFull = null;
+    try { repoFull = sh(`git -C ${JSON.stringify(clone)} remote get-url origin`).match(/github\.com[:/](.+?)(\.git)?$/)?.[1] ?? null; } catch { /* no remote */ }
+    if (repoFull) {
+      const r = await fetch(`${config.server}/api/v1/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${childCfg.token}` },
+        body: JSON.stringify({ repo: repoFull, action: "next" }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (b?.next) {
+        openingPrompt = `DevBrain dispatched you a lane-safe task: "${b.next.title}" (id ${b.next.id}, ${b.next.reason}). Call start_task with that id to claim the lane, then do the work.`;
+        console.log(`dispatched: ${b.next.title}`);
+      } else {
+        console.log(`dispatch: ${b?.reason || "nothing lane-safe right now"} — starting without a task`);
+      }
+    }
+  }
+
   const launch = `DEVBRAIN_HOME=${JSON.stringify(sess.dir)} claude`;
   if (printOnly) {
-    console.log(`\nRun in the terminal you want this session to live in:\n  cd ${JSON.stringify(clone)}\n  ${launch}`);
+    console.log(`\nRun in the terminal you want this session to live in:\n  cd ${JSON.stringify(clone)}\n  ${launch}${openingPrompt ? " " + JSON.stringify(openingPrompt) : ""}`);
     process.exit(0);
   }
   console.log(`launching claude as ${sess.meta.label} in ${clone}\n`);
-  const r = run("claude", process.argv.includes("--") ? process.argv.slice(process.argv.indexOf("--") + 1) : [], {
+  const passthru = process.argv.includes("--") ? process.argv.slice(process.argv.indexOf("--") + 1) : [];
+  const r = run("claude", openingPrompt ? [openingPrompt, ...passthru] : passthru, {
     cwd: clone,
     stdio: "inherit",
     env: { ...process.env, DEVBRAIN_HOME: sess.dir },
@@ -989,7 +1013,7 @@ Usage:
   ${c} reminders on|off             Sync (or don't) from this Mac
   ${c} reminders add "<List>" "<owner/repo>"   Map a list for the whole team (admins)
   ${c} reminders remove "<List>"
-  ${c} spawn [--label X] [--dir D] [--print]  Launch another Claude as its own teammate (own token+clone)
+  ${c} spawn [--label X] [--dir D] [--auto] [--print]  Launch another Claude as its own teammate (--auto: dispatch a lane-safe task)
   ${c} sessions                      List this identity's spawned sessions
   ${c} stop <label>|--all            Revoke a spawned session (releases claims, ends presence)
   ${c} doctor                       Verify the whole chain

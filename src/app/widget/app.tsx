@@ -37,7 +37,7 @@ import {
 
 export interface WidgetData {
   deploy: string;
-  sessions: { id: string; repo: string; dev_label: string; summary: string | null; last_seen: string }[];
+  sessions: { id: string; repo: string; dev_label: string; root?: string; summary: string | null; last_seen: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
   tasks: { id: string; pinned: boolean; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null; started_by: string | null; footprint: string[] | null }[];
@@ -828,16 +828,34 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 <p className="wg-empty">Nobody active right now.</p>
               ) : (
                 <div className="flex gap-2 overflow-x-auto px-3.5 pb-1">
-                  {data.sessions.slice(0, 8).map((s) => (
-                    <div key={s.id} className="flex min-w-[68px] max-w-[92px] flex-col items-center gap-1 text-center">
-                      <span className={"wg-av relative " + (isMe(s.dev_label) ? "me" : "")} style={{ width: 30, height: 30, fontSize: 12, borderRadius: 9 }}>
-                        {initials(s.dev_label)}
-                        <i className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-ink bg-go" />
-                      </span>
-                      <span className="w-full truncate text-[11px] font-medium text-txt">{isMe(s.dev_label) ? "you" : s.dev_label}</span>
-                      <span className="w-full truncate font-mono text-[10px] text-faint" title={s.summary ?? ""}>{s.summary || (data.scopeAll ? s.repo : timeAgo(s.last_seen))}</span>
-                    </div>
-                  ))}
+                  {/* Spawned sessions fold under their parent identity: one
+                      avatar per person, a ×N badge when they run several. */}
+                  {(() => {
+                    const groups = new Map<string, typeof data.sessions>();
+                    for (const s of data.sessions) {
+                      const k = (s.root ?? s.dev_label).toLowerCase();
+                      if (!groups.has(k)) groups.set(k, []);
+                      groups.get(k)!.push(s);
+                    }
+                    return [...groups.values()].slice(0, 8).map((g) => {
+                      const lead = g[0];
+                      const name = lead.root ?? lead.dev_label;
+                      const busy = g.find((s) => s.summary) ?? lead;
+                      return (
+                        <div key={lead.id} className="flex min-w-[68px] max-w-[92px] flex-col items-center gap-1 text-center">
+                          <span className={"wg-av relative " + (isMe(name) ? "me" : "")} style={{ width: 30, height: 30, fontSize: 12, borderRadius: 9 }}>
+                            {initials(name)}
+                            <i className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-ink bg-go" />
+                            {g.length > 1 && (
+                              <b className="absolute -top-1.5 -right-2 rounded-full bg-brand-500 px-1 font-mono text-[9px] font-semibold leading-[13px] text-white">×{g.length}</b>
+                            )}
+                          </span>
+                          <span className="w-full truncate text-[11px] font-medium text-txt">{isMe(name) ? (g.length > 1 ? `you ×${g.length}` : "you") : name}</span>
+                          <span className="w-full truncate font-mono text-[10px] text-faint" title={busy.summary ?? ""}>{busy.summary || (data.scopeAll ? lead.repo : timeAgo(lead.last_seen))}</span>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </section>

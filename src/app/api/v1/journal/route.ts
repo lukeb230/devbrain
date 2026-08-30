@@ -57,7 +57,9 @@ export async function POST(request: Request) {
   const uuid = (v: unknown) =>
     typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v) ? v : null;
 
-  const { error } = await admin.from("journal_queue").insert({
+  // One journal per session: a repeated SessionEnd or a rescue re-post of
+  // an envelope whose delete failed is a no-op, not a second journal.
+  const { data: rows, error } = await admin.from("journal_queue").upsert({
     org_id: repo.org_id,
     repo_id: repo.id,
     session_id: uuid(body.session_id),
@@ -68,7 +70,8 @@ export async function POST(request: Request) {
     dirty: Boolean(body.dirty),
     excerpt: excerpt.slice(0, MAX_EXCERPT),
     plugin_version: typeof body.plugin_version === "string" ? body.plugin_version.slice(0, 20) : null,
-  });
+  }, { onConflict: "session_id", ignoreDuplicates: true }).select("id");
   if (error) return NextResponse.json({ error: "queue insert failed" }, { status: 500 });
+  if (!rows?.length) return NextResponse.json({ ok: true, queued: false, reason: "already queued for this session" });
   return NextResponse.json({ ok: true, queued: true });
 }

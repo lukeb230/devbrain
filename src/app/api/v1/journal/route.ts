@@ -12,7 +12,8 @@ import { resolveDevToken } from "@/lib/token";
 //
 // Body: { repo, session_id?, branch?, task_id?, dirty?, excerpt, plugin_version? }
 // Feature-flagged per repo: policies.rule='journals' must be enabled (default
-// off) — otherwise 204 so old and new plugins alike see a clean no-op.
+// off) — otherwise a 200 with queued:false and the reason, so /health and
+// `doctor` can show the feature is off rather than silently missing.
 // ============================================================================
 
 const MAX_EXCERPT = 48_000;
@@ -44,7 +45,11 @@ export async function POST(request: Request) {
     .eq("repo_id", repo.id)
     .eq("rule", "journals")
     .maybeSingle();
-  if (!policy?.enabled) return new NextResponse(null, { status: 204 });
+  // Off is the default. Say so, instead of a bodyless 204 that reads as
+  // success: an inert flagship feature must be distinguishable from a bug.
+  if (!policy?.enabled) {
+    return NextResponse.json({ ok: true, queued: false, reason: "journals are disabled for this repo — enable them under Rules" });
+  }
 
   const excerpt = body.excerpt.trim();
   if (excerpt.length < 200) return NextResponse.json({ ok: true, queued: false, reason: "too short" });

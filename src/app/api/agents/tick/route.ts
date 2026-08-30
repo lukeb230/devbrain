@@ -9,6 +9,7 @@ import { fetchBrainDocs } from "@/lib/github";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeLights } from "@/lib/traffic";
 import { deriveVerdict, type ReviewPoint } from "@/lib/review";
+import { missingEnv } from "@/lib/env";
 
 // ============================================================================
 // Agent tick — called every 2 minutes by pg_cron (Supabase) via pg_net.
@@ -941,12 +942,38 @@ export async function POST(request: Request) {
     did.digest_error = String(err).slice(0, 300);
   }
 
+  // ---- Journal backlog: the queue must drain ----------------------------
+  // The purge cron keeps unprocessed rows for 7 days, so a stalled queue is
+  // recoverable — but only if someone hears about it. More than 20 rows
+  // waiting over an hour means the summariser has stopped (no key, outage,
+  // or a team pinned at its cap all day).
+  try {
+    const { count } = await admin
+      .from("journal_queue")
+      .select("id", { count: "exact", head: true })
+      .lt("attempts", 3)
+      .lt("at", new Date(Date.now() - 3600_000).toISOString());
+    did.journal_backlog = count ?? 0;
+    if ((count ?? 0) > 20) {
+      did.journal_backlog_error = `${count} journals waiting over an hour — the summariser is not draining the queue${agentConfigured() ? "" : " (no ANTHROPIC_API_KEY)"}`;
+    }
+  } catch (err) {
+    did.journal_backlog_error = String(err).slice(0, 300);
+  }
+
+  // ---- Required environment -----------------------------------------------
+  {
+    const m = missingEnv();
+    if (m.required.length) did.env_error = `missing required env: ${m.required.join(", ")}`;
+    if (m.recommended.length) did.env_recommended = m.recommended;
+  }
+
   // Heartbeat — `devbrain doctor` and /api/v1/health read this to prove the
   // cron schedule is alive (it lives in Supabase, not in a migration).
   // Alerting: every *_error key this tick opens/bumps an ops alert; units
   // that ran clean close theirs. Budget-exhausted is a team notice, not an
   // ops failure.
-  for (const unit of ["review", "automatch", "spec", "footprint", "zombie", "journal", "memory", "digest", "lights"]) {
+  for (const unit of ["review", "automatch", "spec", "footprint", "zombie", "journal", "index", "digest", "lights", "journal_backlog", "env"]) {
     const msg = did[`${unit}_error`];
     if (typeof msg === "string" && !/ai cap reached/.test(msg)) {
       await alert({ scope: "ops", key: `tick.${unit}`, title: `Tick unit "${unit}" failing`, detail: msg });

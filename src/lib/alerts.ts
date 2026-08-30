@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { isAllowedWebhookHost } from "@/lib/webhook-host";
 
 // ============================================================================
 // Alerts — one call for "something is wrong", two audiences.
@@ -27,7 +28,13 @@ async function channelsFor(scope: AlertScope): Promise<Channel[]> {
   if (scope === "ops" && process.env.DEVBRAIN_OPS_WEBHOOK) out.push({ kind: "webhook", target: process.env.DEVBRAIN_OPS_WEBHOOK });
   const q = admin.from("alert_channels").select("kind, target").eq("enabled", true);
   const { data } = scope === "ops" ? await q.is("org_id", null) : await q.eq("org_id", scope.orgId);
-  for (const c of data ?? []) if (!out.some((o) => o.target === c.target)) out.push(c);
+  for (const c of data ?? []) {
+    // Team channels are user-supplied — re-check the host at send time even
+    // though save-time already did, so a row that predates the check (or a
+    // future adapter) can never become an SSRF egress.
+    if (c.kind === "webhook" && !isAllowedWebhookHost(c.target)) continue;
+    if (!out.some((o) => o.target === c.target)) out.push(c);
+  }
   return out;
 }
 

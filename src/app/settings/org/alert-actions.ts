@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { alert } from "@/lib/alerts";
-import { requireRoleOrRedirect } from "@/lib/org";
+import { requireRoleOrRedirect, withError } from "@/lib/org";
+import { redirect } from "next/navigation";
+import { isAllowedWebhookHost } from "@/lib/webhook-host";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // Team alert settings: channels (owner), dismiss (admin+), test (admin+).
@@ -10,7 +12,11 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 export async function addChannel(formData: FormData): Promise<void> {
   const me = await requireRoleOrRedirect("owner", "/settings/org");
   const target = String(formData.get("target") || "").trim();
-  if (!/^https:\/\/\S+$/.test(target) || target.length > 500) return;
+  if (target.length > 500 || !isAllowedWebhookHost(target)) {
+    // Only Slack/Discord https hooks — see webhook-host.ts. Anything else is
+    // refused rather than silently POSTed to from inside our network.
+    redirect(withError("/settings/org", "webhook_host"));
+  }
   await supabaseAdmin().from("alert_channels").insert({ org_id: me.orgId, kind: "webhook", target, created_by: me.login });
   revalidatePath("/settings/org");
 }

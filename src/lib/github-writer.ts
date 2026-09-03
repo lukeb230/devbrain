@@ -85,6 +85,32 @@ export async function mergePrAsWriter(
   return { merged: false, error: "no allowed merge method" };
 }
 
+/**
+ * Bring a stale PR branch up to date with its base — GitHub's own "Update
+ * branch" button, driven by the writer app. Merges base into head server-side:
+ * no force-push, no history rewrite. Returns updated:false with the error when
+ * GitHub refuses (409/422 = merge conflict → the PR needs a local rebase; the
+ * context's rebase_needed entry already carries the fix).
+ */
+export async function updatePrBranchAsWriter(
+  installationId: number,
+  fullName: string,
+  prNumber: number,
+): Promise<{ updated: boolean; error?: string }> {
+  const [owner, repo] = fullName.split("/");
+  try {
+    const octokit = await writerOctokit(installationId);
+    await octokit.request("PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch", {
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+    return { updated: true };
+  } catch (err) {
+    return { updated: false, error: String(err).slice(0, 300) };
+  }
+}
+
 export interface RevertResult {
   prNumber: number;
   prUrl: string;

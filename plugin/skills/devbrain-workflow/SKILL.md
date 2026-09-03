@@ -41,7 +41,19 @@ STOP and tell your human instead of overriding).
 
 ## While working
 
-- Prefer a feature branch; never commit directly to main.
+- Work on a feature branch cut from FRESH main — always
+  `git fetch origin && git switch -c <branch> origin/main`, never off the
+  current checkout (it may be a stale main or the previous feature branch).
+  Never commit directly to main.
+- **One PR at a time when you're effectively solo.** If your dev already has
+  an open PR and no teammate is active, finish and merge it before opening
+  another — stacked PRs buy a solo dev nothing but rebases. Mention this to
+  your human rather than silently opening PR number two.
+- **Act on `rebase_needed`.** When the team context lists a PR under
+  `rebase_needed`, main has moved underneath it. Tell your human and offer to
+  fix it now: check out that branch, `git fetch origin && git merge
+  origin/main` (union rules auto-resolve the brain notes), re-run the build,
+  push. Ten seconds now beats conflict archaeology at merge time.
 - Keep changes scoped to your task; the dashboard shows every file you touch.
 
 ## Before finishing a task
@@ -71,7 +83,9 @@ STOP and tell your human instead of overriding).
    a teammate reviews it.
 4. After the PR merges, the branch is done: it shows as "merged" on the
    dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
-   merged branch — start fresh from main.
+   merged branch. Before the next task: `git switch main && git pull --ff-only
+   && git branch -d <merged-branch>` — the next branch must start from the
+   main that includes your merge.
 
 ## Claims (intent locks - route around each other)
 

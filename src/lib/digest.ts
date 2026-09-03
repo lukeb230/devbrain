@@ -144,6 +144,32 @@ export function buildDigest(rows: DigestRows) {
     othersBusyPaths,
   );
 
+  // Rebase radar: an open PR that shares files with a PR merged AFTER its
+  // last push is stale — main moved underneath it. Advise the fix directly
+  // (the union .gitattributes auto-resolves the note files during the merge).
+  // Once the branch is pushed again, its updated_at passes the merge's and
+  // the advice stops on its own.
+  const rebase_needed = (rows.prs ?? [])
+    .map((p) => {
+      const mine = new Set((p.changed_files as string[]) ?? []);
+      const hits = (rows.mergedPrs ?? [])
+        .filter((m) => m.updated_at && p.updated_at && m.updated_at > p.updated_at)
+        .map((m) => ({
+          after: m.number,
+          files: (((m.changed_files as string[]) ?? []).filter((f) => mine.has(f))),
+        }))
+        .filter((h) => h.files.length > 0);
+      if (hits.length === 0) return null;
+      return {
+        number: p.number,
+        title: p.title,
+        after: hits.map((h) => `#${h.after}`).join(", "),
+        shared_files: [...new Set(hits.flatMap((h) => h.files))].slice(0, 6),
+        fix: "On that branch: git fetch origin && git merge origin/main (union rules auto-resolve the brain notes; resolve anything else), re-run the build, push.",
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
   // Merge traffic lights — deterministic; relay a green light to your human
   // ("your PR is cleared to land") when relevant. The verdict is matched on the
   // head sha, not just the PR number: a review of an older sha must not clear a
@@ -242,6 +268,10 @@ export function buildDigest(rows: DigestRows) {
     // work. When your human asks "what's next?", lead with this (they can
     // always choose differently); call start_task when they take it.
     suggested_next: suggestedNext,
+    // Open PRs that main has moved underneath (they share files with a PR
+    // merged since their last push). Surface these to your human and offer to
+    // run the fix — an un-rebased PR turns into conflict work at merge time.
+    rebase_needed,
     // Recent merges that changed code without updating .brain/ — the brain
     // is stale for these. Offer your human to repair the affected notes now
     // (small branch + PR); any teammate's Claude may do this.

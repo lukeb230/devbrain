@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   const [prs, sessions, activity, claims, policies, decisions, broadcasts, tasks, handoffs] = await Promise.all([
     admin
       .from("prs")
-      .select("number, title, author, head_branch, head_sha, review_state, mergeable_state, draft, changed_files, html_url")
+      .select("number, title, author, head_branch, head_sha, review_state, mergeable_state, draft, changed_files, html_url, updated_at")
       .eq("repo_id", repo.id)
       .eq("state", "open")
       .order("updated_at", { ascending: false }),
@@ -113,9 +113,10 @@ export async function GET(request: Request) {
     .gte("merged_at", new Date(Date.now() - 72 * 3600_000).toISOString());
   const { data: mergedPrs } = await admin
     .from("prs")
-    .select("number, title, head_branch")
+    .select("number, title, head_branch, changed_files, updated_at")
     .eq("repo_id", repo.id)
-    .neq("state", "open");
+    .neq("state", "open")
+    .gte("updated_at", new Date(Date.now() - 72 * 3600_000).toISOString());
   const [digestQ, reviewsQ] = await Promise.all([
     admin.from("digests").select("day, body").eq("repo_id", repo.id).order("day", { ascending: false }).limit(1),
     admin

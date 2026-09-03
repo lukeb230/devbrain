@@ -29,7 +29,7 @@ function rows(over: Partial<DigestRows> = {}): DigestRows {
 const CONTRACT_KEYS = [
   "repo", "generated_at", "you", "team_rules", "open_prs", "merge_plan", "standup_digest",
   "active_sessions", "claims", "collisions", "recent_decisions", "recent_broadcasts",
-  "open_tasks", "suggested_next", "brain_stale", "open_handoffs",
+  "open_tasks", "suggested_next", "rebase_needed", "brain_stale", "open_handoffs",
 ];
 
 describe("buildDigest — contract", () => {
@@ -171,3 +171,28 @@ function task(id: string, priority: number, footprint: string[]) {
     assigned_to: null, started_by: null, footprint,
   };
 }
+
+describe("buildDigest — rebase radar", () => {
+  const openPr = { number: 22, title: "open one", author: "L", review_state: null, mergeable_state: "clean", draft: false, changed_files: ["src/a.ts", ".brain/notes/gotchas.md"], head_sha: "s1", head_branch: "b", html_url: null, updated_at: "2026-09-01T10:00:00Z" };
+  const mergedAfter = { number: 21, title: "landed", head_branch: "m", changed_files: [".brain/notes/gotchas.md"], updated_at: "2026-09-01T12:00:00Z" };
+  const mergedBefore = { ...mergedAfter, number: 20, updated_at: "2026-09-01T09:00:00Z" };
+  const mergedDisjoint = { ...mergedAfter, number: 19, changed_files: ["README.md"] };
+
+  it("flags an open PR sharing files with a PR merged AFTER its last push", () => {
+    const d = buildDigest(rows({ prs: [openPr], mergedPrs: [mergedAfter] })) as { rebase_needed: { number: number; after: string; shared_files: string[] }[] };
+    expect(d.rebase_needed).toHaveLength(1);
+    expect(d.rebase_needed[0].number).toBe(22);
+    expect(d.rebase_needed[0].after).toBe("#21");
+    expect(d.rebase_needed[0].shared_files).toEqual([".brain/notes/gotchas.md"]);
+  });
+
+  it("goes quiet once the branch is pushed again (merge predates the push)", () => {
+    const d = buildDigest(rows({ prs: [openPr], mergedPrs: [mergedBefore] })) as { rebase_needed: unknown[] };
+    expect(d.rebase_needed).toHaveLength(0);
+  });
+
+  it("ignores merges that share no files", () => {
+    const d = buildDigest(rows({ prs: [openPr], mergedPrs: [mergedDisjoint] })) as { rebase_needed: unknown[] };
+    expect(d.rebase_needed).toHaveLength(0);
+  });
+});

@@ -11,6 +11,10 @@ the format EXACTLY; the graph UI parses it.
 
 ## Output format (strict)
 
+Also create (or extend) a `.gitattributes` at the repo root with
+`.brain/**/*.md merge=union` — notes are append-style, and the union driver
+lets parallel branches both add entries without a merge conflict.
+
 Everything lives in `.brain/` at the repo root:
 
 ```

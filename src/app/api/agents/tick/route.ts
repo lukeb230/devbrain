@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { AiCapExceeded, DIGEST_SYSTEM, FOOTPRINT_SYSTEM, JOURNAL_SYSTEM, MATCH_SYSTEM, REVIEW_SYSTEM, SPEC_ASSESS_SYSTEM, SPEC_EXTRACT_SYSTEM, agentConfigured, agentModel, askClaude, extractJson, prDiff } from "@/lib/agent";
 import { alert, resolve } from "@/lib/alerts";
 import { cachedBrainDocs } from "@/lib/brain-cache";
-import { mergePrAsWriter, writerConfigured } from "@/lib/github-writer";
+import { mergePrAsWriter, writerConfigured, updatePrBranchAsWriter } from "@/lib/github-writer";
 import { installationOctokit } from "@/lib/github";
 import { brainToMemory, eventToMemory, handoffToMemory, journalToMemory, reviewToMemory, taskToMemory, type MemoryRow } from "@/lib/memory";
 import { fetchBrainDocs } from "@/lib/github";
@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeLights } from "@/lib/traffic";
 import { deriveVerdict, type ReviewPoint } from "@/lib/review";
 import { missingEnv } from "@/lib/env";
+import { pickSyncCandidates, type SyncPr } from "@/lib/sync-prs";
 
 // ============================================================================
 // Agent tick — called every 2 minutes by pg_cron (Supabase) via pg_net.
@@ -532,6 +533,40 @@ export async function POST(request: Request) {
   // ---- 1.6 Merge traffic lights: deterministic, every repo, every tick ----
   // Compute each open PR's lamp; on a transition to green, fire a pr_cleared
   // event (the author's widget turns it into "press merge"). If the repo's
+  // ---- 1.7 Branch sync: keep open PRs fresh after main moves -------------
+  // The other half of the rebase-gap fix: when a PR merges, sibling branches
+  // fall behind, and stale branches are where the conflict spiral starts.
+  // For repos with the writer app, press GitHub's own "Update branch" on
+  // clean-but-behind PRs (bounded per tick). Conflicted (dirty) PRs are never
+  // auto-touched — the context's rebase_needed entry owns those. Without a
+  // writer installation this unit is a no-op, exactly like auto-merge.
+  if (!off.has("sync")) try {
+    if (writerConfigured()) {
+      const { data: writerRepos } = await admin
+        .from("linked_repos")
+        .select("id, full_name, writer_installation_id")
+        .not("writer_installation_id", "is", null)
+        .is("unlinked_at", null);
+      let synced = 0;
+      for (const repo of writerRepos ?? []) {
+        const { data: openPrs } = await admin
+          .from("prs")
+          .select("number, mergeable_state, draft, state")
+          .eq("repo_id", repo.id)
+          .eq("state", "open");
+        for (const n of pickSyncCandidates((openPrs ?? []) as SyncPr[])) {
+          const r = await updatePrBranchAsWriter(repo.writer_installation_id!, repo.full_name, n);
+          if (r.updated) synced++;
+          // Refusals are expected (raced a push, protection quirks) — the
+          // webhook re-reports mergeable_state and the next tick retries.
+        }
+      }
+      if (synced) did.sync = `${synced} PR${synced === 1 ? "" : "s"} brought up to date`;
+    }
+  } catch (err) {
+    did.sync_error = String(err).slice(0, 300);
+  }
+
   // writer_auto_merge policy is ON and the writer app is installed, the
   // writer presses merge itself — GitHub branch protection is the backstop.
   if (!off.has("lights")) try {
@@ -973,7 +1008,7 @@ export async function POST(request: Request) {
   // Alerting: every *_error key this tick opens/bumps an ops alert; units
   // that ran clean close theirs. Budget-exhausted is a team notice, not an
   // ops failure.
-  for (const unit of ["review", "automatch", "spec", "footprint", "zombie", "journal", "index", "digest", "lights", "journal_backlog", "env"]) {
+  for (const unit of ["review", "automatch", "spec", "footprint", "zombie", "journal", "index", "digest", "lights", "sync", "journal_backlog", "env"]) {
     const msg = did[`${unit}_error`];
     if (typeof msg === "string" && !/ai cap reached/.test(msg)) {
       await alert({ scope: "ops", key: `tick.${unit}`, title: `Tick unit "${unit}" failing`, detail: msg });

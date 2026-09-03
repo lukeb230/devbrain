@@ -86,6 +86,10 @@ export async function POST(request: Request) {
       }
 
       case "push": {
+        // A branch deletion also arrives as a push (deleted:true, after all-
+        // zeros). The "delete" event below owns that bookkeeping — comparing
+        // against a ref that no longer exists just errors.
+        if (payload.deleted) break;
         const repo = await repoByGithubId(admin, payload.repository.id);
         if (!repo) break;
         const branch = (payload.ref as string).replace("refs/heads/", "");

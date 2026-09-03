@@ -78,7 +78,7 @@ export function computeLights(prs: MergePr[], opts: LightOptions = {}): Map<numb
     if (blocker !== undefined) {
       lights.set(pr.number, {
         state: "yellow",
-        reason: `ready — but merge #${blocker} first (you share files)`,
+        reason: `ready — but merge #${blocker} first; you share files, so this one needs a rebase after it lands`,
       });
     } else {
       lights.set(pr.number, {

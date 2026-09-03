@@ -52,6 +52,16 @@ STOP and tell your human instead of overriding).
    note if you built a new feature, linked from the notes it interacts with
    and from the index map), so the reviewer sees code and context change
    together.
+   **Conflict-proof the notes (one-time per repo):** brain notes are
+   append-style, so parallel branches both appending would conflict for no
+   reason. If the repo has no `.gitattributes` union rule for them, add one in
+   this branch:
+   ```
+   .brain/**/*.md merge=union
+   ```
+   and extend it to any append-style decision log the repo keeps under `docs/`
+   (e.g. a `*_DECISIONS*` file). Do NOT add `CLAUDE.md` — it gets mixed edits,
+   not pure appends; union could interleave it badly.
 2. **Conflict check — mandatory before any pull request:**
    `git fetch origin && git merge origin/main` on your branch. If there are
    conflicts, resolve them yourself now (and re-run the build) — a PR must

@@ -100,7 +100,7 @@ export function computeMergePlan(prs: MergePr[]): MergePlan | null {
     const bits: string[] = [tierLabel(tier)];
     if (deg > 0) {
       bits.push(
-        `shares files with ${deg} other PR${deg > 1 ? "s" : ""} — landing it ${tier <= 1 ? "early keeps the rebases small" : "will require conflict work"}`,
+        `shares files with ${deg} other PR${deg > 1 ? "s" : ""} — whichever lands second will need a rebase; landing this one ${tier <= 1 ? "early keeps that rebase small" : "will require conflict work first"}`,
       );
     } else {
       bits.push("no overlap — safe to merge anytime");

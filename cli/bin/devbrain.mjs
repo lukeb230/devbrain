@@ -759,7 +759,8 @@ if (cmd === "doctor") {
         }
         if (h.alerts) {
           const a = h.alerts;
-          const where = [a.ops_channel ? "ops webhook" : null, a.team_channels ? `${a.team_channels} team webhook${a.team_channels === 1 ? "" : "s"}` : null, a.watchdog ? "watchdog" : null].filter(Boolean).join(", ") || "in-app only";
+          // Delivery is native: the Mac app watches alert_log. Say whether this team also gets ops alerts.
+          const where = a.this_team_is_operator ? "native notifications, incl. ops alerts (this team is the operator)" : "native notifications";
           if (a.team_open > 0) bad("alerts", `${a.team_open} open for your team — see the dashboard banner (delivery: ${where})`);
           else ok("alerts", `none open for your team (delivery: ${where})`);
         }

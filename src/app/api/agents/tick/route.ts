@@ -4,14 +4,14 @@ import { alert, resolve } from "@/lib/alerts";
 import { cachedBrainDocs } from "@/lib/brain-cache";
 import { mergePrAsWriter, updatePrBranchAsWriter } from "@/lib/github-writer";
 import { canAutoMerge, canUpdateBranch } from "@/lib/writer-gates";
-import { installationOctokit } from "@/lib/github";
+import { installationOctokit, prBehindBy } from "@/lib/github";
 import { brainToMemory, eventToMemory, handoffToMemory, journalToMemory, reviewToMemory, taskToMemory, type MemoryRow } from "@/lib/memory";
 import { fetchBrainDocs } from "@/lib/github";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeLights } from "@/lib/traffic";
 import { deriveVerdict, type ReviewPoint } from "@/lib/review";
 import { missingEnv } from "@/lib/env";
-import { pickSyncCandidates, type SyncPr } from "@/lib/sync-prs";
+import { needsUpdate, pickSyncCandidates, type SyncPr } from "@/lib/sync-prs";
 
 // ============================================================================
 // Agent tick — called every 2 minutes by pg_cron (Supabase) via pg_net.
@@ -538,9 +538,11 @@ export async function POST(request: Request) {
   // The other half of the rebase-gap fix: when a PR merges, sibling branches
   // fall behind, and stale branches are where the conflict spiral starts.
   // On repos whose writer_update_branch switch is on, press GitHub's own
-  // "Update branch" on clean-but-behind PRs (bounded per tick). Conflicted
-  // (dirty) PRs are never auto-touched — the context's rebase_needed entry
-  // owns those. Switch off (the default) → this unit is a no-op.
+  // "Update branch" on PRs that are behind main (bounded per tick). GitHub
+  // only labels a PR "behind" under paid branch protection, so we ask the
+  // compare API how far behind each candidate really is and only touch those
+  // with behind_by > 0. Conflicted (dirty) PRs are never auto-touched — the
+  // context's rebase_needed entry owns those. Switch off (default) → no-op.
   if (!off.has("sync")) try {
     const { data: syncPolicies } = await admin
       .from("policies")
@@ -559,11 +561,20 @@ export async function POST(request: Request) {
         if (!canUpdateBranch({ policyOn: true, installationId: repo.installation_id })) continue;
         const { data: openPrs } = await admin
           .from("prs")
-          .select("number, title, mergeable_state, draft, state")
+          .select("number, title, mergeable_state, draft, state, base_branch, head_sha")
           .eq("repo_id", repo.id)
           .eq("state", "open");
-        const byNumber = new Map((openPrs ?? []).map((p) => [p.number, p.title]));
+        const byNumber = new Map((openPrs ?? []).map((p) => [p.number, p]));
         for (const n of pickSyncCandidates((openPrs ?? []) as SyncPr[])) {
+          const row = byNumber.get(n);
+          if (!row?.head_sha) continue;
+          let behind = 0;
+          try {
+            behind = await prBehindBy(repo.installation_id, repo.full_name, row.base_branch || "main", row.head_sha);
+          } catch {
+            continue; // head moved or API hiccup — the next tick re-checks
+          }
+          if (!needsUpdate(behind)) continue;
           const r = await updatePrBranchAsWriter(repo.installation_id, repo.full_name, n);
           if (!r.updated) continue; // refusals are expected (raced a push) — the webhook re-reports and the next tick retries
           synced++;
@@ -571,7 +582,7 @@ export async function POST(request: Request) {
             org_id: repo.org_id,
             repo_id: repo.id,
             kind: "bot_write",
-            payload: { action: "update_branch", pr: n, title: byNumber.get(n) ?? null, text: `Updated PR #${n} from main (it had fallen behind)` },
+            payload: { action: "update_branch", pr: n, title: row.title ?? null, behind_by: behind, text: `Updated PR #${n} from ${row.base_branch || "main"} (it was ${behind} commit${behind === 1 ? "" : "s"} behind)` },
           });
         }
       }
@@ -637,45 +648,51 @@ export async function POST(request: Request) {
       for (const pr of repoPrs) {
         const light = lights.get(pr.number);
         if (!light) continue;
-        if (light.state !== pr.light) {
+        const turned = light.state !== pr.light;
+        if (turned) {
           await admin
             .from("prs")
             .update({ light: light.state })
             .eq("repo_id", repoId)
             .eq("number", pr.number);
-          if (light.state === "green") {
-            greens++;
-            // A bot may press merge on a PR a person approved. It may not press
-            // merge on one only the AI cleared: solo_green exists so a lone dev
-            // can SEE a PR is ready, not so a PR can go in with no human in it.
-            if (fullName && canAutoMerge({ policyOn: autoMergeOn, installationId: writerInstall, reviewState: pr.review_state, light: light.state })) {
-              const result = await mergePrAsWriter(writerInstall!, fullName, pr.number);
-              if (result.merged) {
-                autoMerged++;
-                await admin.from("events").insert({
-                  org_id: pr.org_id,
-                  repo_id: repoId,
-                  kind: "bot_write",
-                  payload: { action: "auto_merge", pr: pr.number, title: pr.title, sha: result.sha },
-                });
-                await admin.from("events").insert({
-                  org_id: pr.org_id,
-                  repo_id: repoId,
-                  kind: "pr_auto_merged",
-                  payload: { pr: pr.number, title: pr.title, author: pr.author },
-                });
-                continue; // no "press merge" nudge for a PR the bot just merged
-              }
-              // Merge refused (protection unmet, race) → fall through to the
-              // human notification; the reason surfaces on GitHub.
-            }
+        }
+        if (light.state !== "green") continue;
+
+        // Auto-merge is evaluated on EVERY tick a PR is green, not only the
+        // tick it turned green: with solo_green a PR can be green before any
+        // human approves, and the approval that arrives later must still land
+        // it. A bot may press merge on a PR a person approved. It may not
+        // press merge on one only the AI cleared: solo_green exists so a lone
+        // dev can SEE a PR is ready, not so a PR can go in with no human in it.
+        if (fullName && canAutoMerge({ policyOn: autoMergeOn, installationId: writerInstall, reviewState: pr.review_state, light: light.state })) {
+          const result = await mergePrAsWriter(writerInstall!, fullName, pr.number);
+          if (result.merged) {
+            autoMerged++;
             await admin.from("events").insert({
               org_id: pr.org_id,
               repo_id: repoId,
-              kind: "pr_cleared",
+              kind: "bot_write",
+              payload: { action: "auto_merge", pr: pr.number, title: pr.title, sha: result.sha, text: `Merged PR #${pr.number} (approved, green, its turn)` },
+            });
+            await admin.from("events").insert({
+              org_id: pr.org_id,
+              repo_id: repoId,
+              kind: "pr_auto_merged",
               payload: { pr: pr.number, title: pr.title, author: pr.author },
             });
+            continue; // no "press merge" nudge for a PR the bot just merged
           }
+          // Merge refused (protection unmet, race) → fall through to the
+          // human notification; the reason surfaces on GitHub.
+        }
+        if (turned) {
+          greens++;
+          await admin.from("events").insert({
+            org_id: pr.org_id,
+            repo_id: repoId,
+            kind: "pr_cleared",
+            payload: { pr: pr.number, title: pr.title, author: pr.author },
+          });
         }
       }
     }

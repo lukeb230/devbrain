@@ -130,6 +130,26 @@ export async function prMergeableState(
   return "unknown";
 }
 
+/** How many commits the base has that the head lacks (0 = up to date).
+ *  compare/{base}...{head} reports it as behind_by. Throws on API errors so
+ *  the caller can decide; a PR whose head was force-pushed away 404s. */
+export async function prBehindBy(
+  installationId: number,
+  fullName: string,
+  base: string,
+  headSha: string,
+): Promise<number> {
+  const [owner, repo] = fullName.split("/");
+  const octokit = await installationOctokit(installationId);
+  const res = await octokit.request("GET /repos/{owner}/{repo}/compare/{basehead}", {
+    owner,
+    repo,
+    basehead: `${base}...${headSha}`,
+    per_page: 1,
+  });
+  return Number(res.data.behind_by ?? 0);
+}
+
 /** Changed files for a branch vs base, via the compare API (capped at 300). */
 export async function changedFiles(
   installationId: number,

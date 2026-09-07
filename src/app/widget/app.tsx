@@ -436,10 +436,18 @@ function PinButton({ t }: { t: { id: string; repo_id: string; pinned: boolean } 
 /** Open the Desk window on a route (e.g. "/prs"). Inside the app this is the
  *  open_desk command; in a plain browser it falls back to the old dashboard. */
 function openDesk(e: React.MouseEvent, route: string, browserFallback: string) {
-  const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
-  if (!core) return; // let the anchor navigate (target=_blank) to the fallback
+  const w = window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } }; __devbrainChannel?: string };
+  const core = w.__TAURI__?.core;
+  if (!core) return; // plain browser: let the anchor navigate (target=_blank) to the old dashboard
   e.preventDefault();
-  void core.invoke("open_desk", { route }).catch(() => window.open(browserFallback, "_blank"));
+  void core.invoke("open_desk", { route }).catch(() => {
+    // IPC refused (an older shell, a capability mismatch): the app's own URL
+    // scheme still reaches it. Only a shell without the Desk at all lands in
+    // the browser.
+    const scheme = w.__devbrainChannel === "beta" ? "devbrain-beta" : w.__devbrainChannel === "stable" ? "devbrain" : null;
+    if (scheme) window.location.href = `${scheme}://desk${route}`;
+    else window.open(browserFallback, "_blank");
+  });
 }
 
 function openExternal(e: React.MouseEvent, url: string) {
@@ -484,7 +492,10 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   useEffect(() => {
     const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
     if (!core) return;
-    core.invoke("setup_state").then((s) => setSetup(s as SetupState)).catch(() => {});
+    core.invoke("setup_state").then((s) => {
+      setSetup(s as SetupState);
+      (window as unknown as { __devbrainChannel?: string }).__devbrainChannel = (s as { channel?: string })?.channel;
+    }).catch(() => {});
   }, []);
   // Self-update: a new deployment changes `data.deploy` on the next refresh;
   // reload so the bundle (icons, components, styles) matches the server.

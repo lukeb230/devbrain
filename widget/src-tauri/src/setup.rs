@@ -95,6 +95,9 @@ pub struct SetupState {
     /// ~/Downloads the bundled node path everything links to would vanish.
     in_applications: bool,
     reminders_on: bool,
+    /// "stable" or "beta" — lets the page build this app's deep links
+    /// (devbrain:// vs devbrain-beta://) as a fallback for IPC.
+    channel: &'static str,
 }
 
 pub fn reminders_on(cfg: &serde_json::Value) -> bool {
@@ -148,6 +151,7 @@ pub fn setup_state(app: AppHandle) -> SetupState {
         bootstrap_at: cfg.as_ref().and_then(|c| c.get("bootstrap_at").and_then(|v| v.as_str()).map(String::from)),
         in_applications: in_applications(&app),
         reminders_on: cfg.as_ref().map(reminders_on).unwrap_or(false),
+        channel: CHANNEL,
     }
 }
 

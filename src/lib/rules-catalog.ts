@@ -43,23 +43,32 @@ export const RULES_CATALOG: RuleDef[] = [
   },
 ];
 
-// Writer (Direction 2) feature toggles — DEFAULT OFF, per repo.
+// "Let DevBrain act on GitHub" — DEFAULT OFF, per repo, admins only. One
+// GitHub App: these use the same installation that reads the repo, once the
+// org owner has approved the app's write permissions. Always a PR or the
+// merge of a human-approved PR; never a push to main. Gates: writer-gates.ts.
 export const WRITER_CATALOG: RuleDef[] = [
   {
-    rule: "writer_revert_pr",
-    label: "One-click revert PRs from History",
+    rule: "writer_auto_merge",
+    label: "Auto-merge approved green PRs",
     detail:
-      "The writer app creates a revert branch + pull request when someone clicks Revert on the History tab. Always a PR — a teammate still reviews and merges it; the bot never touches main directly.",
+      "When a PR's light turns green — a teammate approved it, it's conflict-free, and it's this PR's turn in the merge order — DevBrain presses merge for you (squash). A PR only the AI cleared is never auto-merged. Off = the author gets a 'cleared to land' notification and presses merge themselves. GitHub branch protection still applies either way.",
   },
   {
-    rule: "writer_auto_merge",
-    label: "Auto-merge green-lit PRs",
+    rule: "writer_update_branch",
+    label: "Keep behind PRs updated",
     detail:
-      "When a PR's merge light turns green — approved by a teammate, conflict-free, and its turn in the merge order — the writer app presses merge for you (squash). Off = the author gets a 'cleared to land' notification and presses merge themselves. GitHub branch protection still applies either way.",
+      "When a PR falls behind main after a teammate's merge (the rebase radar flags it), DevBrain updates its branch from main so the author doesn't have to — GitHub's own 'Update branch', a few per tick, never on a PR with conflicts. Conflicts still need the author.",
+  },
+  {
+    rule: "writer_revert_pr",
+    label: "Revert from History",
+    detail:
+      "Revert and Restore on the History tab open a revert branch + pull request. Always a PR — a teammate still reviews and merges it; DevBrain never touches main directly.",
   },
 ];
 
-// Feature toggles — DEFAULT OFF, per repo. No writer app needed.
+// Feature toggles — DEFAULT OFF, per repo.
 export const FEATURE_CATALOG: RuleDef[] = [
   {
     rule: "solo_green",

@@ -41,7 +41,7 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
   const members = await teamMembers(org.orgId);
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
     await Promise.all([
-      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id, writer_installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
+      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files, last_push_at").is("merged_at", null),
@@ -144,10 +144,8 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
     for (const c of FEATURE_CATALOG) {
       rules.push({ rule: c.rule, label: c.label, on: state.get(c.rule) ?? false }); // feature toggles default OFF
     }
-    if (lastRepo.writer_installation_id) {
-      for (const c of WRITER_CATALOG) {
-        rules.push({ rule: c.rule, label: c.label, on: state.get(c.rule) ?? false }); // writer rules default OFF
-      }
+    for (const c of WRITER_CATALOG) {
+      rules.push({ rule: c.rule, label: c.label, on: state.get(c.rule) ?? false }); // write switches default OFF
     }
   }
 

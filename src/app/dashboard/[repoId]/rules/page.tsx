@@ -1,13 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { AppNav } from "@/components/AppNav";
 import { Notice } from "@/components/Notice";
-import { writerConfigured } from "@/lib/github-writer";
+import { installationWritePerms } from "@/lib/github-writer";
 import { currentOrg, hasRole } from "@/lib/org";
 import { FEATURE_CATALOG, RULES_CATALOG as CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { supabaseServer } from "@/lib/supabase/server";
+import { writeGranted } from "@/lib/writer-gates";
 import { toggleRule } from "./actions";
 import { deleteRepo, unlinkRepo } from "../unlink-actions";
-import { connectWriter } from "./writer-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ function RuleSwitch({ repoId, rule, on, enabledValue, usable, isAdmin }: { repoI
   const knob = <span className={"inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " + (on ? "translate-x-6" : "translate-x-1")} />;
   if (!isAdmin || !usable) {
     return (
-      <span className={cls} title={!isAdmin ? "Admins only" : "Connect the writer app first"} aria-disabled="true">
+      <span className={cls} title={!isAdmin ? "Admins only" : "Approve the app's write access on GitHub first"} aria-disabled="true">
         {knob}
       </span>
     );
@@ -59,13 +59,15 @@ export default async function RulesPage({
 
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, full_name, writer_installation_id, installation_id, unlinked_at")
+    .select("id, full_name, installation_id, unlinked_at")
     .eq("id", repoId)
     .single();
   if (!repo) notFound();
 
-  const writerReady = writerConfigured();
-  const writerSlug = process.env.NEXT_PUBLIC_GHW_APP_SLUG || "";
+  // One app: has this installation's owner approved the write permissions?
+  // GitHub keeps an installation on its old grants until they do.
+  const perms = repo.installation_id ? await installationWritePerms(repo.installation_id) : null;
+  const writeReady = writeGranted(perms);
 
   const { data: rows } = await supabase
     .from("policies")
@@ -146,63 +148,48 @@ export default async function RulesPage({
           </ul>
         </section>
 
-        {/* Direction 2 — writer app (scoped writes, PR-only, default off) */}
+        {/* "Let DevBrain act on GitHub" — one app, per-repo switches, PR-only, default off */}
         <section className="card mt-6">
           <div className="border-b border-slate-100 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-semibold text-slate-900">Write features (Copilot mode)</h2>
+                <h2 className="font-semibold text-slate-900">Let DevBrain act on GitHub</h2>
                 <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-slate-500">
-                  Powered by a separate writer app with its own credentials.
-                  Every write it makes is a branch + pull request reviewed under
-                  the team rules above — it can never push to {`main`} directly.
-                  Each feature is off until you turn it on here.
+                  Same app, no second install. Each action is off until an admin
+                  turns it on here. Every write is a branch + pull request, or the
+                  merge of a PR a teammate approved — DevBrain never pushes to{" "}
+                  {`main`}. Everything it does shows in the feed as a bot write.
                 </p>
               </div>
               <span
                 className={
                   "chip flex-shrink-0 " +
-                  (repo.writer_installation_id
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-slate-100 text-slate-500")
+                  (writeReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")
                 }
               >
-                {repo.writer_installation_id ? "writer connected" : "not connected"}
+                {writeReady ? "write access granted" : "write access pending"}
               </span>
             </div>
-            {!writerReady ? (
+            {!writeReady && (
               <p className="mt-2 text-xs text-amber-700">
-                Writer app not configured on the server yet — set{" "}
-                <code className="rounded bg-slate-100 px-1">DEVBRAIN_GHW_APP_ID</code> and{" "}
-                <code className="rounded bg-slate-100 px-1">DEVBRAIN_GHW_PRIVATE_KEY</code> in Vercel.
+                GitHub hasn&apos;t granted this installation write access yet. The
+                owner of the GitHub account that installed DevBrain approves it under{" "}
+                <a
+                  className="underline"
+                  href={`https://github.com/settings/installations/${repo.installation_id ?? ""}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Settings → Applications → DevBrain
+                </a>
+                {" "}(organizations: the org&apos;s settings). Until then these switches stay off.
               </p>
-            ) : (
-              !isAdmin ? (
-              <p className="mt-2 text-xs text-slate-500">A team admin connects the writer app.</p>
-            ) : (
-              <div className="mt-2 flex items-center gap-3 text-xs">
-                {writerSlug && (
-                  <a
-                    href={`https://github.com/apps/${writerSlug}/installations/new`}
-                    target="_blank"
-                    className="rounded-md border border-slate-300 px-2.5 py-1 text-slate-700 hover:bg-slate-50"
-                  >
-                    Install writer app on GitHub
-                  </a>
-                )}
-                <form action={connectWriter}>
-                  <input type="hidden" name="repoId" value={repo.id} />
-                  <button className="rounded-md bg-brand-600 px-2.5 py-1 font-medium text-white hover:bg-brand-700">
-                    {repo.writer_installation_id ? "Re-check connection" : "Connect"}
-                  </button>
-                </form>
-              </div>
-            ))}
+            )}
           </div>
           <ul className="divide-y divide-slate-100">
             {WRITER_CATALOG.map((c) => {
-              const on = (state.get(c.rule) ?? false) && Boolean(repo.writer_installation_id);
-              const usable = writerReady && Boolean(repo.writer_installation_id);
+              const on = (state.get(c.rule) ?? false) && writeReady;
+              const usable = writeReady;
               return (
                 <li key={c.rule} className="flex items-start justify-between gap-4 p-4">
                   <div>

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { AiCapExceeded, DIGEST_SYSTEM, FOOTPRINT_SYSTEM, JOURNAL_SYSTEM, MATCH_SYSTEM, REVIEW_SYSTEM, SPEC_ASSESS_SYSTEM, SPEC_EXTRACT_SYSTEM, agentConfigured, agentModel, askClaude, extractJson, prDiff } from "@/lib/agent";
 import { alert, resolve } from "@/lib/alerts";
 import { cachedBrainDocs } from "@/lib/brain-cache";
-import { mergePrAsWriter, writerConfigured, updatePrBranchAsWriter } from "@/lib/github-writer";
+import { mergePrAsWriter, updatePrBranchAsWriter } from "@/lib/github-writer";
+import { canAutoMerge, canUpdateBranch } from "@/lib/writer-gates";
 import { installationOctokit } from "@/lib/github";
 import { brainToMemory, eventToMemory, handoffToMemory, journalToMemory, reviewToMemory, taskToMemory, type MemoryRow } from "@/lib/memory";
 import { fetchBrainDocs } from "@/lib/github";
@@ -536,39 +537,52 @@ export async function POST(request: Request) {
   // ---- 1.7 Branch sync: keep open PRs fresh after main moves -------------
   // The other half of the rebase-gap fix: when a PR merges, sibling branches
   // fall behind, and stale branches are where the conflict spiral starts.
-  // For repos with the writer app, press GitHub's own "Update branch" on
-  // clean-but-behind PRs (bounded per tick). Conflicted (dirty) PRs are never
-  // auto-touched — the context's rebase_needed entry owns those. Without a
-  // writer installation this unit is a no-op, exactly like auto-merge.
+  // On repos whose writer_update_branch switch is on, press GitHub's own
+  // "Update branch" on clean-but-behind PRs (bounded per tick). Conflicted
+  // (dirty) PRs are never auto-touched — the context's rebase_needed entry
+  // owns those. Switch off (the default) → this unit is a no-op.
   if (!off.has("sync")) try {
-    if (writerConfigured()) {
-      const { data: writerRepos } = await admin
+    const { data: syncPolicies } = await admin
+      .from("policies")
+      .select("repo_id")
+      .eq("rule", "writer_update_branch")
+      .eq("enabled", true);
+    const syncRepoIds = (syncPolicies ?? []).map((p) => p.repo_id);
+    let synced = 0;
+    if (syncRepoIds.length > 0) {
+      const { data: syncRepos } = await admin
         .from("linked_repos")
-        .select("id, full_name, writer_installation_id")
-        .not("writer_installation_id", "is", null)
+        .select("id, org_id, full_name, installation_id")
+        .in("id", syncRepoIds)
         .is("unlinked_at", null);
-      let synced = 0;
-      for (const repo of writerRepos ?? []) {
+      for (const repo of syncRepos ?? []) {
+        if (!canUpdateBranch({ policyOn: true, installationId: repo.installation_id })) continue;
         const { data: openPrs } = await admin
           .from("prs")
-          .select("number, mergeable_state, draft, state")
+          .select("number, title, mergeable_state, draft, state")
           .eq("repo_id", repo.id)
           .eq("state", "open");
+        const byNumber = new Map((openPrs ?? []).map((p) => [p.number, p.title]));
         for (const n of pickSyncCandidates((openPrs ?? []) as SyncPr[])) {
-          const r = await updatePrBranchAsWriter(repo.writer_installation_id!, repo.full_name, n);
-          if (r.updated) synced++;
-          // Refusals are expected (raced a push, protection quirks) — the
-          // webhook re-reports mergeable_state and the next tick retries.
+          const r = await updatePrBranchAsWriter(repo.installation_id, repo.full_name, n);
+          if (!r.updated) continue; // refusals are expected (raced a push) — the webhook re-reports and the next tick retries
+          synced++;
+          await admin.from("events").insert({
+            org_id: repo.org_id,
+            repo_id: repo.id,
+            kind: "bot_write",
+            payload: { action: "update_branch", pr: n, title: byNumber.get(n) ?? null, text: `Updated PR #${n} from main (it had fallen behind)` },
+          });
         }
       }
-      if (synced) did.sync = `${synced} PR${synced === 1 ? "" : "s"} brought up to date`;
     }
+    if (synced) did.sync = `${synced} PR${synced === 1 ? "" : "s"} brought up to date`;
   } catch (err) {
     did.sync_error = String(err).slice(0, 300);
   }
 
-  // writer_auto_merge policy is ON and the writer app is installed, the
-  // writer presses merge itself — GitHub branch protection is the backstop.
+  // writer_auto_merge switch is ON, DevBrain presses merge itself (only on a
+  // PR a human approved) — GitHub branch protection is the backstop.
   if (!off.has("lights")) try {
     const { data: allOpen } = await admin
       .from("prs")
@@ -611,19 +625,14 @@ export async function POST(request: Request) {
         { soloGreen: soloGreenRepos.has(repoId) },
       );
 
-      // Auto-merge enabled on this repo?
-      let autoMergeOn = false;
-      let writerInstall: number | null = null;
-      let fullName = "";
-      if (writerConfigured()) {
-        const [{ data: policy }, { data: repoRow }] = await Promise.all([
-          admin.from("policies").select("enabled").eq("repo_id", repoId).eq("rule", "writer_auto_merge").maybeSingle(),
-          admin.from("linked_repos").select("full_name, writer_installation_id").eq("id", repoId).single(),
-        ]);
-        autoMergeOn = Boolean(policy?.enabled) && Boolean(repoRow?.writer_installation_id);
-        writerInstall = repoRow?.writer_installation_id ?? null;
-        fullName = repoRow?.full_name ?? "";
-      }
+      // Auto-merge switch on this repo? (default off; one app, main installation)
+      const [{ data: amPolicy }, { data: repoRow }] = await Promise.all([
+        admin.from("policies").select("enabled").eq("repo_id", repoId).eq("rule", "writer_auto_merge").maybeSingle(),
+        admin.from("linked_repos").select("full_name, installation_id").eq("id", repoId).maybeSingle(),
+      ]);
+      const autoMergeOn = Boolean(amPolicy?.enabled);
+      const writerInstall: number | null = repoRow?.installation_id ?? null;
+      const fullName = repoRow?.full_name ?? "";
 
       for (const pr of repoPrs) {
         const light = lights.get(pr.number);
@@ -639,8 +648,8 @@ export async function POST(request: Request) {
             // A bot may press merge on a PR a person approved. It may not press
             // merge on one only the AI cleared: solo_green exists so a lone dev
             // can SEE a PR is ready, not so a PR can go in with no human in it.
-            if (autoMergeOn && writerInstall && fullName && pr.review_state === "approved") {
-              const result = await mergePrAsWriter(writerInstall, fullName, pr.number);
+            if (fullName && canAutoMerge({ policyOn: autoMergeOn, installationId: writerInstall, reviewState: pr.review_state, light: light.state })) {
+              const result = await mergePrAsWriter(writerInstall!, fullName, pr.number);
               if (result.merged) {
                 autoMerged++;
                 await admin.from("events").insert({

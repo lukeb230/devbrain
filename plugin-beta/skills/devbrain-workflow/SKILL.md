@@ -41,8 +41,20 @@ STOP and tell your human instead of overriding).
 
 ## While working
 
-- Prefer a feature branch; never commit directly to main.
-- Keep changes scoped to your task; the dashboard shows every file you touch.
+- Work on a feature branch cut from FRESH main — always
+  `git fetch origin && git switch -c <branch> origin/main`, never off the
+  current checkout (it may be a stale main or the previous feature branch).
+  Never commit directly to main.
+- **One PR at a time when you're effectively solo.** If your dev already has
+  an open PR and no teammate is active, finish and merge it before opening
+  another — stacked PRs buy a solo dev nothing but rebases. Mention this to
+  your human rather than silently opening PR number two.
+- **Act on `rebase_needed`.** When the team context lists a PR under
+  `rebase_needed`, main has moved underneath it. Tell your human and offer to
+  fix it now: check out that branch, `git fetch origin && git merge
+  origin/main` (union rules auto-resolve the brain notes), re-run the build,
+  push. Ten seconds now beats conflict archaeology at merge time.
+- Keep changes scoped to your task; the team sees every file you touch in DevBrain.
 
 ## Before finishing a task
 
@@ -52,16 +64,28 @@ STOP and tell your human instead of overriding).
    note if you built a new feature, linked from the notes it interacts with
    and from the index map), so the reviewer sees code and context change
    together.
+   **Conflict-proof the notes (one-time per repo):** brain notes are
+   append-style, so parallel branches both appending would conflict for no
+   reason. If the repo has no `.gitattributes` union rule for them, add one in
+   this branch:
+   ```
+   .brain/**/*.md merge=union
+   ```
+   and extend it to any append-style decision log the repo keeps under `docs/`
+   (e.g. a `*_DECISIONS*` file). Do NOT add `CLAUDE.md` — it gets mixed edits,
+   not pure appends; union could interleave it badly.
 2. **Conflict check — mandatory before any pull request:**
    `git fetch origin && git merge origin/main` on your branch. If there are
    conflicts, resolve them yourself now (and re-run the build) — a PR must
-   never be opened while it conflicts with main. The dashboard flags
+   never be opened while it conflicts with main. The Desk flags
    conflicting PRs in red; don't be the red one.
 3. Remind your human to open a pull request; they cannot approve their own —
    a teammate reviews it.
 4. After the PR merges, the branch is done: it shows as "merged" on the
-   dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
-   merged branch — start fresh from main.
+   Desk for 48 hours, then a scheduled cleanup deletes it. Never reuse a
+   merged branch. Before the next task: `git switch main && git pull --ff-only
+   && git branch -d <merged-branch>` — the next branch must start from the
+   main that includes your merge.
 
 ## Claims (intent locks - route around each other)
 
@@ -152,7 +176,7 @@ take an action, confirm with your human first.
 ## After finishing a task
 
 - If you made a non-obvious choice (library, pattern, tradeoff), call
-  `log_decision` with one sentence — it appears on the team dashboard and in
+  `log_decision` with one sentence — it appears in the team's Desk and in
   every teammate's Claude context. This is how the hive mind learns.
 
 ## Team memory search (ask the hive)

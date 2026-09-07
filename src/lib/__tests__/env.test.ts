@@ -19,9 +19,9 @@ describe("missingEnv", () => {
   });
 
   it("keeps recommended separate from required", () => {
-    const env = { ...full, DEVBRAIN_OPS_WEBHOOK: "" };
+    const env = { ...full, ANTHROPIC_API_KEY: "" };
     const m = missingEnv(env);
     expect(m.required).toEqual([]);
-    expect(m.recommended).toEqual(["DEVBRAIN_OPS_WEBHOOK"]);
+    expect(m.recommended).toEqual(["ANTHROPIC_API_KEY"]);
   });
 });

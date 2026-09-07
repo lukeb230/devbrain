@@ -39,7 +39,7 @@ The tagline used on the site: *"A shared second brain for your team and your cod
 - **Daily standup digest** written by the agent tier from the last 24 hours.
 - **Restore points**: deploy scripts can register a known-good SHA/tag; the history view shows a timeline (and, with the repo's "Revert from History" switch on, DevBrain opens a revert PR).
 - **Zombie branch** detection and one-line summaries of stale unmerged work.
-- **Alerts** to owners/admins when something breaks (sync errors, a repo losing GitHub access, the AI budget running out) — in-app, or to a Slack/Discord webhook.
+- **Alerts** to owners/admins when something breaks (sync errors, a repo losing GitHub access, the AI budget running out) — a native macOS notification from the app, plus an in-app banner. No chat integrations.
 - **The Mac app**: a corner badge / menu-bar panel with the live dashboard, native notifications, and a first-run installer that sets up the CLI, the Claude Code plugin and a self-updater. Node is bundled; there are no prerequisites beyond Claude Code itself.
 
 ### For the team owner

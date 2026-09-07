@@ -25,6 +25,9 @@ export interface NotifPrefs {
   task_autocomplete: boolean;
   merge_lights: boolean;
   specs: boolean;
+  /** Team alerts (admins): a repo lost GitHub access, the AI budget ran out,
+   *  a sync hiccup — plus ops alerts on the operator's team. */
+  alerts: boolean;
   /** Which repos may notify: every linked repo, or only the one the widget
    *  is scoped to. Defaults to "all" — a silent P1 on the repo you're NOT
    *  looking at is the expensive failure. */
@@ -41,6 +44,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
   task_autocomplete: true,
   merge_lights: true,
   specs: true,
+  alerts: true,
   scope: "all",
 };
 
@@ -152,10 +156,14 @@ export interface PrSeed {
 
 export function WidgetNotifier({
   self,
+  admin = false,
   prSeeds,
   activeRepoId,
 }: {
   self: string | null;
+  /** Owners/admins receive team alerts; RLS scopes rows to the team (and ops
+   *  rows to the operator's team). Members never subscribe. */
+  admin?: boolean;
   prSeeds: PrSeed[];
   activeRepoId: string | null;
 }) {
@@ -163,6 +171,9 @@ export function WidgetNotifier({
   // Last-known PR states, seeded from server data so already-dirty /
   // already-approved PRs don't fire on their next unrelated update.
   const prState = useRef<Map<string, { dirty: boolean; approved: boolean }>>(new Map());
+  // Last-seen last_notified_at per alert, so a throttled re-notify (the row's
+  // stamp moved) fires once and an unrelated count bump doesn't.
+  const alertStamp = useRef<Map<string, string | null>>(new Map());
   const seeded = useRef(false);
 
   if (!seeded.current) {
@@ -245,7 +256,7 @@ export function WidgetNotifier({
           if (row.kind === "pr_auto_merged" && p.merge_lights) {
             deliver(
               `PR #${row.payload?.pr ?? "?"} auto-merged`,
-              `"${(row.payload as { title?: string })?.title ?? ""}" landed on main (writer app).`,
+              `"${(row.payload as { title?: string })?.title ?? ""}" landed on main (auto-merge).`,
             );
           }
         },
@@ -316,6 +327,41 @@ export function WidgetNotifier({
       channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "prs" }, onPr);
       channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "prs" }, onPr);
 
+      // Team + ops alerts (alert_log). Native delivery IS the alert channel:
+      //   INSERT                       → "something broke"
+      //   UPDATE, last_notified_at moved → "still failing (×n)" (throttled server-side)
+      //   UPDATE, resolved_by 'system'   → "recovered"; a person dismissing is silent
+      if (admin) {
+        type AlertRow = { id?: string; org_id?: string | null; severity?: string; title?: string; detail?: string | null; count?: number; last_notified_at?: string | null; resolved_at?: string | null; resolved_by?: string | null };
+        const label = (r: AlertRow) => `${r.org_id === null ? "Ops" : "Team"} alert${r.severity === "error" ? "" : r.severity === "warn" ? " (warning)" : ""}`;
+        const firstLine = (s: string | null | undefined) => (s ?? "").split("\n")[0].slice(0, 180);
+        channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "alert_log" }, (msg) => {
+          const p = prefs.current;
+          const row = msg.new as AlertRow;
+          if (!row.id) return;
+          alertStamp.current.set(row.id, row.last_notified_at ?? null);
+          if (!p.enabled || !p.alerts) return;
+          deliver(`${label(row)}: ${row.title ?? ""}`, firstLine(row.detail));
+        });
+        channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "alert_log" }, (msg) => {
+          const p = prefs.current;
+          const row = msg.new as AlertRow;
+          if (!row.id) return;
+          const prev = alertStamp.current.get(row.id);
+          alertStamp.current.set(row.id, row.last_notified_at ?? null);
+          if (!p.enabled || !p.alerts) return;
+          if (row.resolved_at) {
+            if (row.resolved_by === "system") deliver(`Recovered: ${row.title ?? ""}`, row.org_id === null ? "ops" : "team");
+            return;
+          }
+          // Re-notify only when the server moved the stamp (throttled there) and
+          // we had seen the row before — a row first seen mid-life is not news.
+          if (prev !== undefined && row.last_notified_at && row.last_notified_at !== prev) {
+            deliver(`${label(row)}: ${row.title ?? ""} (still failing, ×${row.count ?? "?"})`, firstLine(row.detail));
+          }
+        });
+      }
+
       channel.subscribe();
     })();
 
@@ -324,9 +370,9 @@ export function WidgetNotifier({
       window.removeEventListener(PREFS_EVENT, onPrefs);
       if (channel) supabase.removeChannel(channel);
     };
-    // self/activeRepoId are stable for a given render of the widget page.
+    // self/admin/activeRepoId are stable for a given render of the widget page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [self, activeRepoId]);
+  }, [self, admin, activeRepoId]);
 
   return null;
 }

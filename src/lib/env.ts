@@ -20,7 +20,7 @@ export const REQUIRED_ENV = [
 ] as const;
 
 /** Variables whose absence degrades a feature rather than breaking one. */
-export const RECOMMENDED_ENV = ["ANTHROPIC_API_KEY", "DEVBRAIN_OPS_WEBHOOK"] as const;
+export const RECOMMENDED_ENV = ["ANTHROPIC_API_KEY"] as const;
 
 export function missingEnv(env: Record<string, string | undefined> = process.env): { required: string[]; recommended: string[] } {
   const blank = (k: string) => !env[k] || !String(env[k]).trim();

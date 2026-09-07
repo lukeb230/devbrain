@@ -464,6 +464,7 @@ const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
   { key: "task_autocomplete", label: "Auto-completed tasks", detail: "A merge closed a task on the board automatically" },
   { key: "merge_lights", label: "Merge lights", detail: "Your PR is cleared to land, or was auto-merged" },
   { key: "specs", label: "Context docs", detail: "A dropped spec finished analyzing and is ready to review" },
+  { key: "alerts", label: "Team alerts", detail: "Something broke for the team — a repo lost GitHub access, the AI budget ran out, a sync error (admins only)" },
 ];
 
 export function WidgetApp({ data }: { data: WidgetData }) {
@@ -543,6 +544,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       />
       <WidgetNotifier
         self={data.self}
+        admin={data.canAdmin}
         activeRepoId={data.scopeAll ? null : (data.lastRepo?.id ?? null)}
         prSeeds={data.prs.map((p) => ({
           repo_id: p.repo_id,

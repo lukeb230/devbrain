@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { resolveDevToken } from "@/lib/token";
 import { installationWritePerms } from "@/lib/github-writer";
+import { operatorOrgId } from "@/lib/alerts";
 import { writeGranted } from "@/lib/writer-gates";
 
 // ============================================================================
@@ -20,12 +21,13 @@ export async function GET(request: Request) {
 
   const admin = supabaseAdmin();
   const { data } = await admin.from("system_state").select("value, updated_at").eq("key", "last_tick").maybeSingle();
-  const [{ count: opsOpen }, { count: orgOpen }, { count: opsChannels }, { count: orgChannels }, { data: wd }] = await Promise.all([
+  const [{ count: opsOpen }, { count: orgOpen }, operator, { data: watchdogJob }] = await Promise.all([
     admin.from("alert_log").select("id", { count: "exact", head: true }).is("org_id", null).is("resolved_at", null),
     admin.from("alert_log").select("id", { count: "exact", head: true }).eq("org_id", auth.org_id).is("resolved_at", null),
-    admin.from("alert_channels").select("id", { count: "exact", head: true }).is("org_id", null).eq("enabled", true),
-    admin.from("alert_channels").select("id", { count: "exact", head: true }).eq("org_id", auth.org_id).eq("enabled", true),
-    admin.from("system_state").select("value").eq("key", "ops_webhook").maybeSingle(),
+    operatorOrgId(),
+    // The Postgres watchdog opens an ops alert when the tick dies; its open
+    // row (if any) is the only trace it leaves.
+    admin.from("alert_log").select("id").is("org_id", null).eq("key", "watchdog.tick").is("resolved_at", null).maybeSingle(),
   ]);
   // Journals are per-repo and default OFF — the one feature whose "off"
   // state used to be indistinguishable from a bug. Name each repo's state.
@@ -62,11 +64,12 @@ export async function GET(request: Request) {
     journals,
     github_write,
     alerts: {
+      delivery: "native", // the Mac app watches alert_log; no webhooks exist
       ops_open: opsOpen ?? 0,
       team_open: orgOpen ?? 0,
-      ops_channel: Boolean(process.env.DEVBRAIN_OPS_WEBHOOK) || (opsChannels ?? 0) > 0,
-      team_channels: orgChannels ?? 0,
-      watchdog: Boolean((wd?.value as { url?: string } | null)?.url),
+      operator_set: Boolean(operator),
+      this_team_is_operator: operator === auth.org_id,
+      tick_dead_alert_open: Boolean(watchdogJob),
     },
   });
 }

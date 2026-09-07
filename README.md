@@ -112,11 +112,14 @@ daily digest. Teams are served round-robin; each team has a daily AI call
 cap (`orgs.ai_daily_cap`, default 300) shown on **Settings → Team**.
 `DEVBRAIN_TICK_DISABLED` switches units off without a deploy.
 
-Alerts: failures open deduplicated alerts (`alert_log`) delivered in-app to
-owners/admins and, optionally, to a Slack/Discord webhook per team
-(**Settings → Team**) or the operator (`DEVBRAIN_OPS_WEBHOOK`). The
-Postgres watchdog (`supabase/cron/watchdog.sql`) reports a dead tick from
-outside Vercel. `devbrain doctor` and `/api/v1/health` show the state.
+Alerts: failures open deduplicated alerts (`alert_log`). Delivery is native:
+the Mac app subscribes to `alert_log` over realtime and shows a macOS
+notification to the team's owners/admins (and a banner in-app). There are no
+webhooks or chat integrations. Operator alerts (tick failures, unhandled
+500s) go to whichever team `system_state.operator` names — set it once per
+deployment. The Postgres watchdog (`supabase/cron/watchdog.sql`) opens an
+ops alert when the tick dies, from outside Vercel. `devbrain doctor` and
+`/api/v1/health` show the state.
 
 ## Restore points (from any deploy script)
 

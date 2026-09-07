@@ -433,6 +433,15 @@ function PinButton({ t }: { t: { id: string; repo_id: string; pinned: boolean } 
 // Outward links. `target="_blank"` asks the webview for a new window, which
 // the shell never creates — so inside the app every external link goes
 // through the opener command instead. In a browser it behaves normally.
+/** Open the Desk window on a route (e.g. "/prs"). Inside the app this is the
+ *  open_desk command; in a plain browser it falls back to the old dashboard. */
+function openDesk(e: React.MouseEvent, route: string, browserFallback: string) {
+  const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
+  if (!core) return; // let the anchor navigate (target=_blank) to the fallback
+  e.preventDefault();
+  void core.invoke("open_desk", { route }).catch(() => window.open(browserFallback, "_blank"));
+}
+
 function openExternal(e: React.MouseEvent, url: string) {
   const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
   if (!core || !url || url === "#") return;
@@ -731,7 +740,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 </section>
               )}
 
-              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"} target="_blank" onClick={(e) => openExternal(e, data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open full dashboard →</a> <span className="text-faint">History, Rules, repo management.</span></p>
+              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/?repo=${data.lastRepo.id}` : "/", data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open the Desk →</a> <span className="text-faint">The full app: board, PRs, history, rules, team.</span></p>
             </div>
           </div>
         )}

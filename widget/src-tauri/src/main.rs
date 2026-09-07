@@ -7,6 +7,11 @@
 //     click → the panel opens out of that corner.
 //   - Corner choice lives in the tray menu and persists across restarts.
 //   - "Reload panel" tray item refreshes the webview after site deploys.
+//   - The DESK: a normal, resizable window showing the site's /desk — the
+//     full app. Hidden on close (never destroyed), remembers its bounds,
+//     opened from the tray, from a panel row (open_desk command) or a
+//     devbrain://desk/<route> link. "Show in Dock" flips the activation
+//     policy at runtime and persists.
 // ============================================================================
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -35,7 +40,18 @@ fn site_host() -> &'static str {
     SITE.trim_start_matches("https://").trim_start_matches("http://").split('/').next().unwrap_or("")
 }
 fn site_panel() -> String { format!("{SITE}/widget") }
-fn site_full() -> String { format!("{SITE}/dashboard") }
+fn site_desk(route: Option<&str>) -> String {
+    // A route is a site path under /desk ("/", "/prs", "/board?x=1") — never a
+    // full URL, so a deep link can't point the Desk somewhere else.
+    let r = route.unwrap_or("/").trim();
+    let r = if r.starts_with('/') { r.to_string() } else { format!("/{r}") };
+    let r = if r == "/" { String::new() } else { r };
+    format!("{SITE}/desk{r}")
+}
+const DESK_W: f64 = 1180.0;
+const DESK_H: f64 = 760.0;
+const DESK_MIN_W: f64 = 880.0;
+const DESK_MIN_H: f64 = 560.0;
 
 const ZONE_HOT: f64 = 58.0; // expanded to show the badge
 const PANEL_W: f64 = 440.0;
@@ -52,18 +68,30 @@ enum Corner {
     BottomRight,
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize)]
+struct Bounds { x: f64, y: f64, w: f64, h: f64 }
+
 #[derive(Serialize, Deserialize)]
 struct Settings {
     corner: Corner,
     /// Badge size as a fraction of ZONE_HOT (0.5 small · 0.75 medium · 1.0 large).
     #[serde(default = "default_badge_scale")]
     badge_scale: f64,
+    /// Show a Dock icon (Regular activation policy). Default off: the
+    /// menu-bar brain is home; the Desk is a window you summon.
+    #[serde(default)]
+    dock: bool,
+    /// Last Desk window bounds (logical points), restored on next open.
+    #[serde(default)]
+    desk: Option<Bounds>,
 }
 fn default_badge_scale() -> f64 { 0.75 }
 
 struct State {
     corner: Mutex<Corner>,
     badge_scale: Mutex<f64>,
+    dock: Mutex<bool>,
+    desk: Mutex<Option<Bounds>>,
     /// Something wants the user: the badge stays visible instead of only
     /// appearing on corner-hover. Set from the panel's "badge-state" event.
     attention: Mutex<bool>,
@@ -86,6 +114,8 @@ fn load_settings(app: &AppHandle) -> Settings {
             // Beta defaults to the other corner so both channels can sit on one screen.
             corner: if setup::is_beta() { Corner::BottomLeft } else { Corner::BottomRight },
             badge_scale: default_badge_scale(),
+            dock: false,
+            desk: None,
         })
 }
 
@@ -94,6 +124,8 @@ fn save_settings(app: &AppHandle) {
     let settings = Settings {
         corner: *st.corner.lock().unwrap(),
         badge_scale: *st.badge_scale.lock().unwrap(),
+        dock: *st.dock.lock().unwrap(),
+        desk: *st.desk.lock().unwrap(),
     };
     if let Some(p) = settings_path(app) {
         let _ = std::fs::write(p, serde_json::to_string(&settings).unwrap_or_default());
@@ -324,6 +356,74 @@ fn get_corner(app: AppHandle) -> String {
     }
 }
 
+/// Show the Desk window (creating nothing — it exists hidden from launch) and
+/// navigate it to the requested route. Called from the tray, from the panel
+/// (a Needs-you row), and from devbrain://desk/… links.
+pub fn show_desk(app: AppHandle, route: Option<String>) {
+    let Some(desk) = app.get_webview_window("desk") else { return };
+    let target = site_desk(route.as_deref());
+    // Navigate only when asked for a specific page, or when the window is
+    // still on about:blank / a foreign page; a plain "Open Desk" keeps
+    // whatever the user was looking at.
+    let current = desk.url().map(|u| u.to_string()).unwrap_or_default();
+    if route.is_some() || !current.starts_with(&format!("{SITE}/desk")) {
+        let _ = desk.eval(&format!("window.location.replace({:?})", target));
+    }
+    if let Some(b) = *app.state::<State>().desk.lock().unwrap() {
+        let _ = desk.set_size(LogicalSize::new(b.w.max(DESK_MIN_W), b.h.max(DESK_MIN_H)));
+        let _ = desk.set_position(LogicalPosition::new(b.x, b.y));
+    }
+    let _ = desk.show();
+    let _ = desk.unminimize();
+    let _ = desk.set_focus();
+    // Hide the panel: the Desk is the bigger version of it.
+    if let Some(p) = app.get_webview_window("panel") {
+        if p.is_visible().unwrap_or(false) { let _ = p.hide(); }
+    }
+}
+
+fn remember_desk_bounds(app: &AppHandle) {
+    let Some(desk) = app.get_webview_window("desk") else { return };
+    let (Ok(pos), Ok(size), Ok(scale)) = (desk.outer_position(), desk.inner_size(), desk.scale_factor()) else { return };
+    let p = pos.to_logical::<f64>(scale);
+    let s = size.to_logical::<f64>(scale);
+    if s.width < 100.0 || s.height < 100.0 { return; } // minimised / hidden report nonsense
+    *app.state::<State>().desk.lock().unwrap() = Some(Bounds { x: p.x, y: p.y, w: s.width, h: s.height });
+    save_settings(app);
+}
+
+/// Regular = Dock icon + Cmd-Tab; Accessory = menu bar only. Applied at
+/// launch from settings and flipped live from the tray. Note for notify.rs:
+/// installing the notification delegate before the Accessory policy applies
+/// would force a Dock icon — that ordering is preserved in setup().
+fn apply_dock(app: &AppHandle, show: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let policy = if show { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory };
+        let _ = app.set_activation_policy(policy);
+    }
+    *app.state::<State>().dock.lock().unwrap() = show;
+    save_settings(app);
+}
+
+#[tauri::command]
+fn open_desk(app: AppHandle, route: Option<String>) {
+    show_desk(app, route);
+}
+
+/// Re-apply the saved activation policy (notify.rs calls this after every
+/// delivery, because Notification Center registration can flip it).
+pub fn reassert_policy(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let show = app.try_state::<State>().map(|s| *s.dock.lock().unwrap()).unwrap_or(false);
+        let policy = if show { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory };
+        let _ = app.set_activation_policy(policy);
+    }
+    #[cfg(not(target_os = "macos"))]
+    { let _ = app; }
+}
+
 #[tauri::command]
 fn toggle_panel(app: AppHandle) {
     let st = app.state::<State>();
@@ -351,16 +451,19 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login, setup::open_external])
+        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, open_desk, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login, setup::open_external])
         .setup(|app| {
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-
             let settings = load_settings(app.handle());
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(if settings.dock { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory });
+
             let corner = settings.corner;
+            let dock = settings.dock;
             app.manage(State {
                 corner: Mutex::new(corner),
                 badge_scale: Mutex::new(settings.badge_scale),
+                dock: Mutex::new(settings.dock),
+                desk: Mutex::new(settings.desk),
                 attention: Mutex::new(false),
                 pinned: Mutex::new(false),
                 last_panel_hide: Mutex::new(Instant::now() - std::time::Duration::from_secs(10)),
@@ -455,6 +558,68 @@ fn main() {
                 }
             });
 
+            // --- the Desk ------------------------------------------------------
+            // A normal window: title bar, resizable, Cmd-W hides it (never
+            // destroyed, so its state survives). Same navigation lock idea as
+            // the panel, scoped to /desk. Starts hidden on about:blank — the
+            // site loads on first open so launch stays cheap.
+            let desk_nav = app.handle().clone();
+            let desk_bounds = settings.desk;
+            let desk = WebviewWindowBuilder::new(app, "desk", WebviewUrl::External("about:blank".parse().unwrap()))
+                .on_navigation(move |url| {
+                    let host = url.host_str().unwrap_or("");
+                    let path = url.path();
+                    let allowed = (host == site_host()
+                        && (path.starts_with("/desk")
+                            || path.starts_with("/auth")
+                            || path.starts_with("/welcome")
+                            || path.starts_with("/join/")
+                            || path.starts_with("/_next")
+                            || path.starts_with("/api/")
+                            || path == "/"))
+                        || host == "github.com"
+                        || host.ends_with(".github.com")
+                        || host.ends_with(".supabase.co")
+                        || host == "accounts.google.com"
+                        || host.ends_with(".google.com")
+                        || host == "appleid.apple.com"
+                        || host.ends_with(".apple.com")
+                        || url.scheme() == "about"
+                        || url.scheme() == "tauri";
+                    if !allowed {
+                        let _ = desk_nav.opener().open_url(url.as_str(), None::<&str>);
+                    }
+                    allowed
+                })
+                .title(format!("{} Desk", setup::app_name()))
+                .decorations(true)
+                .resizable(true)
+                .visible(false)
+                .inner_size(desk_bounds.map(|b| b.w.max(DESK_MIN_W)).unwrap_or(DESK_W), desk_bounds.map(|b| b.h.max(DESK_MIN_H)).unwrap_or(DESK_H))
+                .min_inner_size(DESK_MIN_W, DESK_MIN_H)
+                .build()?;
+            if let Some(b) = desk_bounds {
+                let _ = desk.set_position(LogicalPosition::new(b.x, b.y));
+            } else {
+                let _ = desk.center();
+            }
+            {
+                let h = app.handle().clone();
+                desk.on_window_event(move |ev| match ev {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        remember_desk_bounds(&h);
+                        if let Some(d) = h.get_webview_window("desk") { let _ = d.hide(); }
+                    }
+                    tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                        if h.get_webview_window("desk").and_then(|d| d.is_visible().ok()).unwrap_or(false) {
+                            remember_desk_bounds(&h);
+                        }
+                    }
+                    _ => {}
+                });
+            }
+
             place_badge(app.handle());
             place_panel(app.handle());
             setup::spawn_collector(app.handle().clone());
@@ -509,6 +674,9 @@ fn main() {
 
             // --- menu-bar (tray) icon -------------------------------------
             let open_i = MenuItem::with_id(app, "open", &format!("Open {} panel", setup::app_name()), true, None::<&str>)?;
+            let desk_i = MenuItem::with_id(app, "desk", "Open Desk", true, None::<&str>)?;
+            let dock_i = CheckMenuItem::with_id(app, "dock", "Show in Dock", true, dock, None::<&str>)?;
+            let sep_i = PredefinedMenuItem::separator(app)?;
             let reload_i = MenuItem::with_id(app, "reload", "Reload panel", true, None::<&str>)?;
             let pin_i = CheckMenuItem::with_id(app, "pin", "Pin panel open", true, false, None::<&str>)?;
             let bl_i = CheckMenuItem::with_id(app, "corner_bl", "Corner: Bottom Left", true, corner == Corner::BottomLeft, None::<&str>)?;
@@ -522,9 +690,9 @@ fn main() {
             let size_m = CheckMenuItem::with_id(app, "size_m", "Medium", true, (scale - 0.75).abs() < 0.01, None::<&str>)?;
             let size_l = CheckMenuItem::with_id(app, "size_l", "Large", true, (scale - 1.0).abs() < 0.01, None::<&str>)?;
             let size_menu = Submenu::with_items(app, "Badge size", true, &[&size_s, &size_m, &size_l])?;
-            let dash_i = MenuItem::with_id(app, "dash", "Open full dashboard…", true, None::<&str>)?;
+            let update_i = MenuItem::with_id(app, "update", "Check for updates…", true, None::<&str>)?;
             let quit_i = PredefinedMenuItem::quit(app, Some(&format!("Quit {}", setup::app_name())))?;
-            let menu = Menu::with_items(app, &[&open_i, &reload_i, &pin_i, &bl_i, &br_i, &size_menu, &auto_i, &dash_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&open_i, &desk_i, &sep_i, &dock_i, &pin_i, &bl_i, &br_i, &size_menu, &auto_i, &reload_i, &update_i, &quit_i])?;
 
             let bl_h = bl_i.clone();
             let br_h = br_i.clone();
@@ -536,6 +704,17 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => toggle_panel(app.clone()),
+                    "desk" => show_desk(app.clone(), None),
+                    "dock" => {
+                        let now = !*app.state::<State>().dock.lock().unwrap();
+                        apply_dock(app, now);
+                    }
+                    "update" => {
+                        // The same reconciler the daily job runs. It swaps the app
+                        // bundle if a newer release exists; the new build is used on
+                        // the next launch. Output goes to a log the user can read.
+                        setup::spawn_update(app.clone());
+                    }
                     "reload" => {
                         // Always go back to the panel's home, not "reload wherever
                         // the webview currently is" (which could be a stuck
@@ -573,9 +752,6 @@ fn main() {
                         } else {
                             let _ = al.enable();
                         }
-                    }
-                    "dash" => {
-                        let _ = app.opener().open_url(site_full(), None::<&str>);
                     }
                     _ => {}
                 })

@@ -45,6 +45,7 @@ fn main() {
                 "run_collector_now",
                 "start_browser_login",
                 "open_external",
+                "open_desk",
             ]),
         ),
     )

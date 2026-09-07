@@ -1,13 +1,14 @@
 {
   "identifier": "remote-panel",
-  "description": "The panel loads the DevBrain web app remotely; grant it notification access so the widget can post native notifications.",
+  "description": "The panel and the Desk load the DevBrain web app remotely; grant them the app commands they call (notifications, setup, opening the Desk).",
   "remote": {
     "urls": [
       "https://devbrain-seven.vercel.app"
     ]
   },
   "windows": [
-    "panel"
+    "panel",
+    "desk"
   ],
   "permissions": [
     "core:default",
@@ -19,6 +20,8 @@
     "allow-bootstrap",
     "allow-run-collector-now",
     "allow-start-browser-login",
-    "allow-open-external"
+    "allow-open-external",
+    "allow-open-desk",
+    "allow-toggle-panel"
   ]
 }

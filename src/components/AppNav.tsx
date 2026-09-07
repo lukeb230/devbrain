@@ -21,7 +21,7 @@ export async function AppNav({
     <>
     <nav className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 overflow-x-auto px-4 sm:gap-6 sm:px-6">
-        <Link href="/dashboard" className="flex flex-shrink-0 items-center gap-2">
+        <Link href="/open" className="flex flex-shrink-0 items-center gap-2">
           <BrainMark size={26} id="nav" className="flex-shrink-0 text-brand-600" title="DevBrain" />
           <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 sm:inline">
             DevBrain
@@ -41,7 +41,7 @@ export async function AppNav({
             <button className="ml-1 text-xs text-slate-500 hover:text-slate-900">Switch</button>
           </form>
         ) : org ? (
-          <Link href="/settings/org" className="hidden flex-shrink-0 text-sm text-slate-500 hover:text-slate-900 md:inline">
+          <Link href="/desk/team" className="hidden flex-shrink-0 text-sm text-slate-500 hover:text-slate-900 md:inline">
             {org.orgName}
           </Link>
         ) : null}
@@ -78,16 +78,16 @@ export async function AppNav({
           <Link href="/settings/setup" className="text-slate-500 hover:text-slate-900">
             Setup
           </Link>
-          <Link href="/settings/members" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+          <Link href="/desk/members" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Members
           </Link>
-          <Link href="/settings/org" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+          <Link href="/desk/team" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Team
           </Link>
-          <Link href="/settings/reminders" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+          <Link href="/desk/reminders" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Reminders
           </Link>
-          <Link href="/settings/tokens" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
+          <Link href="/desk/tokens" className="hidden text-slate-500 hover:text-slate-900 sm:inline">
             Tokens
           </Link>
           <form action="/auth/sign-out" method="post">

@@ -7,11 +7,11 @@ decisions, and what past sessions learned — and it reports back as it works.
 
 **What's in the box**
 
-- **Dashboard** (Next.js) — presence, PRs with merge traffic lights, tasks
+- **Web + Desk** (Next.js) — sign-in, invites and repo linking in the browser; the Desk (rendered inside the Mac app) has presence, PRs with merge traffic lights, tasks
   with spec ingest and Apple Reminders sync, session handoffs, lane claims,
   restore points, the team brain, AI PR reviews and standup digests.
 - **Mac app** (Tauri) — a corner badge / menu-bar panel showing the live
-  dashboard, native notifications, and the installer for everything below.
+  Desk window, native notifications, and the installer for everything below.
 - **Claude Code plugin** — 15 MCP tools (`get_team_context`,
   `search_team_memory`, `who_is_editing`, tasks, claims, handoffs, decisions…)
   plus hooks for presence, collision checks, live context and session journals.

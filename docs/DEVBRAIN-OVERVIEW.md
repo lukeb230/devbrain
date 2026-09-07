@@ -27,7 +27,7 @@ The tagline used on the site: *"A shared second brain for your team and your cod
 - **Can act on the team's behalf** through 15 MCP tools: read context, search team memory, see who's editing a file, claim/release an area, post a status, broadcast, log a decision, list/add/start/complete tasks, leave or pick up a handoff, read the repo's `.brain/` docs.
 - **Reports back automatically**: presence, file activity, and at session end a **session journal** — a summary of what was done, learned, decided, tried-and-failed, and what remains — built from a *redacted* transcript excerpt (prompts, prose, tool/file names; never file contents).
 
-### For the team (dashboard + Mac app)
+### For the team (the Mac app: panel + Desk)
 - **Now working**: who's active, on what branch, on which files, with a live status line.
 - **Pull requests** with merge traffic lights (green / amber / red from review state, mergeability, overlap), AI review summaries, and a suggested merge order when PRs overlap.
 - **Collisions**: same file touched on two unmerged branches.
@@ -40,7 +40,7 @@ The tagline used on the site: *"A shared second brain for your team and your cod
 - **Restore points**: deploy scripts can register a known-good SHA/tag; the history view shows a timeline (and, with the repo's "Revert from History" switch on, DevBrain opens a revert PR).
 - **Zombie branch** detection and one-line summaries of stale unmerged work.
 - **Alerts** to owners/admins when something breaks (sync errors, a repo losing GitHub access, the AI budget running out) — a native macOS notification from the app, plus an in-app banner. No chat integrations.
-- **The Mac app**: a corner badge / menu-bar panel with the live dashboard, native notifications, and a first-run installer that sets up the CLI, the Claude Code plugin and a self-updater. Node is bundled; there are no prerequisites beyond Claude Code itself.
+- **The Mac app**: a corner badge / menu-bar panel for the glance, the Desk window for everything else (board, PRs, brain, history, rules, team, tokens), native notifications, and a first-run installer that sets up the CLI, the Claude Code plugin and a self-updater. Node is bundled; there are no prerequisites beyond Claude Code itself.
 
 ### For the team owner
 - Open sign-up: sign in with GitHub, create a team, get an invite link. Roles: owner / admin / member.
@@ -54,7 +54,7 @@ The tagline used on the site: *"A shared second brain for your team and your cod
  Developer's Mac                              DevBrain cloud
  ┌───────────────────────────────┐            ┌──────────────────────────────────┐
  │ Claude Code                   │  HTTPS     │ Next.js app on Vercel            │
- │  └ DevBrain plugin            │ ────────▶  │  • dashboard + settings          │
+ │  └ DevBrain plugin            │ ────────▶  │  • Desk pages (served to the app)│
  │     hooks: presence, collision│  (per-     │  • /api/v1/* for plugins & CLI   │
  │     guard, live context,      │   machine  │  • GitHub App webhooks           │
  │     journals                  │   token)   │  • agent tick (every 2 min)      │

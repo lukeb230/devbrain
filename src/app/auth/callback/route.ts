@@ -10,9 +10,9 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   // Where to land: ?next= from the sign-in button, else the devbrain_next
   // cookie it set (the desktop panel relies on this — it must return to
-  // /widget, never /dashboard, which the panel opens in the browser).
+  // /widget, never /open, which the panel would bounce off).
   const cookieNext = readCookieHeader(request.headers.get("cookie"), COOKIE.next);
-  const next = safeNext(searchParams.get("next") || cookieNext, "/dashboard");
+  const next = safeNext(searchParams.get("next") || cookieNext, "/open");
 
   if (code) {
     const supabase = await supabaseServer();
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         if (next.startsWith("/join/")) return NextResponse.redirect(`${origin}${next}`);
         const res = NextResponse.redirect(`${origin}/welcome`);
         // Keep the desktop hand-off destination alive across /welcome.
-        if (next !== "/dashboard") res.cookies.set(COOKIE.next, next, NEXT_COOKIE_OPTS);
+        if (next !== "/open") res.cookies.set(COOKIE.next, next, NEXT_COOKIE_OPTS);
         return res;
       }
       return NextResponse.redirect(`${origin}${next}`);

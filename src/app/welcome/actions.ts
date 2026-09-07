@@ -10,7 +10,7 @@ import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 // invite link. Team creation is open — anyone with a GitHub account.
 // Inside the desktop panel the forms carry next=/widget so the panel lands
 // back on itself; in the browser the devbrain_next cookie (set by the
-// desktop sign-in hand-off) wins, else the dashboard.
+// desktop sign-in hand-off) wins, else /open (the Desk hand-off).
 
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "team";
@@ -60,7 +60,7 @@ export async function createTeam(formData: FormData): Promise<void> {
   jar.set(COOKIE.org, org.id, ORG_COOKIE_OPTS);
   const cookieNext = jar.get(COOKIE.next)?.value ?? "";
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }, ...(cookieNext ? [{ name: COOKIE.next, path: "/" }] : [])]);
-  redirect(formNext || safeNext(cookieNext, "/dashboard?created=1"));
+  redirect(formNext || safeNext(cookieNext, "/open?created=1"));
 }
 
 export async function useInvite(formData: FormData): Promise<void> {

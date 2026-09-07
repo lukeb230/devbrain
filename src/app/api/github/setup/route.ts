@@ -9,7 +9,7 @@ import { installationOctokit } from "@/lib/github";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const installationId = Number(searchParams.get("installation_id"));
-  if (!installationId) return NextResponse.redirect(`${origin}/dashboard`);
+  if (!installationId) return NextResponse.redirect(`${origin}/desk/team`);
 
   const supabase = await supabaseServer();
   const {
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   const ctx = await currentOrg();
   if (!ctx) return NextResponse.redirect(`${origin}/welcome`);
   // Linking repos into the org is an admin action — refuse before any write.
-  if (!hasRole(ctx.role, "admin")) return NextResponse.redirect(`${origin}${withError("/dashboard", "link_repo_admin")}`);
+  if (!hasRole(ctx.role, "admin")) return NextResponse.redirect(`${origin}${withError("/desk", "link_repo_admin")}`);
   const membership = { org_id: ctx.orgId };
 
   // An installation belongs to exactly one org. If this one already belongs to
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       org_id: existingInst.org_id, repo_id: null, kind: "error",
       payload: { where: "setup:claim_conflict", by_org: membership.org_id, installation_id: installationId },
     });
-    return NextResponse.redirect(`${origin}${withError("/dashboard", "install_owned")}`);
+    return NextResponse.redirect(`${origin}${withError("/desk", "install_owned")}`);
   }
 
   // Claim (or create) the installation row for this org.
@@ -89,5 +89,5 @@ export async function GET(request: Request) {
     console.error("setup sync failed:", err);
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  return NextResponse.redirect(`${origin}/desk/team?linked=1`);
 }

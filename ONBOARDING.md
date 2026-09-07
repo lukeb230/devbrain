@@ -69,7 +69,7 @@ CLI, plugin and the app. To force it: `devbrain update`.
 
 Open a Claude Code session in any linked repo and ask *"What's the team up to
 right now?"* — your Claude answers from live DevBrain data, and everyone
-else's dashboard shows you under "Now working".
+else's panel shows you under "Now working".
 
 ## What you get from here on
 
@@ -86,7 +86,7 @@ else's dashboard shows you under "Now working".
 
 For a CI runner, a Linux box or a Mac without the app:
 
-1. Dashboard → **Settings → Tokens** → create a token (shown once).
+1. In the DevBrain app: Desk → **Tokens** → create a token (shown once). No app yet? The web setup page at /settings/setup mints one too.
 2. Either paste the one-line connect command the page shows, then
    `curl -fsSL …/install.sh | sh -s -- --cli` (needs git + Node 18+), or
    set `DEVBRAIN_URL` + `DEVBRAIN_TOKEN` in the environment — the plugin

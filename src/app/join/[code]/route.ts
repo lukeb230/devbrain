@@ -10,7 +10,7 @@ import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 // Not signed in → GitHub sign-in with next= back here (the invite is the
 // authorisation, so no allowlist applies). Signed in → validate the code,
 // add the membership with the invite's role, make that org the active one,
-// and land on the dashboard — or wherever ?next= / devbrain_next points
+// and land on /open (the Desk hand-off) — or wherever ?next= / devbrain_next points
 // (the desktop panel passes next=/widget; the browser sign-in hand-off sets
 // the cookie so the deep link back to the app still fires).
 // ============================================================================
@@ -56,7 +56,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
 
   const cookieNext = readCookieHeader(request.headers.get("cookie"), COOKIE.next);
   const candidate = explicitNext || cookieNext;
-  const next = candidate && !candidate.startsWith("/join/") ? safeNext(candidate, "/dashboard?joined=1") : "/dashboard?joined=1";
+  const next = candidate && !candidate.startsWith("/join/") ? safeNext(candidate, "/open?joined=1") : "/open?joined=1";
   const res = NextResponse.redirect(`${url.origin}${next}`);
   res.cookies.set(COOKIE.org, inv.org_id, ORG_COOKIE_OPTS);
   clearDevbrainCookies(res.cookies, [{ name: COOKIE.lastRepo, path: "/" }, ...(cookieNext ? [{ name: COOKIE.next, path: "/" }] : [])]);

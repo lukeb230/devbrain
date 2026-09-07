@@ -13,7 +13,7 @@ export default async function LandingPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/dashboard");
+  if (user) redirect("/open");
   const { from, next, auth_error, device_error } = await searchParams;
   // Only same-origin paths may be used as a post-login destination.
   const nextParam = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;

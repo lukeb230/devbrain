@@ -60,7 +60,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
 
       {ctx && !inPanel && (
         <p className="text-center text-sm text-slate-500">
-          <a href="/dashboard" className="text-brand-600 hover:underline">Back to {ctx.orgName}</a>
+          <a href="/open" className="text-brand-600 hover:underline">Back to {ctx.orgName}</a>
         </p>
       )}
       {ctx && inPanel && (

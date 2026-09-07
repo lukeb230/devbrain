@@ -54,7 +54,7 @@ STOP and tell your human instead of overriding).
   fix it now: check out that branch, `git fetch origin && git merge
   origin/main` (union rules auto-resolve the brain notes), re-run the build,
   push. Ten seconds now beats conflict archaeology at merge time.
-- Keep changes scoped to your task; the dashboard shows every file you touch.
+- Keep changes scoped to your task; the team sees every file you touch in DevBrain.
 
 ## Before finishing a task
 
@@ -77,12 +77,12 @@ STOP and tell your human instead of overriding).
 2. **Conflict check — mandatory before any pull request:**
    `git fetch origin && git merge origin/main` on your branch. If there are
    conflicts, resolve them yourself now (and re-run the build) — a PR must
-   never be opened while it conflicts with main. The dashboard flags
+   never be opened while it conflicts with main. The Desk flags
    conflicting PRs in red; don't be the red one.
 3. Remind your human to open a pull request; they cannot approve their own —
    a teammate reviews it.
 4. After the PR merges, the branch is done: it shows as "merged" on the
-   dashboard for 48 hours, then a scheduled cleanup deletes it. Never reuse a
+   Desk for 48 hours, then a scheduled cleanup deletes it. Never reuse a
    merged branch. Before the next task: `git switch main && git pull --ff-only
    && git branch -d <merged-branch>` — the next branch must start from the
    main that includes your merge.
@@ -176,7 +176,7 @@ take an action, confirm with your human first.
 ## After finishing a task
 
 - If you made a non-obvious choice (library, pattern, tradeoff), call
-  `log_decision` with one sentence — it appears on the team dashboard and in
+  `log_decision` with one sentence — it appears in the team's Desk and in
   every teammate's Claude context. This is how the hive mind learns.
 
 ## Team memory search (ask the hive)

@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, LAST_REPO_COOKIE_OPTS } from "@/lib/cookies";
+import { retiredRedirect } from "@/lib/retire";
 
 // Refreshes the Supabase auth session cookie on every request so server
 // components always see a valid session. Webhook/API ingest routes are
@@ -30,14 +31,20 @@ export async function middleware(request: NextRequest) {
 
   await supabase.auth.getUser();
 
-  // Remember the last repo the user visited so the desktop widget (and
-  // /widget) can open straight to it instead of the team home.
-  const m = request.nextUrl.pathname.match(/^\/dashboard\/([0-9a-f-]{36})/);
-  if (m) {
-    response.cookies.set(COOKIE.lastRepo, m[1], LAST_REPO_COOKIE_OPTS);
+  // The browser dashboard is retired: old dashboard / settings URLs (in
+  // bookmarks, old invites, the CLI) land on /open with their Desk route.
+  const retired = retiredRedirect(request.nextUrl.pathname);
+  if (retired) {
+    const url = request.nextUrl.clone();
+    const [path, query] = retired.split("?");
+    url.pathname = path;
+    url.search = query ? `?${query}` : "";
+    const redirect = NextResponse.redirect(url, 308);
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
   // The Desk carries its repo in ?repo=; remember it the same way so the
-  // panel, the Desk and the dashboard agree on "the repo you were in".
+  // panel and the Desk agree on "the repo you were in".
   if (request.nextUrl.pathname.startsWith("/desk")) {
     const q = request.nextUrl.searchParams.get("repo") ?? "";
     if (/^[0-9a-f-]{36}$/.test(q)) response.cookies.set(COOKIE.lastRepo, q, LAST_REPO_COOKIE_OPTS);

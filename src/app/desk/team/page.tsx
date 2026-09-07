@@ -8,6 +8,8 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { DeskNext } from "../desk-next";
 import { Button, Card, Empty, Field, PageTitle, Row } from "../ui";
 
+const APP_SLUG = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
+
 // ============================================================================
 // Desk · Team settings — name, AI usage today, alerts (native notifications;
 // recent list with dismiss; test notification), leave, delete. Team switching
@@ -16,7 +18,7 @@ import { Button, Card, Empty, Field, PageTitle, Row } from "../ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function DeskTeam({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function DeskTeam({ searchParams }: { searchParams: Promise<{ error?: string; linked?: string }> }) {
   const sp = await searchParams;
   const me = await currentOrg();
   if (!me) redirect("/?from=desk");
@@ -40,7 +42,10 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <PageTitle title="Team settings" sub={`${me.orgName} · ${repoCount ?? 0} repo${repoCount === 1 ? "" : "s"} · ${memberCount ?? 0} member${memberCount === 1 ? "" : "s"} · plan ${orgRow?.plan ?? "beta"}${operator === me.orgId ? " · this team operates the deployment" : ""}`} />
+      <PageTitle title="Team settings" sub={`${me.orgName} · ${repoCount ?? 0} repo${repoCount === 1 ? "" : "s"} · ${memberCount ?? 0} member${memberCount === 1 ? "" : "s"} · plan ${orgRow?.plan ?? "beta"}${operator === me.orgId ? " · this team operates the deployment" : ""}`}
+        right={isAdmin ? <a href={`https://github.com/apps/${APP_SLUG}/installations/new`} className="rounded-lg bg-brand-500 px-3 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-400" title="Install the DevBrain GitHub App on a repo; it appears here when GitHub sends us back">Link a repo</a> : undefined}
+      />
+      {sp.linked && <p className="mb-3 rounded-lg border border-[var(--wg-go-line)] bg-[var(--wg-go-bg)] px-3 py-1.5 text-[12px] text-go">Repo linked. Pick it from the repo switcher above.</p>}
 
       <Card title="Name">
         {isOwner ? (

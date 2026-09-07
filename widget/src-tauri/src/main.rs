@@ -594,6 +594,7 @@ fn main() {
                     let path = url.path();
                     let allowed = (host == site_host()
                         && (path.starts_with("/desk")
+                            || path.starts_with("/open")
                             || path.starts_with("/auth")
                             || path.starts_with("/welcome")
                             || path.starts_with("/join/")

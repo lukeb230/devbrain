@@ -12,7 +12,7 @@ export function panelAllowed(path: string): boolean {
 /** Which site paths may load inside the Desk window (the Rust shell keeps the
  *  same list for the "desk" window). Everything else opens in the browser. */
 export function deskAllowed(path: string): boolean {
-  return path === "/" || /^\/(desk|auth|welcome|join\/|api\/)/.test(path);
+  return path === "/" || /^\/(desk|open|auth|welcome|join\/|api\/)/.test(path);
 }
 
 /** Same-origin path or the fallback. Rejects protocol-relative `//host`. */

@@ -435,11 +435,11 @@ function PinButton({ t }: { t: { id: string; repo_id: string; pinned: boolean } 
 // the shell never creates — so inside the app every external link goes
 // through the opener command instead. In a browser it behaves normally.
 /** Open the Desk window on a route (e.g. "/prs"). Inside the app this is the
- *  open_desk command; in a plain browser it falls back to the old dashboard. */
+ *  open_desk command; in a plain browser it falls back to /desk in a tab. */
 function openDesk(e: React.MouseEvent, route: string, browserFallback: string) {
   const w = window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } }; __devbrainChannel?: string };
   const core = w.__TAURI__?.core;
-  if (!core) return; // plain browser: let the anchor navigate (target=_blank) to the old dashboard
+  if (!core) return; // plain browser: let the anchor navigate (target=_blank) to the Desk route
   e.preventDefault();
   void core.invoke("open_desk", { route }).catch(() => {
     // IPC refused (an older shell, a capability mismatch): the app's own URL
@@ -707,7 +707,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <h2 className="wg-sec">This Mac <span className="n">{setup.app_version ? `v${setup.app_version}` : ""}</span><span className={"r " + (setup.bootstrap_ok === false ? "text-stop" : setup.bootstrap_ok ? "text-go" : "")}>{setup.bootstrap_ok === false ? "needs attention" : setup.bootstrap_ok ? "complete" : ""}</span></h2>
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-1 text-[12px]">
                     <span className="text-muted">Setup</span><span className="font-mono text-[11px] text-txt">{setup.bootstrap_at ? `ran ${new Date(setup.bootstrap_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "never run"}{setup.bootstrap_failed.length ? ` · failed: ${setup.bootstrap_failed.join(", ")}` : setup.bootstrap_ok ? " · all parts ok" : ""}</span><SetupCard state={setup} inline />
-                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/settings/reminders" target="_blank" onClick={(e) => openDesk(e, "/reminders", "/settings/reminders")} className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
+                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/desk/reminders" target="_blank" onClick={(e) => openDesk(e, "/reminders", "/desk/reminders")} className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
                     <span className="text-muted">Updates</span><span className="font-mono text-[11px] text-txt">daily + on session start</span><span />
                   </div>
                 </section>
@@ -732,7 +732,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       )}
                     </div>
                   ))}
-                  <p className="wg-empty">Rules apply to every Claude working in this repo. <a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}/rules` : "/dashboard"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/rules?repo=${data.lastRepo.id}` : "/rules", data.lastRepo ? `/dashboard/${data.lastRepo.id}/rules` : "/dashboard")} className="font-display text-[11px] font-semibold text-brand-400">Full details in the Desk →</a></p>
+                  <p className="wg-empty">Rules apply to every Claude working in this repo. <a href={data.lastRepo ? `/desk/rules?repo=${data.lastRepo.id}` : "/desk/rules"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/rules?repo=${data.lastRepo.id}` : "/rules", data.lastRepo ? `/desk/rules?repo=${data.lastRepo.id}` : "/desk/rules")} className="font-display text-[11px] font-semibold text-brand-400">Full details in the Desk →</a></p>
                 </section>
               )}
 
@@ -752,7 +752,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 </section>
               )}
 
-              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/?repo=${data.lastRepo.id}` : "/", data.lastRepo ? `/dashboard/${data.lastRepo.id}` : "/dashboard")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open the Desk →</a> <span className="text-faint">The full app: board, PRs, history, rules, team.</span></p>
+              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/desk?repo=${data.lastRepo.id}` : "/desk"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/?repo=${data.lastRepo.id}` : "/", data.lastRepo ? `/desk?repo=${data.lastRepo.id}` : "/desk")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open the Desk →</a> <span className="text-faint">The full app: board, PRs, history, rules, team.</span></p>
             </div>
           </div>
         )}

@@ -371,8 +371,38 @@ pub fn start_browser_login(app: AppHandle) -> Result<(), String> {
 /// Sign-in handoff, step 2: `devbrain[-beta]://login?token=…` arrives from
 /// the browser; load the site's device-login route INSIDE the panel so the
 /// session lands in the panel's cookie jar, then show the panel.
+/// "Check for updates…": run `devbrain update` detached with the bundled
+/// node. It reconciles the CLI, plugin, jobs and the app bundle against main
+/// and the latest widget release; a swapped app takes effect on next launch.
+pub fn spawn_update(app: AppHandle) {
+    let node = node_path(&app);
+    let cli = cli_path();
+    let log = if is_beta() { "/tmp/devbrain-beta-update.log" } else { "/tmp/devbrain-update.log" };
+    if !cli.exists() {
+        crate::notify::post(&app, app_name(), "Set up this Mac first — the updater lives in ~/.devbrain/src.");
+        return;
+    }
+    crate::notify::post(&app, app_name(), "Checking for updates… a new app build applies on next launch.");
+    std::thread::spawn(move || {
+        let out = fs::OpenOptions::new().create(true).append(true).open(log).ok();
+        let mut cmd = Command::new(&node);
+        cmd.arg(&cli).arg("update").env("HOME", home()).env("DEVBRAIN_HOME", devbrain_dir());
+        if let Some(f) = out {
+            if let Ok(f2) = f.try_clone() { cmd.stdout(f).stderr(f2); }
+        }
+        let ok = cmd.status().map(|s| s.success()).unwrap_or(false);
+        crate::notify::post(&app, app_name(), if ok { "Up to date. Any new app build starts on next launch." } else { "Update check failed — see /tmp/devbrain-update.log." });
+    });
+}
+
 pub fn handle_deep_link(app: &AppHandle, urls: &[tauri::Url]) {
     for u in urls {
+        // devbrain://desk/<route>?…  → open the Desk window on that page.
+        if u.host_str() == Some("desk") {
+            let route = format!("{}{}", u.path(), u.query().map(|q| format!("?{q}")).unwrap_or_default());
+            crate::show_desk(app.clone(), Some(route));
+            continue;
+        }
         if u.host_str() != Some("login") {
             continue;
         }

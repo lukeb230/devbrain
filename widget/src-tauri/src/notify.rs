@@ -156,12 +156,27 @@ pub async fn notify(app: tauri::AppHandle, title: String, body: String) -> Strin
             .unwrap_or_else(|_| "error: task failed".into());
         // Registering with Notification Center can make macOS treat the app
         // as a regular (Dock) app — seen when the delegate was installed at
-        // launch. Re-assert the menu-bar-only policy after every delivery.
-        let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        // launch. Re-assert the user's Dock choice after every delivery.
+        crate::reassert_policy(&app);
         r
     }
     #[cfg(not(target_os = "macos"))]
     { let _ = (app, title, body); "unsupported".to_string() }
+}
+
+/// Post a notification from Rust (tray actions). Fire-and-forget; the result
+/// is not needed by the caller. Same policy re-assertion as the command.
+pub fn post(app: &tauri::AppHandle, title: &str, body: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let (t, b, h) = (title.to_string(), body.to_string(), app.clone());
+        tauri::async_runtime::spawn(async move {
+            let _ = tauri::async_runtime::spawn_blocking(move || mac::notify(&t, &b)).await;
+            crate::reassert_policy(&h);
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    { let _ = (app, title, body); }
 }
 
 // NOTE: the delegate is installed lazily by notify(), never at launch —

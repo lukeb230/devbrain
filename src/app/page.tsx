@@ -41,7 +41,7 @@ export default async function LandingPage({
           any GitHub repo.
         </p>
       </div>
-      <SignInButton next={nextParam || (from === "widget" ? "/widget" : undefined)} />
+      <SignInButton next={nextParam || (from === "widget" ? "/widget" : from === "desk" ? "/desk" : undefined)} />
       <p className="text-xs text-slate-500">
         Sign in with GitHub, create or join a team, link a repo, and install the
         Mac app — that&apos;s the whole setup.

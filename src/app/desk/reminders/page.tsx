@@ -75,7 +75,7 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
         )}
       </Card>
       <Card title="This Mac">
-        <p className="text-[12px] text-muted">The DevBrain app on this Mac syncs every mapped list every 3 minutes while it runs, using the Reminders permission you granted it. Turn syncing on or off in the panel&apos;s Settings.</p>
+        <p className="text-[12px] text-muted">The DevBrain app on this Mac syncs every mapped list every 3 minutes while it runs, using the Reminders permission you granted it. Turn syncing on or off under This Mac.</p>
       </Card>
       {sp.error && <p className="mt-2 text-[11.5px] text-wait">That didn&apos;t go through ({sp.error}).</p>}
     </>

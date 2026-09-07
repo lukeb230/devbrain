@@ -68,7 +68,7 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
         {unmapped.length > 0 && (
           <div className="mt-2">
             <div className="font-display text-[9.5px] uppercase tracking-[.14em] text-muted">Lists seen on teammates&apos; Macs, not mapped</div>
-            {unmapped.map((s) => <Row key={s.list_name} title={s.list_name} sub={`${s.item_count} items · seen by ${s.seen_by} ${ago(s.last_seen)}`} />)}
+            {unmapped.map((s) => <Row key={s.list_name} title={s.list_name} sub={`${typeof s.item_count === "number" ? `${s.item_count} items · ` : ""}seen by ${s.seen_by} ${ago(s.last_seen)}`} />)}
           </div>
         )}
       </Card>

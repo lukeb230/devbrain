@@ -21,6 +21,7 @@ import { toggleRule } from "../dashboard/[repoId]/rules/actions";
 import { uploadSpec } from "../dashboard/[repoId]/specs/actions";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask, togglePin } from "../dashboard/[repoId]/tasks/actions";
 import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
+import { buildNeeds } from "@/lib/desk/needs-you";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetBadge } from "./badge";
 import { WidgetLive } from "./live";
@@ -757,21 +758,20 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         )}
 
         {tab === "Home" && (() => {
+          // One builder shared with the Desk (src/lib/desk/needs-you.ts); the panel
+          // only decides how each action is drawn.
           type Need = { level: "stop" | "go" | "wait"; title: string; why: string; cta: React.ReactNode };
-          const needs: Need[] = [];
           const go = (t: Tab, label: string) => <button onClick={() => setTab(t)} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">{label}</button>;
-          for (const pr of data.prs) if (isMe(pr.author) && pr.mergeable_state === "dirty") needs.push({ level: "stop", title: `#${pr.number} has conflicts`, why: `${pr.title} — resolve against ${pr.defaultBranch}`, cta: <a href={pr.html_url ?? "#"} target="_blank" onClick={(e) => openExternal(e, pr.html_url ?? "#")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Fix</a> });
-          const myPaths = data.claims.filter((c) => isMe(c.dev_label)).flatMap((c) => c.paths.map((p) => p.replace(/\/$/, "")));
-          for (const c of data.collisions) {
-            const mine = myPaths.some((p) => c.file.startsWith(p));
-            needs.push({ level: mine ? "stop" : "wait", title: mine ? `Your lane is contested — ${c.file.split("/").pop()}` : `Collision — ${c.file.split("/").pop()}`, why: `${c.branches.join(" + ")}${data.scopeAll ? ` · ${c.repo}` : ""}`, cta: go("PRs", "Look") });
-          }
-          for (const pr of data.prs) if (isMe(pr.author) && pr.light?.state === "green") needs.push({ level: "go", title: `#${pr.number} is cleared to land`, why: pr.light.reason, cta: <a href={pr.html_url ?? "#"} target="_blank" onClick={(e) => openExternal(e, pr.html_url ?? "#")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Merge</a> });
-          for (const t of open) if (t.priority === 1 && isMe(t.assigned_to) && !t.started_by) needs.push({ level: "wait", title: `P1 assigned to you — ${t.title}`, why: `${t.created_by ?? "?"} · ${timeAgo(t.created_at)}`, cta: <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Start</button></form> });
-          for (const t of open) if (t.maybe_done_pr && isMe(t.assigned_to)) needs.push({ level: "wait", title: `Possibly done — ${t.title}`, why: `PR #${t.maybe_done_pr} looks like it closed it`, cta: go("Tasks", "Confirm") });
-          for (const h of data.handoffs) if (!isMe(h.by)) needs.push({ level: "wait", title: `Handoff from ${h.by}${h.branch ? ` on ${h.branch}` : ""}`, why: h.summary, cta: <form action={pickupHandoff}><input type="hidden" name="repoId" value={h.repo_id} /><input type="hidden" name="id" value={h.id} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Pick up</button></form> });
-          const order = { stop: 0, go: 1, wait: 2 };
-          needs.sort((x, y) => order[x.level] - order[y.level]);
+          const ext = (url: string | null, label: string) => <a href={url ?? "#"} target="_blank" onClick={(e) => openExternal(e, url ?? "#")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">{label}</a>;
+          const needs: Need[] = buildNeeds({
+            self: data.self, scopeAll: data.scopeAll, prs: data.prs, tasks: data.tasks, claims: data.claims, collisions: data.collisions, handoffs: data.handoffs, fmtAgo: timeAgo,
+          }).map((n) => ({
+            level: n.level, title: n.title, why: n.why,
+            cta: n.action.kind === "github" ? ext(n.action.url, n.action.label)
+              : n.action.kind === "tab" ? go(n.action.tab, n.action.label)
+              : n.action.kind === "start_task" ? <form action={startTask}><input type="hidden" name="repoId" value={n.action.repoId} /><input type="hidden" name="id" value={n.action.taskId} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Start</button></form>
+              : <form action={pickupHandoff}><input type="hidden" name="repoId" value={n.action.repoId} /><input type="hidden" name="id" value={n.action.handoffId} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Pick up</button></form>,
+          }));
           const dot = { stop: "bg-stop shadow-[0_0_8px_var(--wg-stop)]", go: "bg-go shadow-[0_0_8px_var(--wg-go)]", wait: "bg-wait" };
           const tiles = [
             { n: data.prs.length, l: "PRs", t: "PRs" as Tab, warn: false },

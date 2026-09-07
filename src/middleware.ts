@@ -36,6 +36,12 @@ export async function middleware(request: NextRequest) {
   if (m) {
     response.cookies.set(COOKIE.lastRepo, m[1], LAST_REPO_COOKIE_OPTS);
   }
+  // The Desk carries its repo in ?repo=; remember it the same way so the
+  // panel, the Desk and the dashboard agree on "the repo you were in".
+  if (request.nextUrl.pathname.startsWith("/desk")) {
+    const q = request.nextUrl.searchParams.get("repo") ?? "";
+    if (/^[0-9a-f-]{36}$/.test(q)) response.cookies.set(COOKIE.lastRepo, q, LAST_REPO_COOKIE_OPTS);
+  }
   return response;
 }
 

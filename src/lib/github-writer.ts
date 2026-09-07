@@ -1,59 +1,44 @@
-import { App } from "@octokit/app";
+import { githubApp, installationOctokit } from "@/lib/github";
+import type { WritePerms } from "@/lib/writer-gates";
 
 // ============================================================================
-// The WRITER GitHub App — Direction 2 ("Copilot"), kept deliberately caged:
+// GitHub writes — "Let DevBrain act on GitHub", kept deliberately caged:
 //
-//   - A SEPARATE app from the read-only one, with its own credentials, so
-//     write capability exists only where this app is explicitly installed.
-//   - Every write goes through a branch + pull request. There is no code
-//     path here that pushes to a default branch — reverts, brain updates,
-//     everything lands as a PR a human reviews under the normal team rules.
-//   - Callers must check the per-repo writer policy toggles before invoking.
-//   - Every successful write should be recorded as an events row
-//     (kind 'bot_write') by the caller — that's the audit trail.
+//   - ONE GitHub App. The same installation that reads a repo can write to
+//     it once the org owner approved the app's write permissions (contents +
+//     pull_requests). Whether DevBrain uses that on a repo is a per-repo
+//     policy switch — admin-only, default off — see writer-gates.ts.
+//   - Every write goes through a branch + pull request, or merges a PR a
+//     human approved. There is no code path here that pushes to a default
+//     branch.
+//   - Callers check the gates (writer-gates.ts) before invoking.
+//   - Every successful write is recorded as an events row (kind 'bot_write')
+//     by the caller — that's the audit trail the Feed shows.
 // ============================================================================
 
-function normalizePrivateKey(raw: string): string {
-  let key = (raw || "").replace(/\\n/g, "\n").trim();
-  if (key.includes("BEGIN")) return key;
-  const body = key.replace(/\s+/g, "");
-  const lines = body.match(/.{1,64}/g) || [];
-  return `-----BEGIN RSA PRIVATE KEY-----\n${lines.join("\n")}\n-----END RSA PRIVATE KEY-----\n`;
-}
+const writerOctokit = installationOctokit;
 
-export function writerConfigured(): boolean {
-  return Boolean(process.env.DEVBRAIN_GHW_APP_ID && process.env.DEVBRAIN_GHW_PRIVATE_KEY);
-}
-
-function writerApp() {
-  return new App({
-    appId: process.env.DEVBRAIN_GHW_APP_ID!,
-    privateKey: normalizePrivateKey(process.env.DEVBRAIN_GHW_PRIVATE_KEY || ""),
-  });
-}
-
-export async function writerOctokit(installationId: number) {
-  return writerApp().getInstallationOctokit(installationId);
-}
-
-/** Look up the writer app's installation on a repo (null if not installed). */
-export async function findWriterInstallation(fullName: string): Promise<number | null> {
-  if (!writerConfigured()) return null;
-  const [owner, repo] = fullName.split("/");
+/**
+ * What GitHub currently grants this installation. After the app's permission
+ * set changes, GitHub keeps every existing installation on its old grants
+ * until that org's owner approves — so "the app can write" and "this repo's
+ * installation can write" are different questions. Never throws.
+ */
+export async function installationWritePerms(installationId: number): Promise<WritePerms> {
   try {
-    const res = await writerApp().octokit.request("GET /repos/{owner}/{repo}/installation", {
-      owner,
-      repo,
+    const res = await githubApp().octokit.request("GET /app/installations/{installation_id}", {
+      installation_id: installationId,
     });
-    return res.data.id ?? null;
+    const p = (res.data.permissions ?? {}) as Record<string, string | undefined>;
+    return { contents: p.contents ?? null, pull_requests: p.pull_requests ?? null };
   } catch {
-    return null;
+    return { contents: null, pull_requests: null };
   }
 }
 
 /**
- * Auto-merge a green-lit PR as the writer app. Only ever called when the
- * per-repo writer_auto_merge policy is ON and the light is green. Squash by
+ * Auto-merge a green-lit PR. Only ever called when canAutoMerge() said yes
+ * (switch on, light green, a human approved). Squash by
  * default (clean one-commit-per-PR history), falling back to a merge commit
  * if the repo disallows squash. GitHub branch protection is the hard
  * backstop — if requirements aren't actually met, the API refuses.
@@ -87,7 +72,7 @@ export async function mergePrAsWriter(
 
 /**
  * Bring a stale PR branch up to date with its base — GitHub's own "Update
- * branch" button, driven by the writer app. Merges base into head server-side:
+ * branch" button, driven by DevBrain. Merges base into head server-side:
  * no force-push, no history rewrite. Returns updated:false with the error when
  * GitHub refuses (409/422 = merge conflict → the PR needs a local rebase; the
  * context's rebase_needed entry already carries the fix).

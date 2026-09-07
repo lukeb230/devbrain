@@ -67,7 +67,7 @@ webhooks with `ngrok http 3000`.
 Anyone with a GitHub account can sign in and create a team at `/welcome`.
 Teams add people with invite links from **Settings → Members** (7-day
 expiry, optional single-use). Roles: **owner** (team, roles, members) ·
-**admin** (link/unlink repos, rules, writer app, Reminders mapping,
+**admin** (link/unlink repos, rules, the "act on GitHub" switches, Reminders mapping,
 invites) · **member** (everything else). There is no allowlist.
 
 Dev tokens (**Settings → Tokens**) connect machines; the Mac app mints its

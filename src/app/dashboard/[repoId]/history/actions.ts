@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createRevertPr } from "@/lib/github-writer";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { canRevert } from "@/lib/writer-gates";
 
 // One-click revert from the History tab. Hard gates, in order:
 //   1. signed-in org member (RLS-scoped repo read)
-//   2. writer app connected to this repo
-//   3. writer_revert_pr policy toggled ON for this repo
+//   2. the repo's writer_revert_pr switch is ON (admins set it; default off)
+//   3. the main app's installation exists on the repo
 // The write itself is branch + PR only; an audit event is always recorded.
 export async function revertFromHistory(formData: FormData): Promise<void> {
   const repoId = String(formData.get("repoId") || "");
@@ -24,10 +25,10 @@ export async function revertFromHistory(formData: FormData): Promise<void> {
   if (!user) return;
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, org_id, full_name, default_branch, writer_installation_id")
+    .select("id, org_id, full_name, default_branch, installation_id")
     .eq("id", repoId)
     .single();
-  if (!repo || !repo.writer_installation_id) return;
+  if (!repo) return;
 
   const admin = supabaseAdmin();
   const { data: policy } = await admin
@@ -35,8 +36,8 @@ export async function revertFromHistory(formData: FormData): Promise<void> {
     .select("enabled")
     .eq("repo_id", repo.id)
     .eq("rule", "writer_revert_pr")
-    .single();
-  if (!policy?.enabled) return; // default off — must be explicitly enabled
+    .maybeSingle();
+  if (!canRevert({ policyOn: policy?.enabled, installationId: repo.installation_id })) return; // default off
 
   const by =
     String(
@@ -48,7 +49,7 @@ export async function revertFromHistory(formData: FormData): Promise<void> {
   let prUrl = "";
   try {
     const result = await createRevertPr({
-      installationId: repo.writer_installation_id,
+      installationId: repo.installation_id,
       fullName: repo.full_name,
       beforeSha,
       afterSha,

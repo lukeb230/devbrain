@@ -37,7 +37,7 @@ The tagline used on the site: *"A shared second brain for your team and your cod
 - **Handoffs & claims**: leave a handoff for whoever picks up next; claim an area to avoid overlap.
 - **Team rules**: toggles per repo, served to every agent; each rule links to the matching GitHub branch-protection setting for enforcement by humans.
 - **Daily standup digest** written by the agent tier from the last 24 hours.
-- **Restore points**: deploy scripts can register a known-good SHA/tag; the history view shows a timeline (and an optional "writer app" can open a revert PR).
+- **Restore points**: deploy scripts can register a known-good SHA/tag; the history view shows a timeline (and, with the repo's "Revert from History" switch on, DevBrain opens a revert PR).
 - **Zombie branch** detection and one-line summaries of stale unmerged work.
 - **Alerts** to owners/admins when something breaks (sync errors, a repo losing GitHub access, the AI budget running out) — in-app, or to a Slack/Discord webhook.
 - **The Mac app**: a corner badge / menu-bar panel with the live dashboard, native notifications, and a first-run installer that sets up the CLI, the Claude Code plugin and a self-updater. Node is bundled; there are no prerequisites beyond Claude Code itself.
@@ -71,7 +71,7 @@ The tagline used on the site: *"A shared second brain for your team and your cod
 
 - **Data model is multi-tenant from day one**: every row belongs to a team ("org"); Postgres row-level security scopes every read to the member's teams; server actions check roles.
 - **Plugins and CLI authenticate with per-machine bearer tokens** (sha256-hashed at rest, revocable, revoked automatically when someone leaves a team). The Mac app mints its own on first run via a browser sign-in hand-off (no GitHub password ever typed into the app).
-- **GitHub App webhooks** feed pushes, PRs and reviews; the app never has write access to code (an optional separate "writer app" can open PRs only).
+- **GitHub App webhooks** feed pushes, PRs and reviews; the app holds write permission but only uses it behind per-repo switches (default off), and only ever as a PR or the merge of a human-approved PR — never a push to main.
 - **The agent tick** is server-side automation on a 2-minute cron: one bounded unit of AI work per run (PR review, auto-complete matching, spec analysis, task footprints, journal summaries, memory indexing, daily digest) plus deterministic units (traffic lights, zombie branches). Teams are served round-robin; each has a daily AI call cap.
 - **Team memory** is a Postgres full-text index over journals, decisions, broadcasts, handoffs, reviews, tasks and brain notes; the context digest attaches the best matches to the developer's current prompt.
 - **Privacy posture**: hook payloads carry file *paths* and redacted transcript excerpts — never file contents. Journal excerpts strip secrets and code blocks before leaving the machine. Journals are visible team-wide but every entry is labelled with its author.

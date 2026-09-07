@@ -3,6 +3,7 @@ import { AppNav } from "@/components/AppNav";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { revertFromHistory } from "./actions";
 import { supabaseServer } from "@/lib/supabase/server";
+import { canRevert } from "@/lib/writer-gates";
 import { Live } from "../live";
 
 export const dynamic = "force-dynamic";
@@ -53,23 +54,20 @@ export default async function HistoryPage({
 
   const { data: repo } = await supabase
     .from("linked_repos")
-    .select("id, full_name, default_branch, writer_installation_id")
+    .select("id, full_name, default_branch, installation_id")
     .eq("id", repoId)
     .single();
   if (!repo) notFound();
 
-  // Writer (Direction 2): one-click revert is live only when the writer app
-  // is connected AND the repo's writer_revert_pr policy is on.
-  let revertEnabled = false;
-  if (repo.writer_installation_id) {
-    const { data: policy } = await supabaseAdmin()
-      .from("policies")
-      .select("enabled")
-      .eq("repo_id", repo.id)
-      .eq("rule", "writer_revert_pr")
-      .single();
-    revertEnabled = Boolean(policy?.enabled);
-  }
+  // One-click revert is live only when the repo's writer_revert_pr switch is
+  // on (Rules → "Let DevBrain act on GitHub"; admins, default off).
+  const { data: revertPolicy } = await supabaseAdmin()
+    .from("policies")
+    .select("enabled")
+    .eq("repo_id", repo.id)
+    .eq("rule", "writer_revert_pr")
+    .maybeSingle();
+  const revertEnabled = canRevert({ policyOn: revertPolicy?.enabled, installationId: repo.installation_id });
 
   const [{ data: pushes }, { data: mergedBranches }, { data: prs }, { data: restores }] =
     await Promise.all([

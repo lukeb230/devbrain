@@ -24,13 +24,10 @@ export function IpcProbe() {
       } catch (e) {
         setup = `error: ${String(e).slice(0, 120)}`;
       }
-      try {
-        // Same command the panel's "Open the Desk →" uses. Calling it from the
-        // Desk just re-focuses this window — a harmless round trip.
-        await core.invoke("open_desk", { route: "/mac" });
-      } catch (e) {
-        openDesk = `error: ${String(e).slice(0, 120)}`;
-      }
+      // NEVER call open_desk from here: it navigates this very window, which
+      // re-runs this probe — an infinite reload loop (shipped once, 2026-09-07).
+      // The bridge being present and setup_state answering is proof enough.
+      openDesk = "not exercised (would reload this window)";
       setState({ bridge: true, setup, openDesk });
     })();
   }, []);

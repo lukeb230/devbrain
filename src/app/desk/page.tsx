@@ -11,6 +11,7 @@ import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { DeskNext } from "./desk-next";
 import { ExternalLink } from "./external-link";
+import { Pulse } from "@/app/widget/pulse";
 import { Button, Card, Empty, Field, PageTitle, Row, Select } from "./ui";
 
 // ============================================================================
@@ -51,6 +52,8 @@ export default async function DeskHome({ searchParams }: { searchParams: Promise
   const isMe = (name: string | null | undefined) => Boolean(data.self && name && name.toLowerCase() === data.self.toLowerCase());
   const needs = buildNeeds({ self: data.self, scopeAll: data.scopeAll, prs: data.prs, tasks: data.tasks, claims: data.claims, collisions: data.collisions, handoffs: data.handoffs, fmtAgo: timeAgo });
   const open = data.tasks.filter((t) => t.status === "open");
+  const hourAgo = Date.now() - 3600_000;
+  const peopleLastHour = new Set(data.activity.filter((a) => new Date(a.at).getTime() > hourAgo).map((a) => a.dev_label ?? "")).size;
   const to = (route: string) => withScope(`/desk${route}`, scope);
 
   // Presence grouped by root identity — spawned sessions fold under their parent.
@@ -131,6 +134,15 @@ export default async function DeskHome({ searchParams }: { searchParams: Promise
         )}
       </Card>
 
+      <div className="mb-2.5 rounded-xl border border-line bg-row pt-1.5">
+        <Pulse
+          activity={data.activity}
+          events={[...data.feed.map((f) => ({ at: f.at, kind: f.kind })), ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" }))]}
+          collision={data.collisions.length > 0}
+          people={peopleLastHour}
+          prEvents={data.prs.length}
+        />
+      </div>
       <div className="mb-2.5 grid grid-cols-4 gap-2">
         {[
           { n: data.prs.length, l: "PRs", href: to("/prs"), warn: false },

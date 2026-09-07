@@ -2,8 +2,21 @@ import { redirect } from "next/navigation";
 import { mapList, unmapList } from "@/app/settings/reminders/actions";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
+import { ConfirmButton } from "../confirm-button";
 import { DeskNext } from "../desk-next";
 import { Button, Card, Empty, PageTitle, Row, Select } from "../ui";
+
+// Client-side description of the map that is about to happen; the values come
+// from the form itself so the confirm names the real list and repo.
+function MapConfirm() {
+  return <ConfirmButton label="Map list" describe={describeMap} />;
+}
+const describeMap = (form: HTMLFormElement) => {
+  const list = (form.elements.namedItem("list") as HTMLInputElement | null)?.value ?? "";
+  const sel = form.elements.namedItem("repoId") as HTMLSelectElement | null;
+  const repo = sel?.selectedOptions[0]?.text ?? "";
+  return `Every item on "${list}" becomes a task in ${repo} and stays in sync (every 3 min) until unmapped.`;
+};
 
 // ============================================================================
 // Desk · Reminders — each shared Apple Reminders list feeds one repo's board.
@@ -60,7 +73,7 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
               <option value="" disabled>repo…</option>
               {(repos ?? []).map((r) => <option key={r.id} value={r.id}>{r.full_name}</option>)}
             </Select>
-            <Button>Map list</Button>
+            <MapConfirm />
           </form>
         ) : (
           <Empty>Ask a team admin to map a list.</Empty>

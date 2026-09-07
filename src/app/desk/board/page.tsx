@@ -7,6 +7,7 @@ import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { DeskNext } from "../desk-next";
 import { RepoChooser } from "../repo-chooser";
+import { pickSuggestedNext } from "@/lib/lanes";
 import { Button, Card, Chip, Empty, Field, PageTitle, Select } from "../ui";
 
 // ============================================================================
@@ -61,11 +62,20 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
     );
   }
   const repo = (repos ?? []).find((r) => r.id === scope.repoId)!;
-  const [{ data: rows }, members] = await Promise.all([
+  const [{ data: rows }, members, { data: claimRows }] = await Promise.all([
     supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr, started_by, footprint, pinned").eq("repo_id", repo.id).order("created_at"),
     teamMembers(org.orgId),
+    supabase.from("claims").select("dev_label, paths").eq("repo_id", repo.id).is("released_at", null),
   ]);
   const all = (rows ?? []) as Task[];
+  // The dispatcher's pick for you: same rule Claude gets in its context —
+  // lane-safe against others' claims and started-task footprints.
+  const meta = (user.user_metadata ?? {}) as { user_name?: string; preferred_username?: string };
+  const you = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "");
+  const othersBusy: string[] = [];
+  for (const c of claimRows ?? []) if (c.dev_label?.toLowerCase() !== you.toLowerCase()) othersBusy.push(...(((c.paths as string[]) ?? [])));
+  for (const t of all) if (t.status === "open" && t.started_by && t.started_by.toLowerCase() !== you.toLowerCase()) othersBusy.push(...(t.footprint ?? []));
+  const suggested = you ? pickSuggestedNext(all.filter((t) => t.status === "open" && !t.maybe_done_pr).map((t) => ({ id: t.id, title: t.title, priority: t.priority, tags: t.tags ?? [], assigned_to: t.assigned_to, started_by: t.started_by, footprint: t.footprint, created_at: t.created_at })), you, othersBusy) : null;
   const who = sp.who && sp.who !== "all" ? sp.who : null;
   const mine = (t: Task) => !who || t.assigned_to === who || t.started_by === who || t.done_by?.startsWith(who);
   const open = all.filter((t) => t.status === "open" && mine(t));
@@ -129,6 +139,13 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
             </>
           }
         />
+        {suggested && !who && (
+          <Link href={`${withScope("/desk/board", scope)}&task=${suggested.id}`} className="mb-2.5 flex items-center gap-2.5 rounded-xl border border-line bg-row px-3.5 py-2 hover:border-brand-500">
+            <span className="font-mono text-[10px] tracking-wider text-brand-400">NEXT FOR YOU</span>
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-txt">{suggested.title}</span>
+            <span className="truncate font-mono text-[10.5px] text-muted" title={suggested.reason}>{suggested.reason}</span>
+          </Link>
+        )}
         <div className="grid grid-cols-3 gap-2.5">
           <Col title="In progress" n={inProgress.length} items={inProgress} empty="Nothing started." />
           <Col title="Open" n={todo.length} items={todo} empty="Nothing open." />

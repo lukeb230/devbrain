@@ -1,3 +1,4 @@
+import { staleBrain } from "@/lib/brain-stale";
 import { pickSuggestedNext } from "@/lib/lanes";
 import { computeMergePlan } from "@/lib/merge-order";
 import { computeLights } from "@/lib/traffic";
@@ -39,26 +40,7 @@ export interface DigestRows {
 }
 
 export function buildDigest(rows: DigestRows) {
-  const prByBranch = new Map((rows.mergedPrs ?? []).map((p) => [p.head_branch, p]));
-  const isCode = (f: string) =>
-    !f.startsWith(".brain/") && !f.startsWith(".github/") &&
-    !/package-lock|\.lock$|\.min\.|\.map$/.test(f);
-  const brain_stale = (rows.mergedBranches ?? [])
-    .filter((b) => {
-      const files = (b.changed_files as string[]) ?? [];
-      return files.some(isCode) && !files.some((f) => f.startsWith(".brain/"));
-    })
-    .map((b) => {
-      const pr = prByBranch.get(b.name);
-      return {
-        branch: b.name,
-        pr: pr?.number ?? null,
-        title: pr?.title ?? null,
-        merged_at: b.merged_at,
-        code_files: ((b.changed_files as string[]) ?? []).filter(isCode).slice(0, 12),
-      };
-    })
-    .slice(0, 5);
+  const brain_stale = staleBrain(rows.mergedBranches ?? [], rows.mergedPrs ?? []);
 
   const DEFAULT_RULES = [
     "no_self_approve: a teammate must approve your PR; you cannot approve your own",

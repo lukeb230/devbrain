@@ -8,6 +8,7 @@ import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { RepoChooser } from "../repo-chooser";
+import { staleBrain } from "@/lib/brain-stale";
 import { Card, Chip, Empty, PageTitle } from "../ui";
 
 // ============================================================================
@@ -44,7 +45,13 @@ export default async function DeskBrain({ searchParams }: { searchParams: Promis
     );
   }
   const repo = (repos ?? []).find((r) => r.id === scope.repoId)!;
-  const { data: branchRows } = await supabase.from("branches").select("name, merged_at").eq("repo_id", repo.id).order("last_push_at", { ascending: false }).limit(15);
+  const since72h = new Date(Date.now() - 72 * 3600_000).toISOString();
+  const [{ data: branchRows }, { data: mergedRows }, { data: mergedPrs }] = await Promise.all([
+    supabase.from("branches").select("name, merged_at").eq("repo_id", repo.id).order("last_push_at", { ascending: false }).limit(15),
+    supabase.from("branches").select("name, changed_files, merged_at").eq("repo_id", repo.id).gte("merged_at", since72h),
+    supabase.from("prs").select("number, title, head_branch").eq("repo_id", repo.id).neq("state", "open").gte("updated_at", since72h),
+  ]);
+  const stale = staleBrain(mergedRows ?? [], mergedPrs ?? []);
   const ref = sp.branch || repo.default_branch;
   const base = withScope("/desk/brain", scope);
   const hrefFor = (slug: string) => `${base}${sp.branch ? `&branch=${encodeURIComponent(sp.branch)}` : ""}&note=${slug}`;
@@ -97,7 +104,21 @@ export default async function DeskBrain({ searchParams }: { searchParams: Promis
           <BrainExplorer notes={notes} nodes={nodes} edges={edges} initialSlug={sp.note || "index"} repoId={repo.id} branch={sp.branch ?? null} searchable />
         </div>
       )}
-      <p className="mt-2 text-[10.5px] text-faint">Stale after a merge? Tell your Claude &ldquo;repair the brain notes for the files that changed&rdquo; — it sees which ones in its context.</p>
+      {stale.length > 0 && (
+        <Card title="Merged without a brain update" count={stale.length} right="last 72h" className="mt-3">
+          {stale.map((s) => (
+            <div key={s.branch} className="flex items-start gap-2.5 border-t border-line py-1.5 first:border-t-0">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] text-txt">{s.pr ? `#${s.pr} ` : ""}{s.title ?? s.branch}</div>
+                <div className="mt-0.5 truncate font-mono text-[10.5px] text-muted">{s.code_files.slice(0, 4).join(" · ")}{s.code_files.length > 4 ? ` · +${s.code_files.length - 4}` : ""}</div>
+              </div>
+              <span className="font-mono text-[10px] text-faint">{s.merged_at ? new Date(s.merged_at).toLocaleDateString() : ""}</span>
+            </div>
+          ))}
+          <p className="mt-2 text-[10.5px] text-faint">Code changed but nothing in <span className="font-mono">.brain/</span> did. Tell your Claude &ldquo;repair the brain notes for the files that changed&rdquo; — it sees this same list in its context.</p>
+        </Card>
+      )}
+      {stale.length === 0 && <p className="mt-2 text-[10.5px] text-faint">Every merge in the last 72h that changed code also updated the brain.</p>}
     </>
   );
 }

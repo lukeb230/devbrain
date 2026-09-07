@@ -34,6 +34,7 @@ export async function setWidgetRepo(repoId: string): Promise<void> {
 
   (await cookies()).set(COOKIE.lastRepo, id, LAST_REPO_COOKIE_OPTS);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 // First-run setup inside the desktop app: mint a dev token for THIS device on
@@ -60,5 +61,6 @@ export async function mintDeviceToken(labelRaw: string): Promise<{ token: string
   });
   if (error) return { error: "could not create token" };
   revalidatePath("/settings/tokens");
+  revalidatePath("/desk", "layout");
   return { token, label };
 }

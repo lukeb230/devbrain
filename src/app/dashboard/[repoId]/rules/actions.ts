@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRoleOrRedirect, withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { returnTo } from "@/lib/surface";
 
 // Rules change what every teammate's Claude does — admins and owners only.
 // A refused call bounces back with ?error= (stay=1 → the widget panel).
@@ -12,8 +13,8 @@ export async function toggleRule(formData: FormData): Promise<void> {
   const rule = String(formData.get("rule") || "");
   const enabled = String(formData.get("enabled")) === "true";
   if (!repoId || !rule) return;
-  const returnTo = formData.get("stay") ? "/widget" : `/dashboard/${repoId}/rules`;
-  const me = await requireRoleOrRedirect("admin", returnTo);
+  const back = returnTo(formData, `/dashboard/${repoId}/rules`);
+  const me = await requireRoleOrRedirect("admin", back);
 
   const supabase = await supabaseServer();
   const admin = supabaseAdmin();
@@ -24,7 +25,7 @@ export async function toggleRule(formData: FormData): Promise<void> {
     .eq("id", repoId)
     .single();
   if (!repo) return;
-  if (repo.org_id !== me.orgId) redirect(withError(returnTo, "admin_only"));
+  if (repo.org_id !== me.orgId) redirect(withError(back, "admin_only"));
 
   await admin.from("policies").upsert(
     {
@@ -44,4 +45,5 @@ export async function toggleRule(formData: FormData): Promise<void> {
   });
   revalidatePath(`/dashboard/${repoId}/rules`);
   revalidatePath("/widget"); // rules are also toggleable from the widget Settings view
+  revalidatePath("/desk", "layout");
 }

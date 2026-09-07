@@ -46,6 +46,7 @@ export async function createClaim(formData: FormData): Promise<void> {
     expires_at: new Date(Date.now() + hours * 3600_000).toISOString(),
   });
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 // Human releasing a claim from the dashboard. Any member may — claims are
@@ -74,4 +75,5 @@ export async function releaseClaim(formData: FormData): Promise<void> {
     .eq("org_id", repo.org_id)
     .is("released_at", null);
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }

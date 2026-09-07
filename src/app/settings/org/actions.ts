@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { COOKIE, ORG_COOKIE_OPTS, clearDevbrainCookies } from "@/lib/cookies";
 import { currentOrg, requireRoleOrRedirect } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { returnTo } from "@/lib/surface";
 
 export async function switchOrg(formData: FormData): Promise<void> {
   const me = await currentOrg();
@@ -14,8 +15,7 @@ export async function switchOrg(formData: FormData): Promise<void> {
   const jar = await cookies();
   jar.set(COOKIE.org, id, ORG_COOKIE_OPTS);
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }]); // never carry a repo across teams
-  const next = String(formData.get("next") || "");
-  redirect(next.startsWith("/desk") ? next : formData.get("stay") ? "/widget" : "/dashboard");
+  redirect(returnTo(formData, "/dashboard"));
 }
 
 export async function renameOrg(formData: FormData): Promise<void> {

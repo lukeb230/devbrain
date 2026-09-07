@@ -12,6 +12,7 @@ import {
   pdfToMarkdown,
   type SourceKind,
 } from "@/lib/spec-text";
+import { returnTo } from "@/lib/surface";
 
 async function authedRepo(repoId: string) {
   const supabase = await supabaseServer();
@@ -35,7 +36,7 @@ async function authedRepo(repoId: string) {
 export async function uploadSpec(formData: FormData): Promise<void> {
   const repoId = String(formData.get("repoId") || "");
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/specs`), "no_access"));
 
   const file = formData.get("file");
   const pasted = String(formData.get("text") || "").trim();
@@ -66,6 +67,7 @@ export async function uploadSpec(formData: FormData): Promise<void> {
             error: String(err).slice(0, 300),
           });
           revalidatePath(`/dashboard/${repoId}/specs`);
+          revalidatePath("/desk", "layout");
           return;
         }
       } else {
@@ -98,9 +100,14 @@ export async function uploadSpec(formData: FormData): Promise<void> {
 
   revalidatePath(`/dashboard/${repoId}/specs`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
   // The widget passes stay=1: never navigate the panel to a dashboard URL
   // (that's what used to strand it on the full site).
-  if (data?.id && !formData.get("stay")) redirect(`/dashboard/${repoId}/specs/${data.id}`);
+  // Land on the new spec, on whichever surface asked.
+  const back = returnTo(formData, `/dashboard/${repoId}/specs`);
+  if (data?.id && !formData.get("stay")) {
+    redirect(back.startsWith("/desk") ? `/desk/specs/${data.id}?repo=${repoId}` : `/dashboard/${repoId}/specs/${data.id}`);
+  }
 }
 
 // Create real tasks from the checked requirements. Footprint prediction picks
@@ -111,7 +118,7 @@ export async function createTasksFromItems(formData: FormData): Promise<void> {
   const ids = formData.getAll("item").map(String).filter(Boolean);
   if (!repoId || !specId || ids.length === 0) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/specs`), "no_access"));
   const admin = supabaseAdmin();
 
   const { data: items } = await admin
@@ -144,6 +151,7 @@ export async function createTasksFromItems(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 export async function dismissItem(formData: FormData): Promise<void> {
@@ -152,13 +160,14 @@ export async function dismissItem(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/specs`), "no_access"));
   await supabaseAdmin()
     .from("spec_items")
     .update({ dismissed_at: new Date().toISOString() })
     .eq("id", id)
     .eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/specs/${specId}`);
+  revalidatePath("/desk", "layout");
 }
 
 export async function restoreItem(formData: FormData): Promise<void> {
@@ -167,13 +176,14 @@ export async function restoreItem(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/specs`), "no_access"));
   await supabaseAdmin()
     .from("spec_items")
     .update({ dismissed_at: null })
     .eq("id", id)
     .eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/specs/${specId}`);
+  revalidatePath("/desk", "layout");
 }
 
 export async function deleteSpec(formData: FormData): Promise<void> {
@@ -181,10 +191,11 @@ export async function deleteSpec(formData: FormData): Promise<void> {
   const specId = String(formData.get("specId") || "");
   if (!repoId || !specId) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/specs`), "no_access"));
   await supabaseAdmin().from("specs").delete().eq("id", specId).eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/specs`);
-  redirect(`/dashboard/${repoId}/specs`);
+  revalidatePath("/desk", "layout");
+  redirect(returnTo(formData, `/dashboard/${repoId}/specs`));
 }
 
 // "Analyze now" — re-queue for the worker (also used to retry a failure).
@@ -193,11 +204,12 @@ export async function requeueSpec(formData: FormData): Promise<void> {
   const specId = String(formData.get("specId") || "");
   if (!repoId || !specId) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/specs`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/specs`), "no_access"));
   await supabaseAdmin()
     .from("specs")
     .update({ status: "new", error: null })
     .eq("id", specId)
     .eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/specs/${specId}`);
+  revalidatePath("/desk", "layout");
 }

@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { COOKIE, clearDevbrainCookies } from "@/lib/cookies";
 import { currentOrg, requireRoleOrRedirect, type Role } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { returnTo, surfaceRoot } from "@/lib/surface";
 
 // Members page: invite links (admin+), roles and removal (owner).
 
@@ -22,6 +23,7 @@ export async function createInvite(formData: FormData): Promise<void> {
     max_uses: single ? 1 : null,
   });
   revalidatePath("/settings/members");
+  revalidatePath("/desk", "layout");
 }
 
 export async function revokeInvite(formData: FormData): Promise<void> {
@@ -29,6 +31,7 @@ export async function revokeInvite(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   await supabaseAdmin().from("org_invites").update({ revoked_at: new Date().toISOString() }).eq("id", id).eq("org_id", me.orgId);
   revalidatePath("/settings/members");
+  revalidatePath("/desk", "layout");
 }
 
 export async function setRole(formData: FormData): Promise<void> {
@@ -44,6 +47,7 @@ export async function setRole(formData: FormData): Promise<void> {
   }
   await admin.from("org_members").update({ role }).eq("org_id", me.orgId).eq("user_id", userId);
   revalidatePath("/settings/members");
+  revalidatePath("/desk", "layout");
 }
 
 export async function removeMember(formData: FormData): Promise<void> {
@@ -55,9 +59,10 @@ export async function removeMember(formData: FormData): Promise<void> {
   // Their machines stop talking to this org too.
   await admin.from("dev_tokens").update({ revoked_at: new Date().toISOString() }).eq("org_id", me.orgId).eq("user_id", userId).is("revoked_at", null);
   revalidatePath("/settings/members");
+  revalidatePath("/desk", "layout");
 }
 
-export async function leaveOrg(): Promise<void> {
+export async function leaveOrg(formData?: FormData): Promise<void> {
   const me = await currentOrg();
   if (!me) return;
   const admin = supabaseAdmin();
@@ -68,5 +73,5 @@ export async function leaveOrg(): Promise<void> {
   await admin.from("org_members").delete().eq("org_id", me.orgId).eq("user_id", me.userId);
   await admin.from("dev_tokens").update({ revoked_at: new Date().toISOString() }).eq("org_id", me.orgId).eq("user_id", me.userId).is("revoked_at", null);
   clearDevbrainCookies(await cookies(), [{ name: COOKIE.org, path: "/" }, { name: COOKIE.lastRepo, path: "/" }]);
-  redirect("/dashboard"); // falls back to another membership, or /welcome
+  redirect(surfaceRoot(returnTo(formData, "/dashboard"))); // that surface's home picks another membership, or /welcome
 }

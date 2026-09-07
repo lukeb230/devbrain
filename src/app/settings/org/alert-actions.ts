@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { alert, operatorOrgId } from "@/lib/alerts";
 import { requireRoleOrRedirect } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { returnTo } from "@/lib/surface";
 
 // Team alerts: test (admin+) and dismiss (admin+). Delivery is native — the
 // Mac app watches alert_log — so there is nothing to configure here.
@@ -19,10 +20,11 @@ export async function sendTestAlert(): Promise<void> {
   });
   revalidatePath("/settings/org");
   revalidatePath("/dashboard");
+  revalidatePath("/desk", "layout");
 }
 
 export async function dismissAlert(formData: FormData): Promise<void> {
-  const me = await requireRoleOrRedirect("admin", formData.get("stay") ? "/widget" : "/dashboard");
+  const me = await requireRoleOrRedirect("admin", returnTo(formData, "/dashboard"));
   const id = String(formData.get("id") || "");
   if (!id) return;
   const admin = supabaseAdmin();

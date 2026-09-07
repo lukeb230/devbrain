@@ -39,6 +39,7 @@ export async function createToken(formData: FormData): Promise<void> {
   (await cookies()).set(COOKIE.newToken, token, NEW_TOKEN_COOKIE_OPTS);
   revalidatePath("/settings/tokens");
   revalidatePath("/settings/setup");
+  revalidatePath("/desk", "layout");
 }
 
 export async function revokeToken(formData: FormData): Promise<void> {
@@ -53,4 +54,5 @@ export async function revokeToken(formData: FormData): Promise<void> {
     .eq("id", id)
     .eq("user_id", member.userId); // can only revoke your own
   revalidatePath("/settings/tokens");
+  revalidatePath("/desk", "layout");
 }

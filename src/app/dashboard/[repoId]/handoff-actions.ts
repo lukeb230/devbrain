@@ -35,6 +35,7 @@ export async function leaveHandoff(formData: FormData): Promise<void> {
     remaining: remaining || null,
   });
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 // Team-wide broadcast from the dashboard (mirrors the plugin's broadcast tool).
@@ -64,6 +65,7 @@ export async function sendBroadcast(formData: FormData): Promise<void> {
     payload: { text, by: name },
   });
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 // A human claiming a handoff from the dashboard (Claudes use the API tool).
@@ -93,4 +95,5 @@ export async function pickupHandoff(formData: FormData): Promise<void> {
     .eq("org_id", repo.org_id)
     .is("picked_up_at", null);
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }

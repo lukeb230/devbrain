@@ -26,6 +26,7 @@ export async function mapList(formData: FormData): Promise<void> {
   await admin.from("reminder_sources").delete().eq("org_id", me.orgId).ilike("list_name", list.replace(/[%_\\]/g, "\\$&"));
   await admin.from("reminder_sources").insert({ org_id: me.orgId, repo_id: repo.id, list_name: list, created_by: me.label });
   revalidatePath("/settings/reminders");
+  revalidatePath("/desk", "layout");
 }
 
 export async function unmapList(formData: FormData): Promise<void> {
@@ -36,4 +37,5 @@ export async function unmapList(formData: FormData): Promise<void> {
   const admin = supabaseAdmin();
   await admin.from("reminder_sources").delete().eq("id", id).eq("org_id", me.orgId);
   revalidatePath("/settings/reminders");
+  revalidatePath("/desk", "layout");
 }

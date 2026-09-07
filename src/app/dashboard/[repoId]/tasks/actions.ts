@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { returnTo } from "@/lib/surface";
 
 function devName(user: { email?: string | null; user_metadata?: Record<string, unknown> }) {
   const m = user.user_metadata ?? {};
@@ -41,7 +42,7 @@ export async function createTask(formData: FormData): Promise<void> {
   if (!repoId || !title) return;
 
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
 
   const assigned = String(formData.get("assignee") || "").trim();
   await supabaseAdmin().from("tasks").insert({
@@ -56,6 +57,7 @@ export async function createTask(formData: FormData): Promise<void> {
   });
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 export async function assignTask(formData: FormData): Promise<void> {
@@ -64,7 +66,7 @@ export async function assignTask(formData: FormData): Promise<void> {
   const assignee = String(formData.get("assignee") || "").trim();
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ assigned_to: assignee || null })
@@ -72,6 +74,7 @@ export async function assignTask(formData: FormData): Promise<void> {
     .eq("org_id", ctx.repo.org_id);
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 export async function completeTask(formData: FormData): Promise<void> {
@@ -79,7 +82,7 @@ export async function completeTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ status: "done", done_at: new Date().toISOString(), done_by: devName(ctx.user), pinned: false })
@@ -93,6 +96,7 @@ export async function completeTask(formData: FormData): Promise<void> {
     .is("released_at", null);
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 export async function reopenTask(formData: FormData): Promise<void> {
@@ -100,7 +104,7 @@ export async function reopenTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ status: "open", done_at: null, done_by: null })
@@ -108,6 +112,7 @@ export async function reopenTask(formData: FormData): Promise<void> {
     .eq("org_id", ctx.repo.org_id);
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
+  revalidatePath("/desk", "layout");
 }
 
 // ============================================================================
@@ -124,7 +129,7 @@ export async function braindumpTasks(formData: FormData): Promise<void> {
   if (!repoId || !dump) return;
 
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   const admin = supabaseAdmin();
 
   const { data: existing } = await admin
@@ -193,6 +198,7 @@ export async function braindumpTasks(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 // "Possibly done by PR #N" — human resolves the AI's medium-confidence match.
@@ -201,7 +207,7 @@ export async function confirmMaybeDone(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   const { data: task } = await supabaseAdmin()
     .from("tasks")
     .select("maybe_done_pr")
@@ -221,6 +227,7 @@ export async function confirmMaybeDone(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 export async function dismissMaybeDone(formData: FormData): Promise<void> {
@@ -228,7 +235,7 @@ export async function dismissMaybeDone(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   await supabaseAdmin()
     .from("tasks")
     .update({ maybe_done_pr: null })
@@ -236,6 +243,7 @@ export async function dismissMaybeDone(formData: FormData): Promise<void> {
     .eq("repo_id", ctx.repo.id);
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 // Start a task from the dashboard: take it + claim its predicted lane (8h,
@@ -245,7 +253,7 @@ export async function startTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   const admin = supabaseAdmin();
   const me = devName(ctx.user);
 
@@ -278,6 +286,7 @@ export async function startTask(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 // Full task edit (from the three-dots menu): title, detail, priority,
@@ -288,7 +297,7 @@ export async function updateTask(formData: FormData): Promise<void> {
   const title = String(formData.get("title") || "").trim().slice(0, 200);
   if (!repoId || !id || !title) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
 
   const detail = String(formData.get("detail") || "").trim().slice(0, 1000) || null;
   const priority = Math.min(4, Math.max(1, Number(formData.get("priority")) || 3));
@@ -328,6 +337,7 @@ export async function updateTask(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 // Delete a task outright (junk braindump entries, duplicates). Releases any
@@ -337,7 +347,7 @@ export async function deleteTask(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   if (!repoId || !id) return;
   const ctx = await authedRepo(repoId);
-  if (!ctx) redirect(withError(`/dashboard/${repoId}/tasks`, "no_access"));
+  if (!ctx) redirect(withError(returnTo(formData, `/dashboard/${repoId}/tasks`), "no_access"));
   const admin = supabaseAdmin();
   await admin
     .from("claims")
@@ -348,6 +358,7 @@ export async function deleteTask(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/${repoId}/tasks`);
   revalidatePath(`/dashboard/${repoId}`);
   revalidatePath("/widget");
+  revalidatePath("/desk", "layout");
 }
 
 /** Pin / unpin a task on the panel's Home tab (team-wide; cleared on completion). */
@@ -360,5 +371,6 @@ export async function togglePin(formData: FormData): Promise<void> {
   await supabaseAdmin().from("tasks").update({ pinned }).eq("id", id).eq("repo_id", ctx.repo.id);
   revalidatePath("/widget");
   revalidatePath(`/dashboard/${repoId}/tasks`);
+  revalidatePath("/desk", "layout");
 }
 

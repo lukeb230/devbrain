@@ -707,7 +707,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <h2 className="wg-sec">This Mac <span className="n">{setup.app_version ? `v${setup.app_version}` : ""}</span><span className={"r " + (setup.bootstrap_ok === false ? "text-stop" : setup.bootstrap_ok ? "text-go" : "")}>{setup.bootstrap_ok === false ? "needs attention" : setup.bootstrap_ok ? "complete" : ""}</span></h2>
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-1 text-[12px]">
                     <span className="text-muted">Setup</span><span className="font-mono text-[11px] text-txt">{setup.bootstrap_at ? `ran ${new Date(setup.bootstrap_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "never run"}{setup.bootstrap_failed.length ? ` · failed: ${setup.bootstrap_failed.join(", ")}` : setup.bootstrap_ok ? " · all parts ok" : ""}</span><SetupCard state={setup} inline />
-                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/settings/reminders" target="_blank" onClick={(e) => openExternal(e, "/settings/reminders")} className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
+                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/settings/reminders" target="_blank" onClick={(e) => openDesk(e, "/reminders", "/settings/reminders")} className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
                     <span className="text-muted">Updates</span><span className="font-mono text-[11px] text-txt">daily + on session start</span><span />
                   </div>
                 </section>
@@ -732,7 +732,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       )}
                     </div>
                   ))}
-                  <p className="wg-empty">Rules apply to every Claude working in this repo. Full details on the dashboard Rules tab.</p>
+                  <p className="wg-empty">Rules apply to every Claude working in this repo. <a href={data.lastRepo ? `/dashboard/${data.lastRepo.id}/rules` : "/dashboard"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/rules?repo=${data.lastRepo.id}` : "/rules", data.lastRepo ? `/dashboard/${data.lastRepo.id}/rules` : "/dashboard")} className="font-display text-[11px] font-semibold text-brand-400">Full details in the Desk →</a></p>
                 </section>
               )}
 

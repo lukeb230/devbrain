@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { DESK_SECTIONS } from "../sections";
 import { DeskPlaceholder } from "../placeholder";
+import { IpcProbe } from "../ipc-probe";
 
 // One route per sidebar section. Phase 3: the placeholder. Phase 4 replaces
 // this file with real pages, one section at a time, keeping these URLs —
@@ -14,6 +15,7 @@ export default async function DeskSection({ params }: { params: Promise<{ sectio
       <h1 className="font-display text-[21px] font-bold tracking-tight">{item.label}</h1>
       <p className="mb-4 text-[12px] text-muted">/desk/{section}</p>
       <DeskPlaceholder slug={section} />
+      {section === "mac" && <IpcProbe />}
     </>
   );
 }

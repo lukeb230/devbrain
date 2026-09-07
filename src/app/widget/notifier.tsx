@@ -157,13 +157,18 @@ export interface PrSeed {
 export function WidgetNotifier({
   self,
   admin = false,
+  teamId = null,
+  operator = false,
   prSeeds,
   activeRepoId,
 }: {
   self: string | null;
-  /** Owners/admins receive team alerts; RLS scopes rows to the team (and ops
-   *  rows to the operator's team). Members never subscribe. */
+  /** Owners/admins receive team alerts. RLS delivers every team the user
+   *  belongs to, so the notifier also filters to the ACTIVE team (teamId) —
+   *  and to ops rows only when that team is the deployment's operator. */
   admin?: boolean;
+  teamId?: string | null;
+  operator?: boolean;
   prSeeds: PrSeed[];
   activeRepoId: string | null;
 }) {
@@ -334,11 +339,14 @@ export function WidgetNotifier({
       if (admin) {
         type AlertRow = { id?: string; org_id?: string | null; severity?: string; title?: string; detail?: string | null; count?: number; last_notified_at?: string | null; resolved_at?: string | null; resolved_by?: string | null };
         const label = (r: AlertRow) => `${r.org_id === null ? "Ops" : "Team"} alert${r.severity === "error" ? "" : r.severity === "warn" ? " (warning)" : ""}`;
+        // The active team's rows, plus ops rows when this team is the operator.
+        // A user in two teams gets each team's alerts on that team's panel only.
+        const mine = (r: AlertRow) => (r.org_id === null ? operator : Boolean(teamId) && r.org_id === teamId);
         const firstLine = (s: string | null | undefined) => (s ?? "").split("\n")[0].slice(0, 180);
         channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "alert_log" }, (msg) => {
           const p = prefs.current;
           const row = msg.new as AlertRow;
-          if (!row.id) return;
+          if (!row.id || !mine(row)) return;
           alertStamp.current.set(row.id, row.last_notified_at ?? null);
           if (!p.enabled || !p.alerts) return;
           deliver(`${label(row)}: ${row.title ?? ""}`, firstLine(row.detail));
@@ -346,7 +354,7 @@ export function WidgetNotifier({
         channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "alert_log" }, (msg) => {
           const p = prefs.current;
           const row = msg.new as AlertRow;
-          if (!row.id) return;
+          if (!row.id || !mine(row)) return;
           const prev = alertStamp.current.get(row.id);
           alertStamp.current.set(row.id, row.last_notified_at ?? null);
           if (!p.enabled || !p.alerts) return;
@@ -372,7 +380,7 @@ export function WidgetNotifier({
     };
     // self/admin/activeRepoId are stable for a given render of the widget page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [self, admin, activeRepoId]);
+  }, [self, admin, teamId, operator, activeRepoId]);
 
   return null;
 }

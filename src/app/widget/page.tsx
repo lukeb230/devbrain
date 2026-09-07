@@ -9,7 +9,7 @@ import { FEATURE_CATALOG, RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-cata
 import { computeLights } from "@/lib/traffic";
 import { COOKIE } from "@/lib/cookies";
 import { currentOrg, hasRole } from "@/lib/org";
-import { openAlerts } from "@/lib/alerts";
+import { openAlerts, operatorOrgId } from "@/lib/alerts";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { WidgetApp, type WidgetData } from "./app";
@@ -333,6 +333,7 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
     repos: (repos ?? []).map((r) => ({ id: r.id, name: short(r.id), full_name: r.full_name })),
     alerts: hasRole(org.role, "admin") ? (await openAlerts(org.orgId)).map((a) => ({ id: a.id, severity: a.severity, title: a.title, count: a.count })) : [],
     canAdmin: hasRole(org.role, "admin"),
+    operator: (await operatorOrgId()) === org.orgId,
     teamId: org.orgId,
     teamName: org.orgName,
     teams: org.orgs.map((o) => ({ id: o.id, name: o.name })),

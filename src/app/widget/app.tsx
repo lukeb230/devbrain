@@ -48,6 +48,7 @@ export interface WidgetData {
   handoffs: { id: string; repo_id: string; repo: string; by: string | null; branch: string | null; summary: string; remaining: string | null; at: string }[];
   alerts: { id: string; severity: string; title: string; count: number }[];
   canAdmin: boolean;
+  operator: boolean;          // this team is the deployment's operator → its admins also get ops alerts
   teamId: string;
   teamName: string;
   teams: { id: string; name: string }[];          // owner/admin of the active org — gates rule toggles + reminders mapping
@@ -545,6 +546,8 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       <WidgetNotifier
         self={data.self}
         admin={data.canAdmin}
+        teamId={data.teamId}
+        operator={data.operator}
         activeRepoId={data.scopeAll ? null : (data.lastRepo?.id ?? null)}
         prSeeds={data.prs.map((p) => ({
           repo_id: p.repo_id,

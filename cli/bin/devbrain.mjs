@@ -359,7 +359,7 @@ function updatePlugin() {
 }
 
 // 4. Reminders sync is run by the DevBrain app (every 3 min while it runs)
-//    for every list the TEAM mapped on Settings → Reminders — the mapping
+//    for every list the TEAM mapped under Desk → Reminders — the mapping
 //    lives on the server, never on a Mac. Locally there is only an on/off
 //    flag (config.reminders = true). Old per-Mac mappings are migrated up
 //    once, then the app takes over. Legacy launchd jobs are retired.
@@ -382,7 +382,7 @@ async function updateReminderJobs(cfg) {
   const on = cfg.reminders === true;
   const appOk = existsSync(WIDGET_APP);
   const base = on
-    ? `on — lists mapped on Settings → Reminders, synced by the ${CH.appName} app${appOk ? "" : " (app not installed!)"}`
+    ? `on — lists mapped under Desk → Reminders, synced by the ${CH.appName} app${appOk ? "" : " (app not installed!)"}`
     : `off (${CH.cmd} reminders on)`;
   const extras = [migrated ? `migrated ${migrated} mapping(s) to the server` : "", retired ? `retired ${retired} launchd job(s)` : ""].filter(Boolean);
   return extras.length ? `${base}; ${extras.join("; ")}` : base;
@@ -664,7 +664,7 @@ if (cmd === "reminders") {
   const r = await api(cfg, "GET", "/api/v1/reminders/sources");
   const list = r.ok ? r.out.sources : [];
   console.log(`Reminders sync on this Mac: ${cfg.reminders === true ? "on" : "off"}   (${CH.cmd} reminders on|off)`);
-  if (list.length === 0) console.log(`No lists mapped. Map one: ${CH.cmd} reminders add "<List>" "<owner/repo>"  (or Settings → Reminders)`);
+  if (list.length === 0) console.log(`No lists mapped. Map one: ${CH.cmd} reminders add "<List>" "<owner/repo>"  (or Desk → Reminders in the app)`);
   for (const s of list) console.log(`  "${s.list}" → ${s.repo}${s.by ? `  (by ${s.by})` : ""}`);
   process.exit(0);
 }
@@ -737,7 +737,7 @@ if (cmd === "doctor") {
       const t = setTimeout(() => ctrl.abort(), 5000);
       const res = await fetch(`${cfg.server}/api/v1/context`, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: ctrl.signal });
       clearTimeout(t);
-      if (res.status === 401) bad("auth", `token rejected — create a new one on Settings → Tokens, then run: ${CH.cmd} setup --reconfigure`);
+      if (res.status === 401) bad("auth", `token rejected — create a new one under Desk → Tokens in the app, then run: ${CH.cmd} setup --reconfigure`);
       else if (res.status === 400) ok("server + auth", cfg.server);
       else ok("server reachable", `status ${res.status}`);
     } catch (e) { bad("server", `unreachable (${e.name === "AbortError" ? "timeout" : e.message})`); }

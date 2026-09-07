@@ -1,4 +1,4 @@
-import { DESK_SECTIONS } from "./nav";
+import { DESK_SECTIONS } from "./sections";
 
 // What a section will hold once its page is ported (phase 4). Named from the
 // same list the sidebar renders, so the two can't drift.

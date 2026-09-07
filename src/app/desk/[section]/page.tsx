@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { DESK_SECTIONS } from "../nav";
+import { DESK_SECTIONS } from "../sections";
 import { DeskPlaceholder } from "../placeholder";
 
 // One route per sidebar section. Phase 3: the placeholder. Phase 4 replaces

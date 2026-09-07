@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { DeskPlaceholder } from "./placeholder";
@@ -6,7 +7,10 @@ import { DeskPlaceholder } from "./placeholder";
 // signed in and scoped; the Needs-you inbox and the rest arrive in phase 4.
 export default async function DeskHome({ searchParams }: { searchParams: Promise<{ repo?: string }> }) {
   const { repo } = await searchParams;
-  const org = (await currentOrg())!;
+  // The layout redirects when signed out, but Next renders pages in parallel
+  // with layouts — so this page must not assume a team either.
+  const org = await currentOrg();
+  if (!org) redirect("/?from=desk");
   const supabase = await supabaseServer();
   const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const [{ count: openPrs }, { count: openTasks }, { count: live }] = await Promise.all([

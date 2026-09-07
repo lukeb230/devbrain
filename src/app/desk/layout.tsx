@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
+import { deskScope } from "@/lib/desk/scope";
 import { DeskNav, DeskRepoSwitcher } from "./nav";
 
 // ============================================================================
@@ -38,6 +39,9 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
     .is("unlinked_at", null)
     .order("created_at");
 
+  // The effective scope (URL, else the remembered repo) — so the switcher
+  // shows what the pages actually use.
+  const scope = await deskScope(undefined, (repos ?? []).map((r) => r.id));
   const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="light"||t==="dark")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
 
   return (
@@ -61,7 +65,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
         ) : (
           <span className="text-[12px] text-muted">team <b className="font-medium text-txt">{org.orgName}</b></span>
         )}
-        <DeskRepoSwitcher repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))} />
+        <DeskRepoSwitcher repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
         <span className="flex-1" />
         <span className="rounded-md border border-line2 px-2.5 py-0.5 font-mono text-[10.5px] text-faint" title="Jump to anything (phase 4)">⌕ jump to anything… ⌘K</span>
         <span className="ml-2 font-mono text-[10px] text-faint">{org.login} · {org.role}</span>

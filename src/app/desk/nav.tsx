@@ -41,11 +41,14 @@ export function DeskNav() {
 // Repo scope for the Desk. Phase 3 keeps it in the URL (?repo=<id>) so ported
 // pages can read one thing; the last-visited cookie the widget uses is set
 // by /dashboard routes and will follow in phase 4.
-export function DeskRepoSwitcher({ repos }: { repos: { id: string; name: string }[] }) {
+export function DeskRepoSwitcher({ repos, remembered }: { repos: { id: string; name: string }[]; remembered: string | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = params.get("repo") ?? "";
+  // URL wins; otherwise show the remembered repo the pages are using. An
+  // explicit "all" in the URL means team-wide even if a repo is remembered.
+  const q = params.get("repo");
+  const current = q === "all" ? "" : q ?? remembered ?? "";
   if (repos.length === 0) return <span className="text-[12px] text-faint">no repos linked</span>;
   return (
     <select
@@ -53,7 +56,8 @@ export function DeskRepoSwitcher({ repos }: { repos: { id: string; name: string 
       onChange={(e) => {
         const v = e.target.value;
         const q = new URLSearchParams(params.toString());
-        if (v) q.set("repo", v); else q.delete("repo");
+        // Choosing "all repos" must beat the remembered cookie → say so in the URL.
+        if (v) q.set("repo", v); else q.set("repo", "all");
         router.push(`${pathname}${q.toString() ? `?${q}` : ""}`);
       }}
       className="rounded-md border border-line2 bg-ink px-2 py-0.5 text-[12px] text-txt"

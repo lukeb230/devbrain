@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { COOKIE, NEW_TOKEN_COOKIE_OPTS } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { returnTo, surfaceOf } from "@/lib/surface";
 import { hashToken } from "@/lib/token";
 
 // Server actions for self-serve dev tokens. Each signed-in member manages
@@ -34,9 +35,10 @@ export async function createToken(formData: FormData): Promise<void> {
 
   // Stash the plaintext once in a short-lived cookie so the page can show it
   // after the redirect, then it exists nowhere server-side except as a hash.
-  // Scoped to /settings (not just /tokens) so the Setup page can render the
-  // paste-one connect command with the token already embedded.
-  (await cookies()).set(COOKIE.newToken, token, NEW_TOKEN_COOKIE_OPTS);
+  // Scoped to the surface that asked: /settings for the dashboard (so the
+  // Setup page can embed it in the connect command), /desk for the Desk.
+  const path = surfaceOf(returnTo(formData, "/settings/tokens")) === "desk" ? "/desk" : "/settings";
+  (await cookies()).set(COOKIE.newToken, token, { ...NEW_TOKEN_COOKIE_OPTS, path });
   revalidatePath("/settings/tokens");
   revalidatePath("/settings/setup");
   revalidatePath("/desk", "layout");

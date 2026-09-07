@@ -24,6 +24,7 @@ export const ALL_DEVBRAIN_COOKIES: { name: string; path: string }[] = [
   { name: COOKIE.lastRepo, path: "/" },
   { name: COOKIE.next, path: "/" },
   { name: COOKIE.newToken, path: "/settings" },
+  { name: COOKIE.newToken, path: "/desk" },
 ];
 
 /** Structurally matches both `await cookies()` and `NextResponse.cookies`. */

@@ -11,7 +11,7 @@ export function ConfirmButton({ label, describe }: { label: string; describe: (f
     return (
       <span className="flex items-center gap-2">
         <span className="text-[11.5px] text-wait">{armed}</span>
-        <button type="submit" className="rounded-lg bg-brand-600 px-3 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700">Yes, {label.toLowerCase()}</button>
+        <button type="submit" className="whitespace-nowrap rounded-lg bg-brand-600 px-3 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700">Yes, {label.toLowerCase()}</button>
         <button type="button" onClick={() => setArmed(null)} className="font-display text-[11.5px] font-semibold text-muted hover:text-txt">cancel</button>
       </span>
     );
@@ -25,7 +25,7 @@ export function ConfirmButton({ label, describe }: { label: string; describe: (f
         e.preventDefault();
         setArmed(describe(form));
       }}
-      className="rounded-lg bg-brand-600 px-3 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700"
+      className="whitespace-nowrap rounded-lg bg-brand-600 px-3 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700"
     >
       {label}
     </button>

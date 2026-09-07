@@ -362,17 +362,29 @@ fn get_corner(app: AppHandle) -> String {
 pub fn show_desk(app: AppHandle, route: Option<String>) {
     let Some(desk) = app.get_webview_window("desk") else { return };
     let target = site_desk(route.as_deref());
-    // Navigate only when asked for a specific page, or when the window is
-    // still on about:blank / a foreign page; a plain "Open Desk" keeps
-    // whatever the user was looking at.
-    let current = desk.url().map(|u| u.to_string()).unwrap_or_default();
-    if route.is_some() || !current.starts_with(&format!("{SITE}/desk")) {
+    // The window loads /desk at launch (see setup), so its page is always
+    // real and JS navigation works. A specific route replaces the location;
+    // a plain "Open Desk" keeps whatever the user was looking at unless the
+    // window got parked outside /desk (sign-in), in which case go home.
+    // Never ask the webview for its URL — wry aborts on a nil URL.
+    if route.is_some() {
         let _ = desk.eval(&format!("window.location.replace({:?})", target));
+    } else {
+        let _ = desk.eval(&format!(
+            "if(!location.pathname.startsWith('/desk')){{window.location.replace({:?})}}",
+            target
+        ));
     }
     if let Some(b) = *app.state::<State>().desk.lock().unwrap() {
         let _ = desk.set_size(LogicalSize::new(b.w.max(DESK_MIN_W), b.h.max(DESK_MIN_H)));
         let _ = desk.set_position(LogicalPosition::new(b.x, b.y));
     }
+    // While the Desk is open the app is a regular app: Dock icon, Cmd-Tab,
+    // menu bar (Cmd-W, copy/paste). Closing the Desk returns to menu-bar-only
+    // unless "Show in Dock" is on. The classic menu-bar-app pattern — and the
+    // only one AppKit cooperates with: an Accessory app cannot reliably bring
+    // a decorated window to the front.
+    set_policy(&app, true);
     let _ = desk.show();
     let _ = desk.unminimize();
     let _ = desk.set_focus();
@@ -380,6 +392,24 @@ pub fn show_desk(app: AppHandle, route: Option<String>) {
     if let Some(p) = app.get_webview_window("panel") {
         if p.is_visible().unwrap_or(false) { let _ = p.hide(); }
     }
+}
+
+/// Regular (Dock icon) or Accessory (menu bar only), applied now.
+fn set_policy(app: &AppHandle, regular: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let policy = if regular { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory };
+        let _ = app.set_activation_policy(policy);
+    }
+    #[cfg(not(target_os = "macos"))]
+    { let _ = (app, regular); }
+}
+
+/// The policy the app should have when the Desk is NOT showing: the user's
+/// "Show in Dock" choice.
+fn desk_hidden_policy(app: &AppHandle) {
+    let show = app.try_state::<State>().map(|s| *s.dock.lock().unwrap()).unwrap_or(false);
+    set_policy(app, show);
 }
 
 fn remember_desk_bounds(app: &AppHandle) {
@@ -397,13 +427,9 @@ fn remember_desk_bounds(app: &AppHandle) {
 /// installing the notification delegate before the Accessory policy applies
 /// would force a Dock icon — that ordering is preserved in setup().
 fn apply_dock(app: &AppHandle, show: bool) {
-    #[cfg(target_os = "macos")]
-    {
-        let policy = if show { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory };
-        let _ = app.set_activation_policy(policy);
-    }
     *app.state::<State>().dock.lock().unwrap() = show;
     save_settings(app);
+    reassert_policy(app);
 }
 
 #[tauri::command]
@@ -411,17 +437,13 @@ fn open_desk(app: AppHandle, route: Option<String>) {
     show_desk(app, route);
 }
 
-/// Re-apply the saved activation policy (notify.rs calls this after every
-/// delivery, because Notification Center registration can flip it).
+/// Re-apply the policy the app should currently have (notify.rs calls this
+/// after every delivery, because Notification Center registration can flip
+/// it): Regular while the Desk is showing or "Show in Dock" is on, else
+/// Accessory.
 pub fn reassert_policy(app: &AppHandle) {
-    #[cfg(target_os = "macos")]
-    {
-        let show = app.try_state::<State>().map(|s| *s.dock.lock().unwrap()).unwrap_or(false);
-        let policy = if show { tauri::ActivationPolicy::Regular } else { tauri::ActivationPolicy::Accessory };
-        let _ = app.set_activation_policy(policy);
-    }
-    #[cfg(not(target_os = "macos"))]
-    { let _ = app; }
+    let desk_open = app.get_webview_window("desk").and_then(|d| d.is_visible().ok()).unwrap_or(false);
+    if desk_open { set_policy(app, true); } else { desk_hidden_policy(app); }
 }
 
 #[tauri::command]
@@ -561,11 +583,11 @@ fn main() {
             // --- the Desk ------------------------------------------------------
             // A normal window: title bar, resizable, Cmd-W hides it (never
             // destroyed, so its state survives). Same navigation lock idea as
-            // the panel, scoped to /desk. Starts hidden on about:blank — the
-            // site loads on first open so launch stays cheap.
+            // the panel, scoped to /desk. Loads /desk at launch (hidden) so
+            // the first open is instant and in-page navigation always works.
             let desk_nav = app.handle().clone();
             let desk_bounds = settings.desk;
-            let desk = WebviewWindowBuilder::new(app, "desk", WebviewUrl::External("about:blank".parse().unwrap()))
+            let desk = WebviewWindowBuilder::new(app, "desk", WebviewUrl::External(site_desk(None).parse().unwrap()))
                 .on_navigation(move |url| {
                     let host = url.host_str().unwrap_or("");
                     let path = url.path();
@@ -610,6 +632,7 @@ fn main() {
                         api.prevent_close();
                         remember_desk_bounds(&h);
                         if let Some(d) = h.get_webview_window("desk") { let _ = d.hide(); }
+                        desk_hidden_policy(&h); // back to the menu bar unless "Show in Dock"
                     }
                     tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
                         if h.get_webview_window("desk").and_then(|d| d.is_visible().ok()).unwrap_or(false) {

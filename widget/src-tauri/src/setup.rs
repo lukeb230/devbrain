@@ -77,6 +77,19 @@ fn read_config() -> Option<serde_json::Value> {
     serde_json::from_str(&text).ok()
 }
 
+/// Flip `reminders` in config.json — the same key the CLI's `--reminders
+/// on|off` writes; the 3-minute collector reads it on its next run.
+pub fn set_reminders(on: bool) -> Result<(), String> {
+    let mut cfg = read_config().ok_or("Set up this Mac first — no config.json yet.")?;
+    let obj = cfg.as_object_mut().ok_or("config.json is not an object")?;
+    obj.insert("reminders".into(), serde_json::Value::Bool(on));
+    fs::write(config_path(), serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+pub fn reminders_flag() -> bool {
+    read_config().as_ref().map(reminders_on).unwrap_or(false)
+}
+
 #[derive(Serialize)]
 pub struct SetupState {
     configured: bool,

@@ -5,13 +5,14 @@ import { currentOrg } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { writeGranted } from "@/lib/writer-gates";
 import { IpcProbe } from "../ipc-probe";
+import { MacPrefs } from "./mac-prefs";
 import { Card, Empty, PageTitle, Row } from "../ui";
 
 // ============================================================================
 // Desk · This Mac — the server-side half of `devbrain doctor` (the same
-// checks /api/v1/health answers), the app bridge, and where the Mac-side
-// preferences live. Dock / login / update toggles need new app commands and
-// land with the phase-5 app build; until then the tray menu has them.
+// checks /api/v1/health answers), the app bridge, and the Mac-side
+// preferences (Dock, login item, Reminders sync, updates) over IPC — the
+// same switches as the tray menu, kept in sync both ways.
 // ============================================================================
 
 export const dynamic = "force-dynamic";
@@ -60,10 +61,8 @@ export default async function DeskMac() {
         <Row dot={(teamOpen ?? 0) > 0 ? "wait" : "go"} title="Alerts" sub={`${teamOpen ?? 0} open for this team${operator === org.orgId ? ` · ${opsOpen ?? 0} ops alerts (this team operates the deployment)` : ""} · delivered as native notifications`} />
       </Card>
 
-      <Card title="App" right="from the tray menu until the next app build">
-        <Row title="Show in Dock" sub="Off by default — the menu-bar brain is home. While the Desk is open the app shows a Dock icon and menu bar, then returns to menu-bar-only when you close it." right={<span className="font-mono text-[10.5px] text-faint">tray ▸ Show in Dock</span>} />
-        <Row title="Launch at login" sub="Keeps presence, notifications and Reminders sync running." right={<span className="font-mono text-[10.5px] text-faint">tray ▸ Launch at login</span>} />
-        <Row title="Check for updates" sub="Runs devbrain update: CLI, plugin, jobs and the app bundle. A new build starts on the next launch." right={<span className="font-mono text-[10.5px] text-faint">tray ▸ Check for updates…</span>} />
+      <Card title="App" right="this Mac only">
+        <MacPrefs />
         <Row title="Theme · notifications" sub="Set in the panel's Settings; the Desk follows the panel." right={<span className="font-mono text-[10.5px] text-faint">panel ▸ ⚙</span>} />
         {!operator && <Empty>No operator team set for this deployment.</Empty>}
       </Card>

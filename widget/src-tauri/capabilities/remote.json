@@ -22,6 +22,9 @@
     "allow-start-browser-login",
     "allow-open-external",
     "allow-open-desk",
+    "allow-mac-prefs",
+    "allow-set-mac-pref",
+    "allow-run-update",
     "allow-toggle-panel"
   ]
 }

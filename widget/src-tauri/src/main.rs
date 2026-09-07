@@ -96,6 +96,10 @@ struct State {
     /// appearing on corner-hover. Set from the panel's "badge-state" event.
     attention: Mutex<bool>,
     pinned: Mutex<bool>,
+    /// Tray check items the Desk's This Mac page also flips — kept here so
+    /// a toggle from either place shows in both.
+    tray_dock: Mutex<Option<CheckMenuItem<tauri::Wry>>>,
+    tray_autostart: Mutex<Option<CheckMenuItem<tauri::Wry>>>,
     last_panel_hide: Mutex<Instant>,
     screen: Mutex<(f64, f64, f64, f64)>,
 }
@@ -437,6 +441,51 @@ fn open_desk(app: AppHandle, route: Option<String>) {
     show_desk(app, route);
 }
 
+/// The Mac-side preferences the Desk's This Mac page shows and flips.
+#[derive(Serialize)]
+struct MacPrefs { dock: bool, autostart: bool, reminders: bool, app_version: String, channel: &'static str }
+
+fn mac_prefs_now(app: &AppHandle) -> MacPrefs {
+    MacPrefs {
+        dock: *app.state::<State>().dock.lock().unwrap(),
+        autostart: app.autolaunch().is_enabled().unwrap_or(false),
+        reminders: setup::reminders_flag(),
+        app_version: app.package_info().version.to_string(),
+        channel: if setup::is_beta() { "beta" } else { "stable" },
+    }
+}
+
+#[tauri::command]
+fn mac_prefs(app: AppHandle) -> MacPrefs {
+    mac_prefs_now(&app)
+}
+
+/// Flip one preference from the Desk. Same effects as the tray items, and
+/// the tray check marks follow.
+#[tauri::command]
+fn set_mac_pref(app: AppHandle, key: String, on: bool) -> Result<MacPrefs, String> {
+    match key.as_str() {
+        "dock" => {
+            apply_dock(&app, on);
+            if let Some(i) = app.state::<State>().tray_dock.lock().unwrap().as_ref() { let _ = i.set_checked(on); }
+        }
+        "autostart" => {
+            let al = app.autolaunch();
+            (if on { al.enable() } else { al.disable() }).map_err(|e| e.to_string())?;
+            if let Some(i) = app.state::<State>().tray_autostart.lock().unwrap().as_ref() { let _ = i.set_checked(on); }
+        }
+        "reminders" => setup::set_reminders(on)?,
+        other => return Err(format!("unknown preference {other}")),
+    }
+    Ok(mac_prefs_now(&app))
+}
+
+/// "Check for updates" from the Desk — the tray item's action.
+#[tauri::command]
+fn run_update(app: AppHandle) {
+    setup::spawn_update(app);
+}
+
 /// Re-apply the policy the app should currently have (notify.rs calls this
 /// after every delivery, because Notification Center registration can flip
 /// it): Regular while the Desk is showing or "Show in Dock" is on, else
@@ -473,7 +522,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, open_desk, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login, setup::open_external])
+        .invoke_handler(tauri::generate_handler![toggle_panel, get_corner, open_desk, mac_prefs, set_mac_pref, run_update, notify::notify, notify::notification_status, notify::open_notification_settings, setup::setup_state, setup::bootstrap, setup::run_collector_now, setup::start_browser_login, setup::open_external])
         .setup(|app| {
             let settings = load_settings(app.handle());
             #[cfg(target_os = "macos")]
@@ -488,6 +537,8 @@ fn main() {
                 desk: Mutex::new(settings.desk),
                 attention: Mutex::new(false),
                 pinned: Mutex::new(false),
+                tray_dock: Mutex::new(None),
+                tray_autostart: Mutex::new(None),
                 last_panel_hide: Mutex::new(Instant::now() - std::time::Duration::from_secs(10)),
                 screen: Mutex::new((0.0, 0.0, 1440.0, 900.0)),
             });
@@ -720,6 +771,8 @@ fn main() {
             let quit_i = PredefinedMenuItem::quit(app, Some(&format!("Quit {}", setup::app_name())))?;
             let menu = Menu::with_items(app, &[&open_i, &desk_i, &sep_i, &dock_i, &pin_i, &bl_i, &br_i, &size_menu, &auto_i, &reload_i, &update_i, &quit_i])?;
 
+            *app.state::<State>().tray_dock.lock().unwrap() = Some(dock_i.clone());
+            *app.state::<State>().tray_autostart.lock().unwrap() = Some(auto_i.clone());
             let bl_h = bl_i.clone();
             let br_h = br_i.clone();
             let (ss_h, sm_h, sl_h) = (size_s.clone(), size_m.clone(), size_l.clone());

@@ -46,6 +46,9 @@ fn main() {
                 "start_browser_login",
                 "open_external",
                 "open_desk",
+                "mac_prefs",
+                "set_mac_pref",
+                "run_update",
             ]),
         ),
     )

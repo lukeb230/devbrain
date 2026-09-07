@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-mac-pref"
+description = "Enables the set_mac_pref command without any pre-configured scope."
+commands.allow = ["set_mac_pref"]
+
+[[permission]]
+identifier = "deny-set-mac-pref"
+description = "Denies the set_mac_pref command without any pre-configured scope."
+commands.deny = ["set_mac_pref"]

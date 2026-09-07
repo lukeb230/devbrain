@@ -16,16 +16,22 @@
 // "/" stays allowed — it's the sign-in page the widget itself redirects to
 // when signed out (bouncing it would loop). In a normal browser this
 // component does nothing at all.
+//
+// The Desk (/desk/*) is ALSO an in-app surface — the same Tauri app, a
+// second window. It must never be bounced: the Desk window's own lock
+// refuses /widget and hands refused URLs to the browser, so bouncing it
+// opened a Chrome tab on every Desk page load (2026-09-07). Real
+// navigations between the two surfaces are policed by the Rust locks.
 
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { panelAllowed } from "@/lib/panel-routes";
+import { deskAllowed, panelAllowed } from "@/lib/panel-routes";
 
 export function WidgetGuard() {
   const pathname = usePathname();
   useEffect(() => {
     const isShell = typeof window !== "undefined" && "__TAURI__" in window;
-    if (isShell && pathname && !panelAllowed(pathname)) {
+    if (isShell && pathname && !panelAllowed(pathname) && !deskAllowed(pathname)) {
       window.location.replace("/widget");
     }
   }, [pathname]);

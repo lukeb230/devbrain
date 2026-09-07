@@ -548,6 +548,7 @@ fn main() {
                     || url.scheme() == "about"
                     || url.scheme() == "tauri";
                 if !allowed {
+                    eprintln!("devbrain: panel refused navigation, handing to the browser: {url}");
                     let _ = nav_handle.opener().open_url(url.as_str(), None::<&str>);
                 }
                 allowed
@@ -609,6 +610,7 @@ fn main() {
                         || url.scheme() == "about"
                         || url.scheme() == "tauri";
                     if !allowed {
+                        eprintln!("devbrain: desk refused navigation, handing to the browser: {url}");
                         let _ = desk_nav.opener().open_url(url.as_str(), None::<&str>);
                     }
                     allowed

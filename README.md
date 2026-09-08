@@ -118,6 +118,13 @@ re-run replaces only our own entries — a user's existing Cursor hooks survive.
 | Cursor | `~/.cursor/hooks.json`, `~/.cursor/mcp.json` | hooks (`sessionStart/End`, `afterFileEdit`) | `deny` once, retry within 10 min allowed (Cursor does not enforce `ask`) | `additional_context` |
 | Codex CLI | `~/.codex/config.toml` (`[mcp_servers.*]`, `features.hooks`), `~/.codex/hooks.json` | hooks when the feature is on, else the MCP server itself (`DEVBRAIN_PRESENCE=lifecycle`: start on connect, heartbeat, end on disconnect) | `ask` | `devbrain hosts agents` writes an AGENTS.md block |
 
+Observed on real installs (2026-09): Cursor 3.19 also runs Claude Code plugin
+hooks from `~/.claude/settings.json`, so a Mac with both gets each event twice
+— `presence.mjs` dedupes by conversation id (session) and per file (edits).
+Cursor's `sessionStart` only fires for conversations created after it loaded
+the hooks, so restart Cursor once after wiring. Codex asks the user to trust
+new hooks in its TUI before they run ("New hook — review required").
+
 Hooks take `--host=<name>` (`plugin/hooks/host.mjs` normalizes the payload:
 Cursor's user-level hooks run from `~/.cursor`, so the repo comes from the
 payload's `cwd`/`workspace_roots`); the MCP server takes `DEVBRAIN_HOST` and

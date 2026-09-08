@@ -3,10 +3,10 @@ import { detectHost, editedFile, hostLabel, normalizeHost, relative, sessionKey,
 
 describe("detectHost", () => {
   it("prefers the --host flag, then the env, then the payload shape", () => {
-    expect(detectHost(["node", "x.mjs", "--host=cursor"], {}, {})).toBe("cursor");
-    expect(detectHost(["node", "x.mjs"], { DEVBRAIN_HOST: "codex" }, {})).toBe("codex");
-    expect(detectHost(["node", "x.mjs"], {}, { conversation_id: "c", workspace_roots: ["/r"] })).toBe("cursor");
-    expect(detectHost(["node", "x.mjs"], {}, { session_id: "s", tool_input: {} })).toBe("claude-code");
+    expect(detectHost(["node", "x.mjs", "--host=cursor"], {} as unknown as NodeJS.ProcessEnv, {})).toBe("cursor");
+    expect(detectHost(["node", "x.mjs"], { DEVBRAIN_HOST: "codex" } as unknown as NodeJS.ProcessEnv, {})).toBe("codex");
+    expect(detectHost(["node", "x.mjs"], {} as unknown as NodeJS.ProcessEnv, { conversation_id: "c", workspace_roots: ["/r"] })).toBe("cursor");
+    expect(detectHost(["node", "x.mjs"], {} as unknown as NodeJS.ProcessEnv, { session_id: "s", tool_input: {} })).toBe("claude-code");
   });
   it("normalizes spellings and keeps unknowns as other", () => {
     expect(normalizeHost("Claude")).toBe("claude-code");

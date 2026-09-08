@@ -47,7 +47,10 @@ export async function loadTeamSnapshot(opts: {
   // scopes EVERY list below to that repo. Applied post-fetch — volumes are
   // tiny and it keeps the queries simple.
   const scopeAll = !lastRepoId || lastRepoId === "all" || !repoById.has(lastRepoId);
-  const inScope = (repoId: string) => scopeAll || repoId === lastRepoId;
+  // Every table above is read through RLS, which lets a member of several
+  // teams see all of them — so scope also means "one of THIS team's repos",
+  // or a two-team user sees the other team's tasks and standups under "all".
+  const inScope = (repoId: string) => repoById.has(repoId) && (scopeAll || repoId === lastRepoId);
 
   // Collisions: only branches pushed in the last 7 days participate — a
   // stale branch row must never generate warnings forever.

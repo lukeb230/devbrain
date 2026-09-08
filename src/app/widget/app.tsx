@@ -10,7 +10,7 @@ import { mintDeviceToken, setWidgetRepo } from "./actions";
 import { dismissAlert } from "../settings/org/alert-actions";
 import { BrainMark } from "@/components/BrainMark";
 import { Pulse } from "./pulse";
-import { applyThemePref, readThemePref, type ThemePref } from "./theme";
+import { applyThemePref, applyThemeToDocument, readThemePref, THEME_KEY, type ThemePref } from "./theme";
 import { createClaim } from "../dashboard/[repoId]/claim-actions";
 import { pickSuggestedNext } from "@/lib/lanes";
 import type { ActivityRow } from "@/components/ActivityFeed";
@@ -394,7 +394,13 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   }, [data.deploy]);
   const [switching, startSwitch] = useTransition();
   const [themePref, setThemePref] = useState<ThemePref>("system");
-  useEffect(() => setThemePref(readThemePref()), []);
+  useEffect(() => {
+    setThemePref(readThemePref());
+    // The Desk's This Mac page writes the same key: follow it live.
+    const onStorage = (e: StorageEvent) => { if (e.key === THEME_KEY) { const p = readThemePref(); setThemePref(p); applyThemeToDocument(p); } };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
   const pickTheme = (p: ThemePref) => { setThemePref(p); applyThemePref(p); };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
@@ -408,7 +414,8 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     setPrefs(readPrefs());
     const sync = () => setPrefs(readPrefs());
     window.addEventListener(PREFS_EVENT, sync);
-    return () => window.removeEventListener(PREFS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(PREFS_EVENT, sync); window.removeEventListener("storage", sync); };
   }, []);
   const pause = (mode: "hour" | "tomorrow" | "off") => {
     const until = mode === "hour" ? Date.now() + 3600_000 : mode === "tomorrow" ? new Date(new Date().setHours(24, 0, 0, 0)).getTime() : 0;
@@ -463,7 +470,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const Hidden = ({ t }: { t: { id: string; repo_id: string } }) => (<><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /></>);
   const Seg = <T extends string>({ options, value, onPick }: { options: { key: T; label: string }[]; value: T; onPick: (k: T) => void }) => (
     <span className="inline-flex rounded-lg border border-line2 p-0.5">
-      {options.map((o) => <button key={o.key} onClick={() => onPick(o.key)} className={"rounded-md px-2.5 py-[3px] font-display text-[11px] font-semibold " + (o.key === value ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>{o.label}</button>)}
+      {options.map((o) => <button key={o.key} onClick={() => onPick(o.key)} className={"rounded-md px-2 py-[3px] font-display text-[11px] font-semibold " + (o.key === value ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>{o.label}</button>)}
     </span>
   );
 
@@ -519,7 +526,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         {menu && (
           <>
             <div className="fixed inset-0 z-[4]" onClick={() => setMenu(false)} />
-            <div className="absolute right-3.5 top-11 z-[5] w-[232px] rounded-xl border border-line2 bg-row p-1.5 text-[13px] text-txt shadow-[var(--wg-shadow)]">
+            <div className="absolute right-3.5 top-11 z-[5] w-[256px] rounded-xl border border-line2 bg-row p-1.5 text-[13px] text-txt shadow-[var(--wg-shadow)]">
               <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Pause notifications</span><span className="font-mono text-[10px] text-faint">{pausedMode === "off" ? "off" : pausedMode === "hour" ? `until ${hhmm(new Date(prefs.pausedUntil!).toISOString())}` : "until tomorrow"} ▸</span></div>
               <div className="mx-2.5 mb-1 flex gap-1">
                 {([["hour", "1 hour"], ["tomorrow", "until tomorrow"], ["off", "off"]] as const).map(([k, label]) => (

@@ -219,6 +219,7 @@ export function WidgetNotifier({
       prefs.current = readPrefs();
     };
     window.addEventListener(PREFS_EVENT, onPrefs);
+    window.addEventListener("storage", onPrefs); // the Desk's This Mac page writes the same key
 
     const supabase = supabaseBrowser();
     let cancelled = false;
@@ -398,6 +399,7 @@ export function WidgetNotifier({
     return () => {
       cancelled = true;
       window.removeEventListener(PREFS_EVENT, onPrefs);
+      window.removeEventListener("storage", onPrefs);
       if (channel) supabase.removeChannel(channel);
     };
     // self/admin/activeRepoId are stable for a given render of the widget page.

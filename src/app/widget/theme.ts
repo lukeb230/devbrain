@@ -19,6 +19,11 @@ export function readThemePref(): ThemePref {
 
 export function applyThemePref(pref: ThemePref) {
   try { localStorage.setItem(THEME_KEY, pref); } catch { /* private mode */ }
+  applyThemeToDocument(pref);
+}
+
+/** Apply without writing — used when ANOTHER window (the Desk) changed the key. */
+export function applyThemeToDocument(pref: ThemePref) {
   const root = document.documentElement;
   if (pref === "system") delete root.dataset.wgTheme; else root.dataset.wgTheme = pref;
   window.dispatchEvent(new Event("devbrain-theme"));
@@ -36,7 +41,9 @@ export function useResolvedTheme(): "light" | "dark" {
     compute();
     mq.addEventListener("change", compute);
     window.addEventListener("devbrain-theme", compute);
-    return () => { mq.removeEventListener("change", compute); window.removeEventListener("devbrain-theme", compute); };
+    const onStorage = (e: StorageEvent) => { if (e.key === THEME_KEY) { applyThemeToDocument(readThemePref()); compute(); } };
+    window.addEventListener("storage", onStorage);
+    return () => { mq.removeEventListener("change", compute); window.removeEventListener("devbrain-theme", compute); window.removeEventListener("storage", onStorage); };
   }, []);
   return t;
 }

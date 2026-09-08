@@ -5,6 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
 import { DeskNav, DeskRepoSwitcher } from "./nav";
+import { ThemeFollow } from "./theme-follow";
 
 // ============================================================================
 // /desk — the app's full window (option B: menu-bar panel + this Desk in one
@@ -44,6 +45,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   return (
     <div className={`wg ${FONT_VARS} font-body flex h-screen flex-col bg-ink text-[13.5px] text-txt`}>
       <script dangerouslySetInnerHTML={{ __html: early }} />
+      <ThemeFollow />
 
       {/* Title bar (Dusk): mark + wordmark · team / repo · jump-to · avatar + login · role */}
       <header className="flex h-12 flex-shrink-0 items-center gap-4 border-b border-line bg-row px-[18px]">

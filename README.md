@@ -103,6 +103,27 @@ git push main ─▶ ~/.devbrain/src (tarball of main)  ─▶ devbrain update r
 - Headless (CI, Cowork): set `DEVBRAIN_URL` + `DEVBRAIN_TOKEN`; the hooks and
   MCP server use them when no config file exists.
 
+### Other agent hosts (Cursor, Codex)
+
+Claude Code gets DevBrain through the plugin. Cursor and Codex get the same
+hooks and MCP server through their own config files, written by the `hosts`
+step of `devbrain update` (auto-detected: `~/.cursor`, `~/.codex`; pin with
+`devbrain hosts add|remove cursor|codex|all`). Every entry points at this
+install's `~/.devbrain*/src/<plugin>/` and bundled Node, and is tagged so a
+re-run replaces only our own entries — a user's existing Cursor hooks survive.
+
+| Host | Files | Presence | Guard before an edit | Session brief |
+|---|---|---|---|---|
+| Claude Code | plugin | hooks | `ask` | SessionStart stdout |
+| Cursor | `~/.cursor/hooks.json`, `~/.cursor/mcp.json` | hooks (`sessionStart/End`, `afterFileEdit`) | `deny` once, retry within 10 min allowed (Cursor does not enforce `ask`) | `additional_context` |
+| Codex CLI | `~/.codex/config.toml` (`[mcp_servers.*]`, `features.hooks`), `~/.codex/hooks.json` | hooks when the feature is on, else the MCP server itself (`DEVBRAIN_PRESENCE=lifecycle`: start on connect, heartbeat, end on disconnect) | `ask` | `devbrain hosts agents` writes an AGENTS.md block |
+
+Hooks take `--host=<name>` (`plugin/hooks/host.mjs` normalizes the payload:
+Cursor's user-level hooks run from `~/.cursor`, so the repo comes from the
+payload's `cwd`/`workspace_roots`); the MCP server takes `DEVBRAIN_HOST` and
+`DEVBRAIN_CWD`. Sessions carry `agent_kind`, shown as Claude / Cursor / Codex
+next to each teammate in the panel and the Console.
+
 ## Server automation
 
 `/api/agents/tick` runs every 2 minutes from `pg_cron`: PR review,

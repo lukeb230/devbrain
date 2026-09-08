@@ -9,17 +9,19 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { devbrainHome, loadConfig } from "./home.mjs";
+import { detectHost, readInput, repoFromRemote, workdir } from "./host.mjs";
 
 try {
-  const input = JSON.parse(readFileSync(0, "utf8"));
+  const input = readInput();
+  // Cursor's beforeSubmitPrompt can allow/deny but cannot add context, so the
+  // pulse is Claude Code + Codex only; Cursor gets the brief at sessionStart.
+  if (detectHost(process.argv, process.env, input) === "cursor") process.exit(0);
   const cfg = loadConfig(); // config file, else DEVBRAIN_URL/TOKEN (headless)
   if (!cfg) process.exit(0);
 
   let repo = null;
   try {
-    const url = execSync("git remote get-url origin", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
-    const m = url.match(/github\.com[:/](.+?)(\.git)?$/);
-    repo = m ? m[1] : null;
+    repo = repoFromRemote(execSync("git remote get-url origin", { cwd: workdir(input), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim());
   } catch { /* not a repo */ }
   if (!repo) process.exit(0);
 

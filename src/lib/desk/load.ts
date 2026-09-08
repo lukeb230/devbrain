@@ -30,7 +30,7 @@ export async function loadTeamSnapshot(opts: {
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
-      supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen, started_at").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
+      supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen, started_at, agent_kind").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files, last_push_at").is("merged_at", null),
       supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, assigned_to, status, done_by, done_at, created_by, created_at, maybe_done_pr, started_by, footprint, pinned").order("priority").order("created_at"),
@@ -195,6 +195,7 @@ export async function loadTeamSnapshot(opts: {
       summary: s.summary,
       last_seen: s.last_seen,
       started_at: s.started_at ?? null,
+      agent: s.agent_kind ?? "claude-code",
     })),
     collisions,
     prs: fPrs.map((p) => ({

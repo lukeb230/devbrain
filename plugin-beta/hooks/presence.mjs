@@ -25,21 +25,19 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { devbrainHome, httpHint, loadConfig } from "./home.mjs";
+import { detectHost, editedFile, emitContext, git as gitIn, readInput, relative, repoFromRemote, workdir } from "./host.mjs";
 import { fileURLToPath } from "node:url";
 import { buildExcerpt } from "./journal-extract.mjs";
 
 const CONFIG_DIR = devbrainHome();
-const kind = process.argv[2] || "activity";
+const kind = process.argv.slice(2).find((a) => !a.startsWith("--")) || "activity";
 
 const config = loadConfig;
 
-function git(cmd) {
-  try {
-    return execSync(cmd, { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
-  } catch {
-    return null;
-  }
-}
+// Set once the hook input is read: git runs in the agent's working directory
+// (Cursor's user-level hooks run from ~/.cursor, not the repo).
+let CWD = process.cwd();
+const git = (cmd) => gitIn(cmd, CWD);
 
 // One-time migration: drop legacy CLI-installed devbrain hooks from the user's
 // settings so presence doesn't double-fire now that the plugin owns it.
@@ -139,16 +137,11 @@ async function main() {
   const cfg = config();
   if (!cfg) process.exit(0); // not set up yet — silent no-op
 
-  const remote = git("git remote get-url origin");
-  const m = remote ? remote.match(/github\.com[:/](.+?)(\.git)?$/) : null;
-  const repo = m ? m[1] : null;
+  const hookInput = readInput();
+  const host = detectHost(process.argv, process.env, hookInput);
+  CWD = workdir(hookInput);
+  const repo = repoFromRemote(git("git remote get-url origin"));
   if (!repo) process.exit(0); // not a GitHub repo — nothing to report
-
-  let hookInput = {};
-  try {
-    const stdin = readFileSync(0, "utf8");
-    if (stdin.trim()) hookInput = JSON.parse(stdin);
-  } catch { /* no stdin */ }
 
   const sessionFile = join(CONFIG_DIR, "session-" + repo.replace("/", "_"));
   const post = async (body) => {
@@ -174,7 +167,7 @@ async function main() {
       kind: "session_start",
       repo,
       branch: git("git rev-parse --abbrev-ref HEAD"),
-      agent: "claude-code",
+      agent: host,
     });
     if (out?.session_id) {
       try {
@@ -194,13 +187,12 @@ async function main() {
       clearTimeout(timer);
       if (res.ok) {
         const ctx = await res.json();
-        console.log("## Team context (DevBrain)");
-        console.log(JSON.stringify(ctx, null, 2));
+        emitContext(host, "## Team context (DevBrain)\n" + JSON.stringify(ctx, null, 2));
       } else {
         // Not linked / server trouble → say nothing (a personal repo is the
         // normal case). A dead token is the one thing worth a line.
         const hint = httpHint(res.status);
-        if (hint) console.log(hint);
+        if (hint) emitContext(host, hint);
       }
     } catch { /* best effort */ }
     process.exit(0);
@@ -217,10 +209,9 @@ async function main() {
   }
 
   // activity — repo-relative path only; never leak the machine's layout.
-  let file = hookInput?.tool_input?.file_path;
+  let file = editedFile(hookInput);
   if (file) {
-    const root = git("git rev-parse --show-toplevel");
-    if (root && file.startsWith(root)) file = file.slice(root.length + 1);
+    file = relative(file, git("git rev-parse --show-toplevel"));
     await post({
       kind: "activity",
       repo,

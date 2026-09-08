@@ -6,6 +6,7 @@
 // admin switch — those live in the Console. Tab switches are pure client state.
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
+import { HostTag } from "../desk/ui";
 import { mintDeviceToken, setWidgetRepo } from "./actions";
 import { dismissAlert } from "../settings/org/alert-actions";
 import { BrainMark } from "@/components/BrainMark";
@@ -27,7 +28,7 @@ import { DEFAULT_PREFS, PREFS_EVENT, readPrefs, WidgetNotifier, writePrefs, type
 
 export interface WidgetData {
   deploy: string;
-  sessions: { id: string; repo: string; dev_label: string; root?: string; summary: string | null; last_seen: string; started_at?: string | null }[];
+  sessions: { id: string; repo: string; dev_label: string; root?: string; summary: string | null; last_seen: string; started_at?: string | null; agent?: string }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
   tasks: { id: string; pinned: boolean; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null; started_by: string | null; footprint: string[] | null }[];
@@ -650,7 +651,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                       <i className="absolute -bottom-0.5 -right-0.5 h-[7px] w-[7px] rounded-full border-2 border-ink bg-go" />
                       {g.length > 1 && <b className="absolute -right-2 -top-1.5 rounded-full bg-accent2 px-1 font-mono text-[9px] font-normal leading-[13px] text-white">×{g.length}</b>}
                     </span>
-                    <div className="min-w-0 flex-1"><div className={"text-[13px] " + (me ? "text-accent" : "text-txt")}>{me ? "you" : name}</div><div className="truncate text-[11.5px] text-muted">{busy.summary || (data.scopeAll ? lead.repo : `active ${timeAgo(lead.last_seen)} ago`)}</div></div>
+                    <div className="min-w-0 flex-1"><div className={"flex items-baseline gap-1.5 text-[13px] " + (me ? "text-accent" : "text-txt")}><span className="truncate">{me ? "you" : name}</span><HostTag hosts={g.map((s) => s.agent)} /></div><div className="truncate text-[11.5px] text-muted">{busy.summary || (data.scopeAll ? lead.repo : `active ${timeAgo(lead.last_seen)} ago`)}</div></div>
                     {since && <span className="font-mono text-[10.5px] text-faint">since {hhmm(since)}</span>}
                   </div>
                 );

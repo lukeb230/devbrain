@@ -226,3 +226,12 @@ export function LinkButton({ children, tone = "primary" }: { children: ReactNode
   const cls = tone === "primary" ? "bg-accent2 text-white font-semibold" : "border border-line2 bg-row text-txt font-medium";
   return <span className={`inline-block whitespace-nowrap rounded-lg px-3.5 py-2 text-[12.5px] ${cls}`}>{children}</span>;
 }
+
+/** Which agent host a teammate is in — Claude, Cursor or Codex. Mixed teams
+ *  are the point of the host layer, so the tag always shows; a person with
+ *  several sessions across hosts reads "Claude + Cursor". */
+export const HOST_LABEL: Record<string, string> = { "claude-code": "Claude", cursor: "Cursor", codex: "Codex" };
+export function HostTag({ hosts }: { hosts: (string | null | undefined)[] }) {
+  const set = [...new Set(hosts.map((h) => HOST_LABEL[h ?? "claude-code"] ?? "agent"))];
+  return <span className="flex-shrink-0 font-mono text-[10px] text-faint">{set.join(" + ")}</span>;
+}

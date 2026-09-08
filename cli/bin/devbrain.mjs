@@ -42,6 +42,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "./lib.mjs";
+import { HOST_NAMES, mergeAgentsMd, mergeCodexConfig, mergeCodexHooks, mergeCursorHooks, mergeCursorMcp, stripCodexConfig, stripCodexHooks, stripCursorHooks, stripMcpJson } from "./hosts.mjs";
 
 // The repo everything is installed from. When the repo goes private this is
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
@@ -358,6 +359,83 @@ function updatePlugin() {
     : fail("plugin_update", `update failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`);
 }
 
+// ----------------------------------------------------------------------------
+// Other agent hosts. Claude Code gets DevBrain through the plugin; Cursor and
+// Codex get the same hooks + MCP server through their own config files, all
+// pointing at this install's source checkout and bundled Node. Which hosts to
+// wire lives in config.hosts (array); when unset we wire every host that is
+// installed on this Mac (~/.cursor, ~/.codex exist). `devbrain hosts` edits it.
+// ----------------------------------------------------------------------------
+const CURSOR_DIR = join(HOME, ".cursor");
+const CODEX_DIR = join(HOME, ".codex");
+function hostPaths() {
+  const node = existsSync(join(BIN_DIR, "node")) ? join(BIN_DIR, "node") : process.execPath;
+  const pluginRoot = join(SRC_DIR, CH.pluginDir);
+  return { node, hooksDir: join(pluginRoot, "hooks"), serverPath: join(pluginRoot, "mcp", "server.mjs"), home: CONFIG_DIR, id: CH.plugin };
+}
+function detectHosts() {
+  const out = [];
+  if (existsSync(CURSOR_DIR)) out.push("cursor");
+  if (existsSync(CODEX_DIR)) out.push("codex");
+  return out;
+}
+function wantedHosts(cfg) {
+  return Array.isArray(cfg?.hosts) ? cfg.hosts.filter((h) => HOST_NAMES.includes(h)) : detectHosts();
+}
+function readJsonFile(path) {
+  if (!existsSync(path)) return undefined;
+  return JSON.parse(readFileSync(path, "utf8")); // throws on a corrupt file: never overwrite what we cannot read
+}
+function writeJsonFile(path, obj) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(obj, null, 2) + "\n");
+}
+function wireCursor(on) {
+  const P = hostPaths();
+  const hooksPath = join(CURSOR_DIR, "hooks.json"), mcpPath = join(CURSOR_DIR, "mcp.json");
+  if (!on) {
+    if (existsSync(hooksPath)) writeJsonFile(hooksPath, stripCursorHooks(readJsonFile(hooksPath), P.hooksDir));
+    if (existsSync(mcpPath)) writeJsonFile(mcpPath, stripMcpJson(readJsonFile(mcpPath), P.id));
+    return "removed";
+  }
+  if (!existsSync(join(SRC_DIR, CH.pluginDir, "hooks", "presence.mjs"))) return fail("cursor_source", `${SRC_DIR} has no plugin checkout yet — re-run after the source step succeeds`);
+  const h0 = readJsonFile(hooksPath), m0 = readJsonFile(mcpPath);
+  const h1 = mergeCursorHooks(h0, P), m1 = mergeCursorMcp(m0, P);
+  const changed = JSON.stringify(h0) !== JSON.stringify(h1) || JSON.stringify(m0) !== JSON.stringify(m1);
+  writeJsonFile(hooksPath, h1); writeJsonFile(mcpPath, m1);
+  return changed ? "hooks + MCP server written (applies to new Cursor chats)" : "ok";
+}
+function wireCodex(on) {
+  const P = hostPaths();
+  const tomlPath = join(CODEX_DIR, "config.toml"), hooksPath = join(CODEX_DIR, "hooks.json");
+  if (!on) {
+    if (existsSync(tomlPath)) writeFileSync(tomlPath, stripCodexConfig(readFileSync(tomlPath, "utf8"), P.id));
+    if (existsSync(hooksPath)) writeJsonFile(hooksPath, stripCodexHooks(readJsonFile(hooksPath), P.hooksDir));
+    return "removed";
+  }
+  if (!existsSync(join(SRC_DIR, CH.pluginDir, "mcp", "server.mjs"))) return fail("codex_source", `${SRC_DIR} has no plugin checkout yet — re-run after the source step succeeds`);
+  const t0 = existsSync(tomlPath) ? readFileSync(tomlPath, "utf8") : "";
+  const t1 = mergeCodexConfig(t0, P);
+  const h0 = readJsonFile(hooksPath), h1 = mergeCodexHooks(h0, P);
+  mkdirSync(CODEX_DIR, { recursive: true });
+  if (t1 !== t0) writeFileSync(tomlPath, t1);
+  writeJsonFile(hooksPath, h1);
+  return t1 !== t0 || JSON.stringify(h0) !== JSON.stringify(h1) ? "config.toml + hooks written (applies to new Codex sessions)" : "ok";
+}
+/** Reconcile every host: wire the wanted ones, unwire the rest that carry our entries. */
+function updateHosts(cfg) {
+  const want = new Set(wantedHosts(cfg));
+  const msgs = [];
+  for (const host of HOST_NAMES) {
+    const installed = existsSync(host === "cursor" ? CURSOR_DIR : CODEX_DIR);
+    if (!want.has(host) && !installed) continue;
+    const r = host === "cursor" ? wireCursor(want.has(host)) : wireCodex(want.has(host));
+    if (r && typeof r === "object" && r.ok === false) return r;
+    if (want.has(host) || r !== "removed") msgs.push(`${host}: ${r}`);
+  }
+  return msgs.length ? msgs.join(" · ") : skip("no other hosts on this Mac (Cursor, Codex) — Claude Code via the plugin");
+}
+
 // 4. Reminders sync is run by the DevBrain app (every 3 min while it runs)
 //    for every list the TEAM mapped under Console → Reminders — the mapping
 //    lives on the server, never on a Mac. Locally there is only an on/off
@@ -552,6 +630,7 @@ async function updateAll({ skipSource = false } = {}) {
   await step("cli", installWrapper);
   await step("hooks", () => (removeLegacyHooks() ? "legacy CLI hooks removed (plugin owns presence)" : "ok"));
   await step("plugin", updatePlugin);
+  await step("hosts", () => updateHosts(cfg));
   await step("reminders", () => updateReminderJobs(cfg));
   await step("updater", updateUpdaterJob);
   await step("widget", updateWidget); // keep LAST: it replaces the bundle our node came from
@@ -717,6 +796,40 @@ if (cmd === "send") {
       tool: (hookInput?.tool_name || "edit").toLowerCase(), session_id,
     });
   }
+  process.exit(0);
+}
+
+// Which agent hosts this Mac wires DevBrain into besides Claude Code.
+//   devbrain hosts                 show detected / configured hosts
+//   devbrain hosts add cursor      (or codex, or all)
+//   devbrain hosts remove codex
+//   devbrain hosts agents [dir]    add the DevBrain block to a repo's AGENTS.md (Codex reads it)
+if (cmd === "hosts") {
+  const cfg = loadConfig() || {};
+  const sub = process.argv[3], name = process.argv[4];
+  if (sub === "add" || sub === "remove") {
+    const names = name === "all" ? HOST_NAMES : [name];
+    if (!names.every((n) => HOST_NAMES.includes(n))) { console.error(`hosts ${sub}: expected one of ${HOST_NAMES.join(", ")} or all`); process.exit(1); }
+    const cur = new Set(wantedHosts(cfg));
+    for (const n of names) sub === "add" ? cur.add(n) : cur.delete(n);
+    cfg.hosts = [...cur]; saveConfig(cfg);
+    const r = normalizeStep(updateHosts(cfg));
+    console.log(`${r.ok ? "✓" : "✗"} hosts: ${r.msg}`);
+    process.exit(r.ok ? 0 : 1);
+  }
+  if (sub === "agents") {
+    const file = join(resolve(name || "."), "AGENTS.md");
+    const before = existsSync(file) ? readFileSync(file, "utf8") : "";
+    const after = mergeAgentsMd(before);
+    if (after !== before) writeFileSync(file, after);
+    console.log(`${after !== before ? "✓ wrote" : "= unchanged"} ${file}`);
+    process.exit(0);
+  }
+  const want = new Set(wantedHosts(cfg));
+  console.log(`Hosts on this Mac (${Array.isArray(cfg.hosts) ? "configured" : "auto-detected"}):`);
+  console.log(`  claude-code  ${findClaude() ? "installed" : "not found"} — via the ${CH.plugin} plugin`);
+  for (const h of HOST_NAMES) console.log(`  ${h.padEnd(12)} ${existsSync(h === "cursor" ? CURSOR_DIR : CODEX_DIR) ? "installed" : "not found"} — ${want.has(h) ? "wired" : "off"}`);
+  console.log(`\nChange with: ${CH.cmd} hosts add|remove cursor|codex|all`);
   process.exit(0);
 }
 
@@ -1017,6 +1130,8 @@ Usage:
   ${c} spawn [--label X] [--dir D] [--auto] [--print]  Launch another Claude as its own teammate (--auto: dispatch a lane-safe task)
   ${c} sessions                      List this identity's spawned sessions
   ${c} stop <label>|--all            Revoke a spawned session (releases claims, ends presence)
+  ${c} hosts [add|remove cursor|codex|all]  Wire DevBrain into Cursor / Codex too (auto-detected by default)
+  ${c} hosts agents [dir]           Add the DevBrain block to a repo's AGENTS.md (read by Codex)
   ${c} doctor                       Verify the whole chain
   ${c} ctx                          Print the live context digest for the current repo
   ${c} send                         (internal — invoked by hooks)

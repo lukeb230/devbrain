@@ -5,7 +5,7 @@ import { ingestLimiter } from "@/lib/ratelimit";
 
 // ============================================================================
 // Presence ingest — called by Claude Code hooks + git hooks via the CLI.
-// Body: { repo: "owner/name", branch, file?, tool, kind: "activity"|"session_start"|"session_end", summary? }
+// Body: { repo: "owner/name", branch, file?, tool, kind: "activity"|"session_start"|"session_update"|"heartbeat"|"session_end", summary?, agent? }
 // Auth: Bearer <dev token>.
 // ============================================================================
 
@@ -87,6 +87,14 @@ export async function POST(request: Request) {
         ended_at: null,
       })
       .eq("id", own.id);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (kind === "heartbeat") {
+    // A host without hooks (MCP lifecycle presence) keeping its session alive.
+    const own = await ownSession(admin, body.session_id, repo.org_id, auth.label);
+    if (!own) return NextResponse.json({ error: "session not found" }, { status: 404 });
+    await admin.from("sessions").update({ last_seen: new Date().toISOString(), ended_at: null }).eq("id", own.id);
     return NextResponse.json({ ok: true });
   }
 

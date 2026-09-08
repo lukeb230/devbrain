@@ -63,6 +63,7 @@ export function buildDigest(rows: DigestRows) {
   const activeSessions = (rows.sessions ?? []).map((s) => ({
     id: s.id,
     dev: s.dev_label,
+    agent: s.agent_kind ?? "claude-code",
     branch: s.branch,
     summary: s.summary,
     files: [...(filesBySession.get(String(s.id)) ?? [])],

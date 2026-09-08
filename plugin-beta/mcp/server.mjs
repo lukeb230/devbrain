@@ -16,9 +16,16 @@ import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileS
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { appName, cmdName, devbrainHome, loadConfig } from "../hooks/home.mjs";
+import { normalizeHost } from "../hooks/host.mjs";
 import { createInterface } from "node:readline";
 
 const CONFIG_DIR = devbrainHome();
+
+// The repo this server speaks for. Claude Code and Codex start the server in
+// the project; Cursor starts user-level servers elsewhere and passes the
+// workspace through DEVBRAIN_CWD=${workspaceFolder} (see cli/bin/hosts.mjs).
+const WORKDIR = process.env.DEVBRAIN_CWD && existsSync(process.env.DEVBRAIN_CWD) ? process.env.DEVBRAIN_CWD : process.cwd();
+const HOST = normalizeHost(process.env.DEVBRAIN_HOST || "claude-code");
 
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 
@@ -56,14 +63,14 @@ function ownSessionId(repo) {
 }
 function currentRepo() {
   try {
-    const url = execSync("git remote get-url origin", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+    const url = execSync("git remote get-url origin", { cwd: WORKDIR, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
     const m = url.match(/github\.com[:/](.+?)(\.git)?$/);
     return m ? m[1] : null;
   } catch { return null; }
 }
 function repoRoot() {
   try {
-    return execSync("git rev-parse --show-toplevel", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+    return execSync("git rev-parse --show-toplevel", { cwd: WORKDIR, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
   } catch { return null; }
 }
 
@@ -414,7 +421,7 @@ async function callTool(name, args) {
     if (!cfg || !repo) return JSON.stringify({ error: !cfg ? NOT_CONFIGURED : "Not inside a git repo with a GitHub remote." });
     let branch = null;
     try {
-      branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+      branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: WORKDIR, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim();
     } catch { /* fine */ }
     const res = await fetch(`${cfg.server}/api/v1/handoffs`, {
       method: "POST",
@@ -473,9 +480,60 @@ async function callTool(name, args) {
   throw new Error(`Unknown tool: ${name}`);
 }
 
+// ----- lifecycle presence ----------------------------------------------------
+// Hosts without working hooks (Codex until its hooks feature lands for a
+// user, anything else that only speaks MCP) still show up as a teammate:
+// with DEVBRAIN_PRESENCE=lifecycle the server itself opens a session when the
+// host connects, heartbeats while it lives, and closes it when stdin closes.
+// If a presence hook already registered this repo's session within the last
+// minute (the session file is fresh) the hooks own presence and this is a
+// no-op, so a host with both never shows twice.
+const LIFECYCLE = process.env.DEVBRAIN_PRESENCE === "lifecycle";
+const lifecycle = { session: null, repo: null, timer: null };
+function sessionFile(repo) { return join(CONFIG_DIR, "session-" + repo.replace("/", "_")); }
+function gitIn(cmd) {
+  try { return execSync(cmd, { cwd: WORKDIR, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim() || null; } catch { return null; }
+}
+async function ingest(cfg, body) {
+  return call(`${cfg.server}/api/v1/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.token}` },
+    body: JSON.stringify(body),
+  });
+}
+async function lifecycleStart() {
+  const cfg = config();
+  const repo = currentRepo();
+  if (!cfg || !repo) return;
+  await new Promise((r) => setTimeout(r, 4000)); // give a SessionStart hook its turn first
+  try { if (Date.now() - statSync(sessionFile(repo)).mtimeMs < 60_000) return; } catch { /* no hook presence */ }
+  const out = await ingest(cfg, { repo, kind: "session_start", branch: gitIn("git rev-parse --abbrev-ref HEAD"), agent: HOST });
+  if (!out?.session_id) return;
+  lifecycle.session = out.session_id;
+  lifecycle.repo = repo;
+  try { writeFileSync(sessionFile(repo), out.session_id); } catch { /* best effort */ }
+  lifecycle.timer = setInterval(() => ingest(cfg, { repo, kind: "heartbeat", session_id: out.session_id }).catch(() => {}), 5 * 60_000);
+  lifecycle.timer.unref?.();
+}
+async function lifecycleEnd() {
+  if (!lifecycle.session) return;
+  const cfg = config();
+  const { repo, session } = lifecycle;
+  lifecycle.session = null;
+  clearInterval(lifecycle.timer);
+  try { if (readFileSync(sessionFile(repo), "utf8").trim() === session) unlinkSync(sessionFile(repo)); } catch { /* fine */ }
+  if (cfg) await Promise.race([ingest(cfg, { repo, kind: "session_end", session_id: session }), new Promise((r) => setTimeout(r, 3000))]);
+}
+
 // ----- minimal JSON-RPC over stdio ------------------------------------------
 const rl = createInterface({ input: process.stdin });
 function send(obj) { process.stdout.write(JSON.stringify(obj) + "\n"); }
+if (LIFECYCLE) {
+  const bye = () => lifecycleEnd().finally(() => process.exit(0));
+  rl.on("close", bye);
+  process.on("SIGTERM", bye);
+  process.on("SIGINT", bye);
+}
 
 rl.on("line", async (line) => {
   let msg;
@@ -488,6 +546,7 @@ rl.on("line", async (line) => {
         capabilities: { tools: {} },
         serverInfo: { name: "devbrain", version: "0.1.0" },
       }});
+      if (LIFECYCLE) lifecycleStart().catch(() => {});
     } else if (method === "notifications/initialized") {
       // no response for notifications
     } else if (method === "tools/list") {

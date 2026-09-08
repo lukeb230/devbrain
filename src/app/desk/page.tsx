@@ -14,7 +14,7 @@ import { DeskNext } from "./desk-next";
 import { ExternalLink } from "./external-link";
 import { Greeting } from "./greeting";
 import { ListPane, PaneTitle, Reading } from "./panes";
-import { ACTION, Avatar, Banner, Button, Card, Empty, Field, Popover, Section, SectionHead, Select } from "./ui";
+import { ACTION, Avatar, Banner, Button, Card, Empty, Field, HostTag, Popover, Section, SectionHead, Select } from "./ui";
 
 // ============================================================================
 // Desk · Home (Dusk). List pane: Needs you (cards with a 3px status edge) and
@@ -98,7 +98,7 @@ export default async function DeskHome({ searchParams }: { searchParams: Promise
               <div key={lead.id} className="flex items-center gap-2.5 px-4 py-2">
                 <Avatar name={name} me={me} dot badge={g.length > 1 ? `×${g.length}` : undefined} />
                 <div className="min-w-0 flex-1">
-                  <div className={`text-[13px] ${me ? "text-accent2" : "text-txt"}`}>{me ? "you" : name}</div>
+                  <div className={`flex items-baseline gap-1.5 text-[13px] ${me ? "text-accent2" : "text-txt"}`}><span className="truncate">{me ? "you" : name}</span><HostTag hosts={g.map((s) => s.agent)} /></div>
                   <div className="truncate text-[11px] text-muted">{busy.summary || (data.scopeAll ? lead.repo : timeAgo(lead.last_seen))}</div>
                 </div>
               </div>

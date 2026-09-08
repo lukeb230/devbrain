@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       .order("updated_at", { ascending: false }),
     admin
       .from("sessions")
-      .select("id, dev_label, branch, summary, last_seen")
+      .select("id, dev_label, branch, summary, last_seen, agent_kind")
       .eq("repo_id", repo.id)
       .is("ended_at", null)
       .gte("last_seen", since),

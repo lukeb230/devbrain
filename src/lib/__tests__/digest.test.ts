@@ -69,7 +69,7 @@ describe("buildDigest — sessions and collisions", () => {
       sessions: [{ id: "s1", dev_label: "luke", branch: "feat", summary: "x", last_seen: "" }],
       activity: [{ session_id: "s1", file: "src/a.ts" }, { session_id: "s1", file: "src/b.ts" }, { session_id: "s1", file: "src/a.ts" }],
     }));
-    expect(d.active_sessions).toEqual([{ id: "s1", dev: "luke", branch: "feat", summary: "x", files: ["src/a.ts", "src/b.ts"] }]);
+    expect(d.active_sessions).toEqual([{ id: "s1", dev: "luke", agent: "claude-code", branch: "feat", summary: "x", files: ["src/a.ts", "src/b.ts"] }]);
   });
 
   it("flags the same file in two different devs' sessions, not the same dev twice", () => {

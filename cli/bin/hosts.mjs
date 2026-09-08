@@ -27,6 +27,7 @@ export function hookCommands({ node, hooksDir, host }) {
     sessionStart: run("presence.mjs", "session_start"),
     sessionEnd: run("presence.mjs", "session_end"),
     activity: run("presence.mjs", "activity"),
+    touch: run("presence.mjs", "touch"),
     guard: run("check-collision.mjs"),
     prompt: run("live-context.mjs"),
   };
@@ -50,6 +51,8 @@ export function mergeCursorHooks(existing, { node, hooksDir }) {
     sessionEnd: [{ command: c.sessionEnd, timeout: 8 }],
     afterFileEdit: [{ command: c.activity, timeout: 8 }],
     preToolUse: [{ command: c.guard, timeout: 10 }],
+    beforeSubmitPrompt: [{ command: c.touch, timeout: 8 }],
+    stop: [{ command: c.touch, timeout: 8 }],
   };
   for (const [event, mine] of Object.entries(wanted)) {
     const kept = (Array.isArray(out.hooks[event]) ? out.hooks[event] : []).filter((h) => !isOurs(h?.command, hooksDir));

@@ -212,6 +212,30 @@ async function main() {
     ? readFileSync(sessionFile, "utf8").trim()
     : undefined;
 
+  // touch — a host event that means "still here" (Cursor: beforeSubmitPrompt,
+  // stop). Cursor conversations never formally end and only sessionStart
+  // carries the brief, so this keeps last_seen honest across a long chat and
+  // opens a session for a conversation that predates the hooks (no brief —
+  // these events cannot inject context).
+  if (kind === "touch") {
+    const convo = sessionKey(hookInput);
+    let live = false;
+    try { live = readFileSync(sessionFile + ".convo", "utf8").trim() === convo && Date.now() - statSync(sessionFile).mtimeMs < 12 * 3600_000; } catch { /* none */ }
+    if (live && session_id) {
+      const r = await post({ kind: "heartbeat", repo, session_id });
+      if (r?.ok) { try { writeFileSync(sessionFile, session_id); } catch { /* keep mtime fresh */ } }
+      else live = false; // server lost it (ended elsewhere) → reopen below
+    }
+    if (!live) {
+      const out = await post({ kind: "session_start", repo, branch: git("git rev-parse --abbrev-ref HEAD"), agent: host });
+      if (out?.session_id) {
+        try { mkdirSync(CONFIG_DIR, { recursive: true }); writeFileSync(sessionFile, out.session_id); writeFileSync(sessionFile + ".convo", convo); } catch { /* non-fatal */ }
+      }
+    }
+    if (hookInput?.hook_event_name === "beforeSubmitPrompt") process.stdout.write(JSON.stringify({ continue: true }));
+    process.exit(0);
+  }
+
   if (kind === "session_end") {
     if (session_id) await post({ kind: "session_end", repo, session_id });
     queueJournal({ cfg, repo, session_id, hookInput });

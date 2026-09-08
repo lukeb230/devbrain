@@ -53,7 +53,8 @@ describe("Cursor hooks.json", () => {
   it("starts from nothing", () => {
     const out = mergeCursorHooks(undefined, { node, hooksDir });
     expect(out.version).toBe(1);
-    expect(Object.keys(out.hooks).sort()).toEqual(["afterFileEdit", "preToolUse", "sessionEnd", "sessionStart"]);
+    expect(Object.keys(out.hooks).sort()).toEqual(["afterFileEdit", "beforeSubmitPrompt", "preToolUse", "sessionEnd", "sessionStart", "stop"]);
+    expect(out.hooks.stop[0].command).toContain("presence.mjs' touch --host=cursor");
   });
 });
 

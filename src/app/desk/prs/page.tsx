@@ -58,7 +58,7 @@ export default async function DeskPrs({ searchParams }: { searchParams: Promise<
     <>
       <PrPane groups={groups} scopeAll current={null} />
       <Reading>
-        <H1 title="Pull requests" sub={`${total} open across ${shown.length} repo${shown.length === 1 ? "" : "s"} · lights are deterministic and every light says why · pick a PR on the left, or scope one repo`} />
+        <H1 title="Pull requests" sub={`${total} open across ${groups.length} repo${groups.length === 1 ? "" : "s"} · lights are deterministic and every light says why · pick a PR on the left, or scope one repo`} />
         {shown.length === 0 && <Empty className="mt-6">No open pull requests.</Empty>}
         {shown.map((g) => {
           const counts = { go: 0, wait: 0, stop: 0, draft: 0 };

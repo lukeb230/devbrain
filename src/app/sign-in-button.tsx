@@ -8,7 +8,7 @@ function tauriCore(): TauriCore | null {
   return t?.core ?? null;
 }
 
-export function SignInButton({ next }: { next?: string }) {
+export function SignInButton({ next, size = "lg" }: { next?: string; size?: "lg" | "sm" }) {
   async function signIn() {
     // Inside the desktop app: never log in to GitHub in the panel's webview
     // (Google/SSO-backed GitHub accounts can't). Hand off to the user's real
@@ -31,10 +31,7 @@ export function SignInButton({ next }: { next?: string }) {
   }
 
   return (
-    <button
-      onClick={signIn}
-      className="rounded-lg bg-brand-600 px-6 py-3 font-medium text-white transition hover:bg-brand-700"
-    >
+    <button onClick={signIn} className={size === "lg" ? "rounded-[10px] bg-accent2 px-[22px] py-3 text-[14px] font-semibold text-white hover:brightness-110" : "rounded-lg bg-accent2 px-[11px] py-1.5 font-display text-[11.5px] font-semibold text-white"}>
       Sign in with GitHub
     </button>
   );

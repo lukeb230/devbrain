@@ -226,13 +226,3 @@ export function LinkButton({ children, tone = "primary" }: { children: ReactNode
   const cls = tone === "primary" ? "bg-accent2 text-white font-semibold" : "border border-line2 bg-row text-txt font-medium";
   return <span className={`inline-block whitespace-nowrap rounded-lg px-3.5 py-2 text-[12.5px] ${cls}`}>{children}</span>;
 }
-
-/** Transitional: the pre-Dusk card API (title/count/right) as a hairline section. Pages still on it get re-shaped one by one. */
-export function Panel({ title, count, right, children, className = "" }: { title?: ReactNode; count?: number | string; right?: ReactNode; children: ReactNode; className?: string }) {
-  return (
-    <section className={`mt-7 ${className}`}>
-      {(title || right) && <SectionHead title={title ?? ""} count={count} right={right} />}
-      <div className="mt-2.5">{children}</div>
-    </section>
-  );
-}

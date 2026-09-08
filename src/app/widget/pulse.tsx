@@ -75,14 +75,14 @@ export function Pulse({
     );
   }
   return (
-    <div className="relative mx-3.5 mb-1.5 h-11 border-b border-line">
-      <span className="absolute left-0 top-0 font-mono text-[10px] tracking-wider text-muted">
-        LAST HOUR · <span className="text-brand-400">{people} {people === 1 ? "person" : "people"}</span>
+    <div className="relative mt-3 h-[58px]">
+      <span className="absolute left-0 top-0 font-mono text-[10px] uppercase tracking-[.12em] text-faint">
+        last hour · <span className="text-accent">{people} {people === 1 ? "person" : "people"}</span>
         {prEvents > 0 ? ` · ${prEvents} PR ${prEvents === 1 ? "event" : "events"}` : ""}
         {collision ? " · collision" : ""}
         {quiet && !collision ? " · quiet" : ""}
       </span>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute left-0 right-0 top-3.5 h-11 w-full" aria-hidden>
         <defs>
           <linearGradient id="wg-g" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="var(--wg-accent-strong)" stopOpacity=".22" />

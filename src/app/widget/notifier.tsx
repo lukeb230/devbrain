@@ -57,7 +57,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
 
 
 /** One row per notification kind — the switches on Desk › This Mac (and the panel before Dusk). */
-export type BoolPref = Exclude<keyof NotifPrefs, "scope">;
+export type BoolPref = Exclude<keyof NotifPrefs, "scope" | "pausedUntil">;
 export const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
   { key: "broadcasts", label: "Broadcasts", detail: "A teammate sends a team-wide heads-up" },
   { key: "pr_conflicts", label: "PR conflicts", detail: "An open pull request develops merge conflicts" },

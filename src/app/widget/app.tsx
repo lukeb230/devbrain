@@ -1,46 +1,31 @@
 "use client";
 
-// The widget mini-app: a Home tab that fits the panel with NO scrolling
-// (tasks + who's working — the glance content), and a bottom tab bar for
-// Tasks / PRs / Brain / Feed. Tab switches are instant (pure client state).
+// The panel (Dusk): the glance. Header with tabs (Home · Tasks · PRs) and a
+// gear menu that only pauses notifications, picks appearance, opens the
+// Desk's settings or signs out. Never a form longer than one line, never an
+// admin switch — those live in the Desk. Tab switches are pure client state.
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { mintDeviceToken, setWidgetRepo } from "./actions";
 import { dismissAlert } from "../settings/org/alert-actions";
-import { ActivityFeed, type ActivityRow } from "@/components/ActivityFeed";
 import { BrainMark } from "@/components/BrainMark";
 import { Pulse } from "./pulse";
 import { applyThemePref, readThemePref, type ThemePref } from "./theme";
-import { switchOrg } from "../settings/org/actions";
-import { WidgetBrain } from "./brain";
-import { PrBadges } from "@/components/PrBadges";
-import { createClaim, releaseClaim } from "../dashboard/[repoId]/claim-actions";
+import { createClaim } from "../dashboard/[repoId]/claim-actions";
+import { pickSuggestedNext } from "@/lib/lanes";
+import type { ActivityRow } from "@/components/ActivityFeed";
 import { pickupHandoff } from "../dashboard/[repoId]/handoff-actions";
-import { TaskMenu } from "../dashboard/[repoId]/tasks/task-menu";
-import { toggleRule } from "../dashboard/[repoId]/rules/actions";
-import { uploadSpec } from "../dashboard/[repoId]/specs/actions";
-import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, dismissMaybeDone, reopenTask, startTask, togglePin } from "../dashboard/[repoId]/tasks/actions";
-import { BrainExplorer, type NotePayload } from "../dashboard/[repoId]/brain/explorer";
+import { completeTask, confirmMaybeDone, createTask, dismissMaybeDone, startTask, togglePin } from "../dashboard/[repoId]/tasks/actions";
+import type { NotePayload } from "../dashboard/[repoId]/brain/explorer";
 import { buildNeeds } from "@/lib/desk/needs-you";
 import type { GEdge, GNode } from "../dashboard/[repoId]/brain/graph";
 import { WidgetBadge } from "./badge";
 import { WidgetLive } from "./live";
-import {
-  DEFAULT_PREFS,
-  readPrefs,
-  testNotification,
-  openNotificationSettings,
-  type DeliveryResult,
-  WidgetNotifier,
-  writePrefs,
-  NOTIF_ROWS,
-  type BoolPref,
-  type NotifPrefs,
-} from "./notifier";
+import { DEFAULT_PREFS, PREFS_EVENT, readPrefs, WidgetNotifier, writePrefs, type NotifPrefs } from "./notifier";
 
 export interface WidgetData {
   deploy: string;
-  sessions: { id: string; repo: string; dev_label: string; root?: string; summary: string | null; last_seen: string }[];
+  sessions: { id: string; repo: string; dev_label: string; root?: string; summary: string | null; last_seen: string; started_at?: string | null }[];
   collisions: { repo: string; file: string; branches: string[] }[];
   prs: { repo_id: string; repo: string; defaultBranch: string; number: number; title: string; author: string | null; review_state: string | null; draft: boolean; mergeable_state: string | null; html_url: string | null; ai: { verdict: string; summary: string } | null; light: { state: string; reason: string } | null }[];
   tasks: { id: string; pinned: boolean; repo_id: string; repo: string; title: string; detail: string | null; priority: number; tags: string[]; assigned_to: string | null; status: string; done_by: string | null; created_by: string | null; created_at: string; maybe_done_pr: number | null; started_by: string | null; footprint: string[] | null }[];
@@ -70,9 +55,8 @@ export interface WidgetData {
 
 
 
-const TABS = ["Home", "Tasks", "PRs", "Brain", "Feed"] as const;
+const TABS = ["Home", "Tasks", "PRs"] as const;
 type Tab = (typeof TABS)[number];
-type View = Tab | "Settings";
 
 
 function timeAgo(iso: string) {
@@ -359,80 +343,6 @@ function SetupCard({ state, inline }: { state: SetupState; inline?: boolean }) {
 // Tab icons — hand-drawn stroke glyphs so the widget stays dependency-free.
 // 22px box, 1.75 stroke; the active state is expressed by colour from the
 // parent, plus a filled accent on a couple of glyphs where it reads better.
-function TabIcon({ tab, active }: { tab: Tab; active: boolean }) {
-  const common = {
-    width: 22,
-    height: 22,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.75,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  switch (tab) {
-    case "Home":
-      return (
-        <svg {...common}>
-          <path d="M3.5 11.2 12 4l8.5 7.2" />
-          <path d="M6 10v9.5h4.5v-5h3v5H18V10" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
-        </svg>
-      );
-    case "Tasks":
-      // Reminders-style: bullet dots with lines beside them.
-      return (
-        <svg {...common}>
-          <circle cx="6" cy="7" r="1.6" fill="currentColor" stroke="none" />
-          <circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none" />
-          <circle cx="6" cy="17" r="1.6" fill="currentColor" stroke="none" />
-          <path d="M10.5 7h8.5M10.5 12h8.5M10.5 17h8.5" />
-        </svg>
-      );
-    case "PRs":
-      // Git pull-request glyph: a branch from one commit merging into another.
-      return (
-        <svg {...common}>
-          <circle cx="6.5" cy="5.5" r="2.2" />
-          <circle cx="6.5" cy="18.5" r="2.2" />
-          <circle cx="17.5" cy="18.5" r="2.2" />
-          <path d="M6.5 7.7v8.6" />
-          <path d="M11.5 5.5h3.5a2.5 2.5 0 0 1 2.5 2.5v8.3" />
-          <path d="M13.8 3.2 11.5 5.5l2.3 2.3" />
-        </svg>
-      );
-    case "Brain":
-      return (
-        <svg {...common}>
-          <path d="M9.5 4.5a2.6 2.6 0 0 0-2.6 2.2A2.7 2.7 0 0 0 5 9.4a2.7 2.7 0 0 0 .5 4.3A2.7 2.7 0 0 0 7.2 17.6 2.5 2.5 0 0 0 12 18V6.8a2.5 2.5 0 0 0-2.5-2.3Z" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
-          <path d="M14.5 4.5a2.6 2.6 0 0 1 2.6 2.2A2.7 2.7 0 0 1 19 9.4a2.7 2.7 0 0 1-.5 4.3 2.7 2.7 0 0 1-1.7 3.9A2.5 2.5 0 0 1 12 18V6.8a2.5 2.5 0 0 1 2.5-2.3Z" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
-          <path d="M12 9.5h-1.5M12 13h2M9 8.2c-.8.3-1.2 1-1.2 1.8M15 13.8c.8.3 1.2 1 1.2 1.8" />
-        </svg>
-      );
-    case "Feed":
-      // Live pulse: the feed is what just happened across the team.
-      return (
-        <svg {...common}>
-          <path d="M3 12h3.2l2.3-6 3.4 12 2.6-8.5 1.7 2.5H21" />
-        </svg>
-      );
-  }
-}
-
-// Pin / unpin a task to Home. Filled when pinned.
-function PinButton({ t }: { t: { id: string; repo_id: string; pinned: boolean } }) {
-  return (
-    <form action={togglePin} className="flex-shrink-0">
-      <input type="hidden" name="repoId" value={t.repo_id} />
-      <input type="hidden" name="id" value={t.id} />
-      <input type="hidden" name="pinned" value={String(!t.pinned)} />
-      <button title={t.pinned ? "Unpin from Home" : "Pin to Home"} aria-label={t.pinned ? "Unpin from Home" : "Pin to Home"} className={"grid h-5 w-5 place-items-center rounded " + (t.pinned ? "text-brand-400" : "text-faint hover:text-muted")}>
-        <svg viewBox="0 0 24 24" width="13" height="13" fill={t.pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4l5 5-4 1-3 3v5l-2-2-3-3-4 4 0-0 4-4-3-3-2-2h5l3-3z" /></svg>
-      </button>
-    </form>
-  );
-}
-
 // Outward links. `target="_blank"` asks the webview for a new window, which
 // the shell never creates — so inside the app every external link goes
 // through the opener command instead. In a browser it behaves normally.
@@ -461,23 +371,9 @@ function openExternal(e: React.MouseEvent, url: string) {
   void core.invoke("open_external", { url: abs }).catch(() => window.open(abs, "_blank"));
 }
 
-function Switch({ on, small }: { on: boolean; small?: boolean }) {
-  const h = small ? "h-5 w-9" : "h-6 w-11";
-  const knob = small ? "h-3.5 w-3.5" : "h-4 w-4";
-  const shift = small ? (on ? "translate-x-5" : "translate-x-1") : on ? "translate-x-6" : "translate-x-1";
-  return (
-    <span
-      className={`relative inline-flex ${h} flex-shrink-0 items-center rounded-full transition-colors ` + (on ? "bg-brand-600" : "bg-slate-200")}
-    >
-      <span className={`inline-block ${knob} transform rounded-full bg-white shadow transition-transform ` + shift} />
-    </span>
-  );
-}
-
-
-
 export function WidgetApp({ data }: { data: WidgetData }) {
-  const [tab, setTab] = useState<View>("Home");
+  const [tab, setTab] = useState<Tab>("Home");
+  const [menu, setMenu] = useState(false);
   // First-run: inside the desktop app with no ~/.devbrain/config.json yet.
   const [setup, setSetup] = useState<SetupState | null>(null);
   useEffect(() => {
@@ -497,40 +393,31 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     }
   }, [data.deploy]);
   const [switching, startSwitch] = useTransition();
-  const [capture, setCapture] = useState<null | "task" | "dump" | "spec">(null);
-  const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [themePref, setThemePref] = useState<ThemePref>("system");
   useEffect(() => setThemePref(readThemePref()), []);
   const pickTheme = (p: ThemePref) => { setThemePref(p); applyThemePref(p); };
-  // "Since you were away": the previous time this panel was opened.
-  const [lastOpen, setLastOpen] = useState<number | null>(null);
   useEffect(() => {
-    try {
-      const prev = Number(localStorage.getItem("devbrain_last_open") || 0) || null;
-      setLastOpen(prev);
-      localStorage.setItem("devbrain_last_open", String(Date.now()));
-    } catch { /* private mode */ }
-  }, []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCapture(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // Notification prefs live in localStorage, shared with the Desk's This Mac
+  // page; the gear only pauses them. (PREFS_EVENT fires on any write.)
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
-  const [testResult, setTestResult] = useState<DeliveryResult | "sending" | null>(null);
-  const runTest = async () => {
-    setTestResult("sending");
-    setTestResult(await testNotification());
-  };
-  useEffect(() => setPrefs(readPrefs()), []); // localStorage only exists client-side
-  const setPref = (key: BoolPref, value: boolean) => {
-    const next = { ...prefs, [key]: value };
+  useEffect(() => {
+    setPrefs(readPrefs());
+    const sync = () => setPrefs(readPrefs());
+    window.addEventListener(PREFS_EVENT, sync);
+    return () => window.removeEventListener(PREFS_EVENT, sync);
+  }, []);
+  const pause = (mode: "hour" | "tomorrow" | "off") => {
+    const until = mode === "hour" ? Date.now() + 3600_000 : mode === "tomorrow" ? new Date(new Date().setHours(24, 0, 0, 0)).getTime() : 0;
+    const next = { ...prefs, pausedUntil: until };
     setPrefs(next);
     writePrefs(next);
-    if (key === "enabled" && value) void testNotification(); // proves permission + delivery immediately
   };
+  const pausedMode: "hour" | "tomorrow" | "off" = !prefs.pausedUntil || prefs.pausedUntil <= Date.now() ? "off" : prefs.pausedUntil - Date.now() <= 3600_000 + 5000 ? "hour" : "tomorrow";
   const open = data.tasks.filter((t) => t.status === "open");
-  const done = data.tasks.filter((t) => t.status === "done").slice(0, 5);
 
   if (setup && !setup.configured) {
     let skipped = false;
@@ -538,12 +425,57 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     if (!skipped) return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} onDone={() => window.location.reload()} />;
   }
 
-  const initials = (name: string) => name.split(/[\s'’-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
   const isMe = (name: string | null | undefined) => Boolean(data.self && name && name.toLowerCase() === data.self.toLowerCase());
   const hourAgo = Date.now() - 3600_000;
   const peopleLastHour = new Set(data.activity.filter((a) => new Date(a.at).getTime() > hourAgo).map((a) => a.dev_label ?? "")).size;
+  const repoQ = data.lastRepo ? `?repo=${data.lastRepo.id}` : "";
+  const desk = (e: React.MouseEvent, route: string) => openDesk(e, route, `/desk${route}`);
+  const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+
+  // The dispatcher's pick for you — the same rule Claude gets in its context.
+  const othersBusy: string[] = [];
+  for (const c of data.claims) if (!isMe(c.dev_label)) othersBusy.push(...c.paths);
+  for (const t of open) if (t.started_by && !isMe(t.started_by)) othersBusy.push(...(t.footprint ?? []));
+  const suggested = data.self ? pickSuggestedNext(open.filter((t) => !t.maybe_done_pr).map((t) => ({ id: t.id, title: t.title, priority: t.priority, tags: t.tags, assigned_to: t.assigned_to, started_by: t.started_by, footprint: t.footprint, created_at: t.created_at })), data.self, othersBusy) : null;
+  const suggestedTask = suggested ? open.find((t) => t.id === suggested.id) ?? null : null;
+  const reasonFor = (s: NonNullable<typeof suggested>) => `${s.footprint && s.footprint.length > 0 ? "" : ""}${suggestedTask?.assigned_to ? "Assigned to you" : "Unassigned"} · P${s.priority} · ${s.footprint && s.footprint.length > 0 ? `its lane (${s.footprint.slice(0, 3).join(", ")}) is free — nobody's claim or started task overlaps it.` : "footprint not predicted yet — check who's editing before starting."}`;
+
+  // --- presentation bits (Dusk panel) -------------------------------------
+  const ACT = "font-display text-[11.5px] font-semibold text-accent hover:underline";
+  const ACT_MUTED = "font-display text-[11.5px] font-semibold text-muted hover:text-txt";
+  const PRIMARY = "whitespace-nowrap rounded-lg bg-accent2 px-[11px] py-1.5 font-display text-[11.5px] font-semibold text-white";
+  const Sec = ({ title, count, right, className = "mt-[18px]" }: { title: string; count?: React.ReactNode; right?: React.ReactNode; className?: string }) => (
+    <div className={`flex items-baseline gap-2 ${className}`}>
+      <span className="font-display text-[13px] font-semibold text-txt">{title}</span>
+      {count !== undefined && <span className="font-mono text-[10.5px] text-accent">{count}</span>}
+      {right && <span className="ml-auto font-mono text-[10px] uppercase tracking-[.12em] text-faint">{right}</span>}
+    </div>
+  );
+  const Row = ({ first, children }: { first?: boolean; children: React.ReactNode }) => <div className={`flex items-center gap-2.5 py-[9px] ${first ? "" : "border-t border-line"}`}>{children}</div>;
+  const Dot = ({ level }: { level: "stop" | "wait" | "go" | "dim" }) => <i className={"h-[7px] w-[7px] flex-shrink-0 rounded-full " + { stop: "bg-stop shadow-[0_0_8px_var(--wg-stop)]", wait: "bg-wait", go: "bg-go shadow-[0_0_8px_var(--wg-go)]", dim: "bg-faint" }[level]} />;
+  const Pri = ({ p }: { p: number }) => <span className={"w-[18px] font-mono text-[10px] " + (p === 1 ? "text-stop" : p === 2 ? "text-wait" : p === 3 ? "text-muted" : "text-faint")}>P{p}</span>;
+  const Pin = ({ t }: { t: { id: string; repo_id: string; pinned: boolean } }) => (
+    <form action={togglePin} className="flex-shrink-0">
+      <input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><input type="hidden" name="pinned" value={String(!t.pinned)} />
+      <button title={t.pinned ? "Unpin from Home" : "Pin to Home"} className={"text-[12px] " + (t.pinned ? "text-accent" : "text-faint hover:text-muted")}>⌖</button>
+    </form>
+  );
+  const Hidden = ({ t }: { t: { id: string; repo_id: string } }) => (<><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /></>);
+  const Seg = <T extends string>({ options, value, onPick }: { options: { key: T; label: string }[]; value: T; onPick: (k: T) => void }) => (
+    <span className="inline-flex rounded-lg border border-line2 p-0.5">
+      {options.map((o) => <button key={o.key} onClick={() => onPick(o.key)} className={"rounded-md px-2.5 py-[3px] font-display text-[11px] font-semibold " + (o.key === value ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>{o.label}</button>)}
+    </span>
+  );
+
+  const needs = buildNeeds({ self: data.self, scopeAll: data.scopeAll, prs: data.prs, tasks: data.tasks, claims: data.claims, collisions: data.collisions, handoffs: data.handoffs, fmtAgo: timeAgo });
+  const cta = (n: (typeof needs)[number]) =>
+    n.action.kind === "github" ? <a href={n.action.url ?? "#"} target="_blank" onClick={(e) => openExternal(e, n.action.kind === "github" ? n.action.url ?? "#" : "#")} className={ACT}>{n.action.label}</a>
+    : n.action.kind === "tab" ? <button onClick={() => setTab(n.action.kind === "tab" && (n.action.tab === "Tasks" || n.action.tab === "PRs") ? n.action.tab : "Home")} className={ACT}>{n.action.label}</button>
+    : n.action.kind === "start_task" ? <form action={startTask}><input type="hidden" name="repoId" value={n.action.repoId} /><input type="hidden" name="id" value={n.action.taskId} /><button className={ACT}>Start</button></form>
+    : <form action={pickupHandoff}><input type="hidden" name="repoId" value={n.action.repoId} /><input type="hidden" name="id" value={n.action.handoffId} /><button className={ACT}>Pick up</button></form>;
+
   return (
-    <div className="flex h-screen flex-col bg-ink text-txt">
+    <div className="flex h-screen flex-col bg-ink text-[13.5px] text-txt">
       <WidgetBadge
         input={{
           self: data.self,
@@ -560,658 +492,269 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         teamId={data.teamId}
         operator={data.operator}
         activeRepoId={data.scopeAll ? null : (data.lastRepo?.id ?? null)}
-        prSeeds={data.prs.map((p) => ({
-          repo_id: p.repo_id,
-          number: p.number,
-          mergeable_state: p.mergeable_state,
-          review_state: p.review_state,
-        }))}
+        prSeeds={data.prs.map((p) => ({ repo_id: p.repo_id, number: p.number, mergeable_state: p.mergeable_state, review_state: p.review_state }))}
       />
-      {/* Header — wordmark, live dot, scope, gear. No border: the pulse strip
-          below it is the divider. */}
-      <div className="flex flex-shrink-0 items-center justify-between px-3.5 pb-1 pt-3">
-        <span className="flex items-center gap-2">
-          <BrainMark size={20} id="wg" className="flex-shrink-0 drop-shadow-[0_0_6px_var(--wg-glow)]" />
-          <span className="font-display text-[15px] font-semibold tracking-tight text-txt">DevBrain</span>
-          <WidgetLive />
-        </span>
-        <span className="flex items-center gap-1.5">
+
+      {/* Header: mark + wordmark + live dot · team name · repo · gear */}
+      <div className="relative flex flex-shrink-0 items-center gap-2.5 bg-row px-4 pb-2 pt-3.5">
+        <BrainMark size={20} id="wg" className="flex-shrink-0 drop-shadow-[0_0_6px_var(--wg-glow)]" />
+        <span className="font-display text-[15px] font-bold tracking-[-.02em] text-txt">DevBrain</span>
+        <WidgetLive />
+        <span className="ml-auto flex items-center gap-2">
+          <span className="text-[11.5px] text-faint">{data.teamName}</span>
           {data.repos.length > 0 && (
             <select
               value={data.scopeAll ? "all" : (data.lastRepo?.id ?? "all")}
               disabled={switching}
-              onChange={(e) => {
-                const id = e.target.value;
-                if (id) startSwitch(() => setWidgetRepo(id));
-              }}
-              title="Scope — filters everything in the widget to one repo"
-              className={
-                "max-w-[150px] truncate rounded-md border border-line2 bg-row2 px-2 py-1 font-mono text-[11px] text-txt focus:border-brand-500 focus:outline-none " +
-                (switching ? "opacity-50" : "")
-              }
+              onChange={(e) => { const id = e.target.value; if (id) startSwitch(() => setWidgetRepo(id)); }}
+              title="Scope — filters everything in the panel to one repo"
+              className={"max-w-[150px] truncate rounded-md border border-line2 bg-ink px-1.5 py-[3px] font-mono text-[11px] text-txt focus:outline-none " + (switching ? "opacity-50" : "")}
             >
               <option value="all">All repos</option>
-              {data.repos.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
+              {data.repos.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           )}
-          <button
-            onClick={() => setTab(tab === "Settings" ? "Home" : "Settings")}
-            aria-label="Settings"
-            title="Settings"
-            className={
-              "rounded-md p-1.5 " +
-              (tab === "Settings" ? "bg-brand-50 text-brand-400" : "text-muted hover:bg-row2 hover:text-txt")
-            }
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
         </span>
-      </div>
-
-      <Pulse
-        activity={data.activity}
-        events={[...data.feed.map((f) => ({ at: f.at, kind: f.kind })), ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" }))]}
-        collision={data.collisions.length > 0}
-        people={peopleLastHour}
-        prEvents={data.prs.length}
-      />
-
-      {/* Content */}
-      <div className={"min-h-0 flex-1 " + (tab === "Home" ? "overflow-y-auto" : "overflow-y-auto px-3 py-2.5")}>
-        {tab === "Settings" && (
-          <div className="-mx-3 -my-2.5 flex h-full flex-col">
-            <div className="mx-3.5 mb-1 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
-              SETTINGS · <span className="text-brand-400">&nbsp;this Mac</span>&nbsp;· notifications {prefs.enabled ? "on" : "off"}{setup?.reminders_on ? " · reminders on" : ""}
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pb-3">
-              {data.teams.length > 1 && (
-                <section className="mt-2">
-                  <h2 className="wg-sec">Team <span className="n">{data.teamName}</span></h2>
-                  <p className="wg-empty">The panel keeps its own sign-in, so switching here is separate from your browser.</p>
-                  {data.teams.map((t) => (
-                    <form key={t.id} action={switchOrg} className="wg-row">
-                      <input type="hidden" name="orgId" value={t.id} />
-                      <input type="hidden" name="stay" value="1" />
-                      <div className="k"><div className="t">{t.name}</div></div>
-                      {t.id === data.teamId
-                        ? <span className="wg-pill go">current</span>
-                        : <button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Switch</button>}
-                    </form>
-                  ))}
-                </section>
-              )}
-
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Appearance <span className="n">{themePref === "system" ? "follows macOS" : themePref}</span>
-                  <span className="ml-auto inline-flex rounded-md border border-line2 bg-ink p-0.5">
-                    {([["system", "System", "◐"], ["light", "Light", "☀"], ["dark", "Dark", "☾"]] as const).map(([k, label, glyph]) => (
-                      <button key={k} onClick={() => pickTheme(k)} aria-label={label} title={label} className={"inline-flex items-center gap-1 rounded px-2 py-0.5 font-display text-[10.5px] font-semibold normal-case tracking-normal " + (themePref === k ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>
-                        <span aria-hidden className="text-[12px] leading-none">{glyph}</span>{label}
-                      </button>
-                    ))}
-                  </span>
-                </h2>
-              </section>
-
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Notifications <span className="n">{prefs.enabled ? "on" : "off"}</span>
-                  <span className="ml-auto inline-flex items-center gap-2">
-                    <span className="inline-flex rounded-md border border-line2 bg-ink p-0.5">
-                      {([{ key: "all", label: "All repos" }, { key: "repo", label: "This repo" }] as const).map((o) => (
-                        <button key={o.key} onClick={() => { const next = { ...prefs, scope: o.key }; setPrefs(next); writePrefs(next); }} className={"rounded px-2 py-0.5 font-display text-[10.5px] font-semibold normal-case tracking-normal " + (prefs.scope === o.key ? "bg-row2 text-txt" : "text-muted")}>{o.label}</button>
-                      ))}
-                    </span>
-                    <button onClick={() => setPref("enabled", !prefs.enabled)} aria-label="Toggle notifications"><Switch on={prefs.enabled} small /></button>
-                  </span>
-                </h2>
-                {prefs.scope === "repo" && data.scopeAll && <p className="wg-empty text-wait">No repo selected in the header — nothing will notify until you pick one.</p>}
-                <div className={prefs.enabled ? "" : "pointer-events-none opacity-40"}>
-                  {NOTIF_ROWS.map((r) => (
-                    <div key={r.key} className="wg-row">
-                      <div className="k"><div className="t">{r.label}</div><div className="s">{r.detail}</div></div>
-                      <button onClick={() => setPref(r.key, !prefs[r.key])} aria-label={`Toggle ${r.label}`}><Switch on={prefs[r.key]} small /></button>
-                    </div>
-                  ))}
-                </div>
-                <div className="wg-empty">
-                  <button onClick={() => void runTest()} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Send a test notification →</button>
-                  {testResult && (
-                    <span className="ml-2 text-[11px]">
-                      {testResult === "sending" ? <span className="text-faint">Sending…</span>
-                        : testResult.ok ? <span className="text-go">Delivered via {testResult.via}.{testResult.native_error && <span className="block text-wait">native path skipped: {testResult.native_error}</span>}</span>
-                        : testResult.reason === "denied" ? <span className="text-wait">Turned off for DevBrain in macOS. <button onClick={openNotificationSettings} className="underline">Open System Settings → Notifications</button></span>
-                        : testResult.reason === "unsupported" ? <span className="text-muted">No notification channel here — use the desktop app.</span>
-                        : <span className="text-stop">Couldn&apos;t deliver: {testResult.detail || "unknown error"}</span>}
-                    </span>
-                  )}
-                </div>
-              </section>
-
-              {setup && (
-                <section className="mt-2.5">
-                  <h2 className="wg-sec">This Mac <span className="n">{setup.app_version ? `v${setup.app_version}` : ""}</span><span className={"r " + (setup.bootstrap_ok === false ? "text-stop" : setup.bootstrap_ok ? "text-go" : "")}>{setup.bootstrap_ok === false ? "needs attention" : setup.bootstrap_ok ? "complete" : ""}</span></h2>
-                  <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3.5 py-1 text-[12px]">
-                    <span className="text-muted">Setup</span><span className="font-mono text-[11px] text-txt">{setup.bootstrap_at ? `ran ${new Date(setup.bootstrap_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : "never run"}{setup.bootstrap_failed.length ? ` · failed: ${setup.bootstrap_failed.join(", ")}` : setup.bootstrap_ok ? " · all parts ok" : ""}</span><SetupCard state={setup} inline />
-                    <span className="text-muted">Reminders</span><span className="font-mono text-[11px] text-txt">{setup.reminders_on ? "sync on · mapped lists sync every 3 min" : "sync off"}</span><a href="/desk/reminders" target="_blank" onClick={(e) => openDesk(e, "/reminders", "/desk/reminders")} className="font-display text-[11px] font-semibold text-brand-400">Map lists</a>
-                    <span className="text-muted">Updates</span><span className="font-mono text-[11px] text-txt">daily + on session start</span><span />
-                  </div>
-                </section>
-              )}
-
-              {data.lastRepo && data.rules.length > 0 && (
-                <section className="mt-2.5">
-                  <h2 className="wg-sec">Team rules <span className="n">{data.lastRepo.name}</span><span className="r">{data.canAdmin ? "" : "admins change these"}</span></h2>
-                  {data.rules.map((r) => (
-                    <div key={r.rule} className="wg-row">
-                      <div className="k"><div className="t">{r.label}</div></div>
-                      {data.canAdmin ? (
-                        <form action={toggleRule} className="flex-shrink-0">
-                          <input type="hidden" name="repoId" value={data.lastRepo!.id} />
-                          <input type="hidden" name="rule" value={r.rule} />
-                          <input type="hidden" name="enabled" value={String(!r.on)} />
-                          <input type="hidden" name="stay" value="1" />
-                          <button aria-label={r.on ? "Turn off" : "Turn on"}><Switch on={r.on} small /></button>
-                        </form>
-                      ) : (
-                        <span className="flex-shrink-0 opacity-50" title="Admins only"><Switch on={r.on} small /></span>
-                      )}
-                    </div>
-                  ))}
-                  <p className="wg-empty">Rules apply to every Claude working in this repo. <a href={data.lastRepo ? `/desk/rules?repo=${data.lastRepo.id}` : "/desk/rules"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/rules?repo=${data.lastRepo.id}` : "/rules", data.lastRepo ? `/desk/rules?repo=${data.lastRepo.id}` : "/desk/rules")} className="font-display text-[11px] font-semibold text-brand-400">Full details in the Desk →</a></p>
-                </section>
-              )}
-
-              {data.lastRepo && (
-                <section className="mt-2.5">
-                  <h2 className="wg-sec">Claim a lane <span className="n">{data.lastRepo.name}</span></h2>
-                  <p className="wg-empty">Working outside Claude Code? Claim your paths — teammates&apos; Claudes route around them.</p>
-                  <form action={createClaim} className="flex flex-col gap-1.5 px-3.5 pb-1">
-                    <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                    <input name="paths" required placeholder="Paths, comma-separated (e.g. src/auth/)" className="w-full rounded-md border border-line2 bg-ink px-2.5 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                    <div className="flex gap-1.5">
-                      <input name="note" placeholder="What you're doing" className="min-w-0 flex-1 rounded-md border border-line2 bg-ink px-2.5 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      <select name="hours" defaultValue="4" className="rounded-md border border-line2 bg-ink px-1.5 py-1.5 font-mono text-[11px] text-txt"><option value="1">1h</option><option value="2">2h</option><option value="4">4h</option><option value="8">8h</option></select>
-                      <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Claim</button>
-                    </div>
-                  </form>
-                </section>
-              )}
-
-              <p className="wg-empty mt-3"><a href={data.lastRepo ? `/desk?repo=${data.lastRepo.id}` : "/desk"} target="_blank" onClick={(e) => openDesk(e, data.lastRepo ? `/?repo=${data.lastRepo.id}` : "/", data.lastRepo ? `/desk?repo=${data.lastRepo.id}` : "/desk")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Open the Desk →</a> <span className="text-faint">The full app: board, PRs, history, rules, team.</span></p>
-            </div>
-          </div>
-        )}
-
-        {tab === "Home" && (() => {
-          // One builder shared with the Desk (src/lib/desk/needs-you.ts); the panel
-          // only decides how each action is drawn.
-          type Need = { level: "stop" | "go" | "wait"; title: string; why: string; cta: React.ReactNode };
-          const go = (t: Tab, label: string) => <button onClick={() => setTab(t)} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">{label}</button>;
-          const ext = (url: string | null, label: string) => <a href={url ?? "#"} target="_blank" onClick={(e) => openExternal(e, url ?? "#")} className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">{label}</a>;
-          const needs: Need[] = buildNeeds({
-            self: data.self, scopeAll: data.scopeAll, prs: data.prs, tasks: data.tasks, claims: data.claims, collisions: data.collisions, handoffs: data.handoffs, fmtAgo: timeAgo,
-          }).map((n) => ({
-            level: n.level, title: n.title, why: n.why,
-            cta: n.action.kind === "github" ? ext(n.action.url, n.action.label)
-              : n.action.kind === "tab" ? go(n.action.tab, n.action.label)
-              : n.action.kind === "start_task" ? <form action={startTask}><input type="hidden" name="repoId" value={n.action.repoId} /><input type="hidden" name="id" value={n.action.taskId} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Start</button></form>
-              : <form action={pickupHandoff}><input type="hidden" name="repoId" value={n.action.repoId} /><input type="hidden" name="id" value={n.action.handoffId} /><button className="font-display text-[11.5px] font-semibold text-brand-400 hover:underline">Pick up</button></form>,
-          }));
-          const dot = { stop: "bg-stop shadow-[0_0_8px_var(--wg-stop)]", go: "bg-go shadow-[0_0_8px_var(--wg-go)]", wait: "bg-wait" };
-          const tiles = [
-            { n: data.prs.length, l: "PRs", t: "PRs" as Tab, warn: false },
-            { n: data.conflicted, l: data.conflicted === 1 ? "conflict" : "conflicts", t: "PRs" as Tab, warn: data.conflicted > 0 },
-            { n: data.collisions.length, l: data.collisions.length === 1 ? "collision" : "collisions", t: "PRs" as Tab, warn: data.collisions.length > 0 },
-            { n: open.length, l: "tasks", t: "Tasks" as Tab, warn: false },
-          ];
-          const changes = [...data.feed.map((f) => f.at), ...(data.journals ?? []).map((j) => j.at), ...data.handoffs.map((h) => h.at)].filter((at) => lastOpen && new Date(at).getTime() > lastOpen).length;
-          const sinceLabel = lastOpen ? new Date(lastOpen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : null;
-          return (
-          <div className="flex flex-col pb-3">
-            {data.notice && <div className="mx-3.5 mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">{data.notice === "owner_only" ? "Only the team owner can do that." : data.notice === "no_access" ? "You're not signed in to this team — reload the panel." : "Only team admins and owners can do that."}</div>}
-            {(data.alerts ?? []).length > 0 && (
-              <div className="mx-3.5 mt-2 space-y-1">
-                {data.alerts.map((a) => (
-                  <div key={a.id} className={"flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[11px] " + (a.severity === "error" ? "border-red-200 bg-red-50 text-red-800" : a.severity === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-line bg-row text-txt")}>
-                    <span className="min-w-0 flex-1 truncate font-medium">{a.title}{a.count > 1 ? ` (×${a.count})` : ""}</span>
-                    <form action={dismissAlert}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="stay" value="1" /><button className="opacity-70 hover:opacity-100">dismiss</button></form>
-                  </div>
+        <button onClick={() => setMenu((m) => !m)} aria-label="Settings" title="Settings" className={"text-[15px] leading-none " + (menu ? "text-accent2" : "text-muted hover:text-txt")}>⚙</button>
+        {menu && (
+          <>
+            <div className="fixed inset-0 z-[4]" onClick={() => setMenu(false)} />
+            <div className="absolute right-3.5 top-11 z-[5] w-[232px] rounded-xl border border-line2 bg-row p-1.5 text-[13px] text-txt shadow-[var(--wg-shadow)]">
+              <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Pause notifications</span><span className="font-mono text-[10px] text-faint">{pausedMode === "off" ? "off" : pausedMode === "hour" ? `until ${hhmm(new Date(prefs.pausedUntil!).toISOString())}` : "until tomorrow"} ▸</span></div>
+              <div className="mx-2.5 mb-1 flex gap-1">
+                {([["hour", "1 hour"], ["tomorrow", "until tomorrow"], ["off", "off"]] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => pause(k)} className={"flex-1 rounded-md border border-line2 py-[3px] text-center font-display text-[10.5px] font-semibold " + (pausedMode === k ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>{label}</button>
                 ))}
               </div>
-            )}
-
-            {/* Needs you — the badge's own logic, as a list with a verb each */}
-            <div className="mx-3.5 mt-2 overflow-hidden rounded-xl border border-line2">
-              <div className="flex items-baseline gap-2 bg-row px-3 py-1.5 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-txt">Needs you <span className="font-mono text-[11px] font-normal normal-case tracking-normal text-brand-400">{needs.length}</span></div>
-              {needs.length === 0 ? (
-                <div className="px-3 py-2.5 text-[12.5px] text-faint">Nothing needs you right now.</div>
-              ) : needs.slice(0, 4).map((n, i) => (
-                <div key={i} className="flex items-center gap-2.5 border-t border-line px-3 py-2 text-[13px] text-txt">
-                  <i className={"h-2 w-2 flex-shrink-0 rounded-full " + dot[n.level]} />
-                  <div className="min-w-0 flex-1"><div className="truncate">{n.title}</div><div className="truncate text-[11.5px] text-muted">{n.why}</div></div>
-                  {n.cta}
-                </div>
-              ))}
-              {needs.length > 4 && <div className="border-t border-line px-3 py-1.5 font-mono text-[10px] text-faint">+{needs.length - 4} more</div>}
+              <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Appearance</span><Seg options={[{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }]} value={themePref} onPick={pickTheme} /></div>
+              <div className="my-1 border-t border-line" />
+              <a href="/desk/mac" target="_blank" onClick={(e) => { setMenu(false); desk(e, "/mac"); }} className="block rounded-lg px-2.5 py-2 font-display text-[12.5px] font-semibold text-accent hover:bg-row2">Open settings in the Desk →</a>
+              <form action="/auth/sign-out" method="post"><button className="block w-full rounded-lg px-2.5 py-2 text-left text-[12.5px] text-muted hover:bg-row2 hover:text-txt">Sign out</button></form>
             </div>
+          </>
+        )}
+      </div>
 
-            {/* Count tiles — pointers into tabs, not copies of them */}
-            <div className="mx-3.5 mt-2.5 grid grid-cols-4 gap-1.5">
-              {tiles.map((t) => (
-                <button key={t.l} onClick={() => setTab(t.t)} className="rounded-lg border border-line px-2 py-2 text-center hover:border-line2">
-                  <span className={"block font-display text-[20px] font-semibold leading-none tracking-tight tabular-nums " + (t.warn ? "text-stop" : "text-txt")}>{t.n}</span>
-                  <span className="mt-1 block font-mono text-[10px] text-faint">{t.l}</span>
+      {/* Tabs under the header */}
+      <div className="flex flex-shrink-0 border-b border-line bg-row px-2.5">
+        {TABS.map((t) => {
+          const active = tab === t;
+          const attention = t === "PRs" ? data.conflicted > 0 : false;
+          return (
+            <button key={t} onClick={() => { setTab(t); setMenu(false); }} aria-current={active ? "page" : undefined} className={"relative flex-1 border-b-2 py-[7px] text-center font-display text-[12px] font-medium " + (active ? "border-accent2 text-accent" : "border-transparent text-muted hover:text-txt")}>
+              {t}
+              {attention && !active && <i className="absolute right-[26%] top-2 h-[5px] w-[5px] rounded-full bg-wait" />}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        {tab === "Home" && (
+          <>
+            <Pulse
+              activity={data.activity}
+              events={[...data.feed.map((f) => ({ at: f.at, kind: f.kind })), ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" }))]}
+              collision={data.collisions.length > 0}
+              people={peopleLastHour}
+              prEvents={data.prs.length}
+            />
+            {data.notice && <div className="mt-2 rounded-lg border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3 py-[7px] text-[12px] text-wait">{data.notice === "owner_only" ? "Only the team owner can do that." : data.notice === "no_access" ? "You're not signed in to this team — reload the panel." : "Only team admins and owners can do that."}</div>}
+            {data.alerts.map((a) => (
+              <div key={a.id} className={"mt-2 flex items-center gap-2.5 rounded-lg border px-3 py-[7px] text-[12px] " + (a.severity === "error" ? "border-[var(--wg-stop-line)] bg-[var(--wg-stop-bg)] text-stop" : "border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] text-wait")}>
+                <span className="min-w-0 flex-1 truncate font-medium">{a.title}{a.count > 1 ? ` (×${a.count})` : ""}</span>
+                <form action={dismissAlert}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="stay" value="1" /><button className="text-[11.5px] opacity-80 hover:opacity-100">dismiss</button></form>
+              </div>
+            ))}
+
+            <Sec title="Needs you" count={needs.length} />
+            {needs.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">Nothing needs you right now.</p> : needs.slice(0, 5).map((n, i) => (
+              <Row key={n.key} first={i === 0}>
+                <Dot level={n.level} />
+                <div className="min-w-0 flex-1"><div className="text-[13px] text-txt">{n.title}</div><div className="truncate text-[11.5px] text-muted">{n.why}</div></div>
+                {cta(n)}
+              </Row>
+            ))}
+            {needs.length > 5 && <div className="border-t border-line pt-1.5 font-mono text-[10px] text-faint">+{needs.length - 5} more in the Desk</div>}
+
+            <div className="mt-3.5 grid grid-cols-4 gap-2">
+              {[
+                { n: data.prs.length, l: "PRs", t: "PRs" as Tab, warn: false },
+                { n: data.conflicted, l: data.conflicted === 1 ? "conflict" : "conflicts", t: "PRs" as Tab, warn: data.conflicted > 0 },
+                { n: data.collisions.length, l: data.collisions.length === 1 ? "collision" : "collisions", t: "PRs" as Tab, warn: data.collisions.length > 0 },
+                { n: open.length, l: "open tasks", t: "Tasks" as Tab, warn: false },
+              ].map((c) => (
+                <button key={c.l} onClick={() => setTab(c.t)} className="rounded-lg border border-line px-2.5 py-[9px] text-left hover:border-line2">
+                  <span className={"block font-display text-[22px] font-bold leading-none tracking-[-.03em] " + (c.warn ? "text-stop" : "text-txt")}>{c.n}</span>
+                  <span className="mt-1 block font-mono text-[10px] text-faint">{c.l}</span>
                 </button>
               ))}
             </div>
 
-            {/* Tasks that matter now: pinned, then P1s, then your P2s */}
             {(() => {
               const seen = new Set<string>();
               const pick = (pred: (t: (typeof open)[number]) => boolean) => open.filter((t) => !seen.has(t.id) && pred(t)).map((t) => { seen.add(t.id); return t; });
               const list = [...pick((t) => t.pinned), ...pick((t) => t.priority === 1), ...pick((t) => t.priority === 2 && isMe(t.assigned_to))].slice(0, 6);
               return (
-                <section className="mt-3">
-                  <h2 className="wg-sec">Tasks <span className="n">{list.length ? `${list.length} that matter` : "0"}</span><button onClick={() => setTab("Tasks")} className="r hover:text-brand-400">all {open.length} →</button></h2>
-                  {list.length === 0 ? (
-                    <p className="wg-empty">No pinned or critical tasks. Pin any task from the Tasks tab to keep it here.</p>
-                  ) : list.map((t) => (
-                    <div key={t.id} className={"wg-row " + (t.priority === 1 ? "stop" : isMe(t.assigned_to) || isMe(t.started_by) ? "me" : "")}>
-                      <form action={completeTask} className="flex-shrink-0"><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button title="Mark complete" className="block h-3.5 w-3.5 rounded border border-line2 hover:border-brand-500" /></form>
-                      <span className={"font-mono text-[10px] " + (t.priority === 1 ? "text-stop" : t.priority === 2 ? "text-wait" : "text-faint")}>P{t.priority}</span>
-                      <div className="k">
-                        <div className="t">{t.title}</div>
-                        <div className="s">{t.pinned ? "pinned · " : ""}{t.assigned_to ? (isMe(t.assigned_to) ? "you" : t.assigned_to) : "unassigned"}{t.started_by ? ` · started by ${isMe(t.started_by) ? "you" : t.started_by}` : ""}{data.scopeAll ? ` · ${t.repo}` : ""}</div>
-                      </div>
-                      {!t.started_by && isMe(t.assigned_to) && <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Start</button></form>}
-                      <PinButton t={t} />
-                    </div>
+                <>
+                  <Sec title="Pinned" count={list.length} right="start · done only" />
+                  {list.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">No pinned or critical tasks. Pin any task from the Tasks tab or the Desk to keep it here.</p> : list.map((t, i) => (
+                    <Row key={t.id} first={i === 0}>
+                      <Pri p={t.priority} />
+                      <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{t.title}</div><div className="text-[11.5px] text-muted">{t.started_by ? `${isMe(t.started_by) ? "you" : t.started_by} · in progress` : `${t.assigned_to ? (isMe(t.assigned_to) ? "you" : t.assigned_to) : "unassigned"} · open`}{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
+                      {!t.started_by && <form action={startTask}><Hidden t={t} /><button className={ACT}>Start</button></form>}
+                      <form action={completeTask}><Hidden t={t} /><button className={ACT_MUTED}>Done</button></form>
+                      <Pin t={t} />
+                    </Row>
                   ))}
-                </section>
+                </>
               );
             })()}
 
-            {/* Team now — presence lives only here */}
-            <section className="mt-3">
-              <h2 className="wg-sec">Team now <span className="n">{data.sessions.length}</span></h2>
-              {data.sessions.length === 0 ? (
-                <p className="wg-empty">Nobody active right now.</p>
-              ) : (
-                <div className="flex gap-2 overflow-x-auto px-3.5 pb-1">
-                  {/* Spawned sessions fold under their parent identity: one
-                      avatar per person, a ×N badge when they run several. */}
-                  {(() => {
-                    const groups = new Map<string, typeof data.sessions>();
-                    for (const s of data.sessions) {
-                      const k = (s.root ?? s.dev_label).toLowerCase();
-                      if (!groups.has(k)) groups.set(k, []);
-                      groups.get(k)!.push(s);
-                    }
-                    return [...groups.values()].slice(0, 8).map((g) => {
-                      const lead = g[0];
-                      const name = lead.root ?? lead.dev_label;
-                      const busy = g.find((s) => s.summary) ?? lead;
-                      return (
-                        <div key={lead.id} className="flex min-w-[68px] max-w-[92px] flex-col items-center gap-1 text-center">
-                          <span className={"wg-av relative " + (isMe(name) ? "me" : "")} style={{ width: 30, height: 30, fontSize: 12, borderRadius: 9 }}>
-                            {initials(name)}
-                            <i className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-ink bg-go" />
-                            {g.length > 1 && (
-                              <b className="absolute -top-1.5 -right-2 rounded-full bg-brand-500 px-1 font-mono text-[9px] font-semibold leading-[13px] text-white">×{g.length}</b>
-                            )}
-                          </span>
-                          <span className="w-full truncate text-[11px] font-medium text-txt">{isMe(name) ? (g.length > 1 ? `you ×${g.length}` : "you") : name}</span>
-                          <span className="w-full truncate font-mono text-[10px] text-faint" title={busy.summary ?? ""}>{busy.summary || (data.scopeAll ? lead.repo : timeAgo(lead.last_seen))}</span>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
-            </section>
-
-            {/* Since you were away — one line, hands off to Feed */}
-            <button onClick={() => setTab("Feed")} className="mx-3.5 mt-3 flex items-center gap-2 rounded-lg border border-line2 bg-row px-3 py-2 text-left text-[12.5px] text-txt hover:border-brand-500">
-              <span className="font-display font-semibold">{sinceLabel ? `Since ${sinceLabel}` : "Today"}</span>
-              <span className="text-muted">{changes} change{changes === 1 ? "" : "s"}{needs.length ? ` · ${needs.length} need${needs.length === 1 ? "s" : ""} you` : ""}</span>
-              <span className="ml-auto font-mono text-[10px] text-faint">feed →</span>
-            </button>
-          </div>
-          );
-        })()}
-
-        {tab === "Tasks" && (() => {
-          const mine = open.filter((t) => isMe(t.started_by) || isMe(t.assigned_to));
-          const now = open.filter((t) => isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
-          const focus = now[0] ?? null;
-          const queue = open.filter((t) => isMe(t.assigned_to) && !isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
-          const team = open.filter((t) => !isMe(t.assigned_to) && !isMe(t.started_by));
-          const maybe = open.filter((t) => t.maybe_done_pr);
-          const counts = new Map<string, number>();
-          for (const t of team) counts.set(t.assigned_to ?? "", (counts.get(t.assigned_to ?? "") ?? 0) + 1);
-          const people = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-          const teamShown = teamFilter === null ? team : team.filter((t) => (t.assigned_to ?? "") === teamFilter);
-          const lane = focus ? data.claims.find((c) => isMe(c.dev_label) && c.repo_id === focus.repo_id) : null;
-          const hoursLeft = (iso: string | null) => (iso ? Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 3600_000)) : null);
-          const age = (t: { created_at: string }) => timeAgo(t.created_at);
-          const P = (p: number) => <span className={"font-mono text-[10px] " + (p === 1 ? "text-stop" : p === 2 ? "text-wait" : p === 3 ? "text-muted" : "text-faint")}>P{p}</span>;
-          const Row = ({ t, action }: { t: (typeof open)[number]; action?: React.ReactNode }) => (
-            <div className={"wg-row " + (t.priority === 1 ? "stop" : isMe(t.assigned_to) || isMe(t.started_by) ? "me" : "")}>
-              <form action={completeTask} className="flex-shrink-0">
-                <input type="hidden" name="repoId" value={t.repo_id} />
-                <input type="hidden" name="id" value={t.id} />
-                <button title="Mark complete" className="block h-3.5 w-3.5 rounded border border-line2 hover:border-brand-500" />
-              </form>
-              <div className="k">
-                <div className="t">{t.title}</div>
-                <div className="s">{t.assigned_to ? (isMe(t.assigned_to) ? "you" : t.assigned_to) : "unassigned"}{t.started_by ? ` · started by ${isMe(t.started_by) ? "you" : t.started_by}` : ""}{t.tags.length ? ` · ${t.tags.join(", ")}` : ""}{data.scopeAll ? ` · ${t.repo}` : ""}</div>
-              </div>
-              {P(t.priority)}
-              <span className="m">{age(t)}</span>
-              {action}
-              <PinButton t={t} />
-              <TaskMenu compact task={{ id: t.id, repo_id: t.repo_id, title: t.title, detail: t.detail, priority: t.priority, tags: t.tags, assigned_to: t.assigned_to }} members={data.members} />
-            </div>
-          );
-          return (
-          <div className="relative -mx-3 -my-2.5 flex h-full flex-col">
-            {/* Strip: counts + the capture trigger */}
-            <div className="mx-3.5 mb-1.5 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
-              YOUR WORK · <span className="text-brand-400">&nbsp;{now.length} in progress</span>&nbsp;· {queue.length} queued · team {team.length} open
-              <button
-                onClick={() => setCapture((c) => (c ? null : "task"))}
-                className={"ml-auto inline-flex h-6 items-center gap-1 rounded-md border px-2 font-display text-[11px] font-semibold tracking-normal " + (capture ? "border-[var(--wg-coral-line)] bg-brand-50 text-brand-400" : "border-line2 bg-row2 text-txt hover:border-brand-500")}
-              >
-                <span className="text-[14px] leading-none text-brand-400">＋</span>New
-              </button>
-            </div>
-
-            {capture && data.lastRepo && (
-              <>
-                <div className="absolute inset-0 z-[4] bg-[var(--wg-dim)]" onClick={() => setCapture(null)} />
-                <div className="absolute left-2.5 right-2.5 top-10 z-[5] overflow-hidden rounded-xl border border-line2 bg-row shadow-[var(--wg-shadow)]">
-                  <div className="flex items-center gap-0.5 border-b border-line px-2 pt-2">
-                    {([["task", "Task"], ["dump", "Braindump"], ["spec", "Context doc"]] as const).map(([k, label]) => (
-                      <button key={k} onClick={() => setCapture(k)} className={"-mb-px border-b-2 px-2.5 pb-2 pt-1.5 font-display text-[11.5px] font-semibold " + (capture === k ? "border-brand-500 text-txt" : "border-transparent text-muted hover:text-txt")}>{label}</button>
-                    ))}
-                    <span className="ml-auto flex items-center gap-1.5 pb-2 font-mono text-[10px] text-faint"><i className="inline-block h-1.5 w-1.5 rounded-full bg-go" />{data.lastRepo.name}</span>
+            <Sec title="Team now" count={data.sessions.length} />
+            {data.sessions.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">Nobody active right now. Presence appears within a turn of a teammate starting a session.</p> : (() => {
+              const groups = new Map<string, typeof data.sessions>();
+              for (const s of data.sessions) { const k = (s.root ?? s.dev_label).toLowerCase(); if (!groups.has(k)) groups.set(k, []); groups.get(k)!.push(s); }
+              return [...groups.values()].slice(0, 8).map((g, i) => {
+                const lead = g[0];
+                const name = lead.root ?? lead.dev_label;
+                const busy = g.find((s) => s.summary) ?? lead;
+                const me = isMe(name);
+                const since = [...g].map((s) => s.started_at).filter(Boolean).sort()[0] ?? null;
+                return (
+                  <div key={lead.id} className={"flex items-center gap-2.5 py-2 " + (i === 0 ? "" : "border-t border-line")}>
+                    <span className={"relative grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg border font-display text-[11px] font-semibold " + (me ? "border-coralline bg-coralink text-accent" : "border-line2 bg-row2 text-txt")}>
+                      {(name.trim()[0] ?? "?").toUpperCase()}
+                      <i className="absolute -bottom-0.5 -right-0.5 h-[7px] w-[7px] rounded-full border-2 border-ink bg-go" />
+                      {g.length > 1 && <b className="absolute -right-2 -top-1.5 rounded-full bg-accent2 px-1 font-mono text-[9px] font-normal leading-[13px] text-white">×{g.length}</b>}
+                    </span>
+                    <div className="min-w-0 flex-1"><div className={"text-[13px] " + (me ? "text-accent" : "text-txt")}>{me ? "you" : name}</div><div className="truncate text-[11.5px] text-muted">{busy.summary || (data.scopeAll ? lead.repo : `active ${timeAgo(lead.last_seen)} ago`)}</div></div>
+                    {since && <span className="font-mono text-[10.5px] text-faint">since {hhmm(since)}</span>}
                   </div>
-                  {capture === "task" && (
-                    <form action={createTask} className="flex flex-col gap-2 px-3 pb-3 pt-2.5">
-                      <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                      <input name="title" required autoFocus placeholder="What needs doing?" className="w-full rounded-md border border-line2 bg-ink px-2.5 py-2 text-[13.5px] text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      <div className="flex gap-1.5">
-                        <select name="priority" defaultValue="3" className="rounded-md border border-line2 bg-ink px-1.5 py-1.5 font-mono text-[11.5px] text-txt">
-                          <option value="1">P1 · Critical</option><option value="2">P2 · High</option><option value="3">P3 · Medium</option><option value="4">P4 · Low</option>
-                        </select>
-                        <select name="assignee" defaultValue="" className="rounded-md border border-line2 bg-ink px-1.5 py-1.5 font-mono text-[11.5px] text-txt">
-                          <option value="">Anyone</option>
-                          {data.members.map((m) => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                        <input name="detail" placeholder="Detail (optional)" className="min-w-0 flex-1 rounded-md border border-line2 bg-ink px-2 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {["bug", "feature", "ui", "backend", "plugin", "brain", "docs", "refactor"].map((tag) => (
-                          <label key={tag} className="cursor-pointer">
-                            <input type="checkbox" name="tags" value={tag} className="peer sr-only" />
-                            <span className="rounded-full border border-line2 px-2 py-0.5 font-mono text-[10.5px] text-muted peer-checked:border-brand-500 peer-checked:text-brand-400">{tag}</span>
-                          </label>
-                        ))}
-                        <input name="customTags" placeholder="+custom" className="w-16 rounded-full border border-line2 bg-ink px-2 py-0.5 font-mono text-[10.5px] text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      </div>
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="flex-1 font-mono text-[10px] text-faint">↵ adds · esc closes</span>
-                        <button type="button" onClick={() => setCapture(null)} className="rounded-md border border-line2 px-3 py-1.5 font-display text-xs font-semibold text-muted">Cancel</button>
-                        <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Add task</button>
-                      </div>
-                    </form>
-                  )}
-                  {capture === "dump" && (
-                    <form action={braindumpTasks} className="flex flex-col gap-2 px-3 pb-3 pt-2.5">
-                      <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                      <textarea name="dump" required autoFocus rows={5} placeholder="Everything on your mind — DevBrain splits it into tasks and skips duplicates." className="w-full resize-none rounded-md border border-line2 bg-ink px-2.5 py-2 text-xs leading-relaxed text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="flex-1 font-mono text-[10px] text-faint">dictate or type · duplicates are skipped</span>
-                        <button type="button" onClick={() => setCapture(null)} className="rounded-md border border-line2 px-3 py-1.5 font-display text-xs font-semibold text-muted">Cancel</button>
-                        <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Turn into tasks</button>
-                      </div>
-                    </form>
-                  )}
-                  {capture === "spec" && (
-                    <form action={uploadSpec} className="flex flex-col gap-2 px-3 pb-3 pt-2.5">
-                      <input type="hidden" name="repoId" value={data.lastRepo.id} />
-                      <input type="hidden" name="stay" value="1" />
-                      <textarea name="text" required autoFocus rows={4} placeholder="Paste a spec, brief, or a whole reply from another Claude session — DevBrain works out what's built and what isn't." className="w-full resize-none rounded-md border border-line2 bg-ink px-2.5 py-2 text-xs leading-relaxed text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      <input name="title" placeholder="Title (optional)" className="w-full rounded-md border border-line2 bg-ink px-2.5 py-1.5 text-xs text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="flex-1 font-mono text-[10px] text-faint">analyzed in ~2 min · you get a notification</span>
-                        <button type="button" onClick={() => setCapture(null)} className="rounded-md border border-line2 px-3 py-1.5 font-display text-xs font-semibold text-muted">Cancel</button>
-                        <button className="rounded-md bg-brand-600 px-3 py-1.5 font-display text-xs font-semibold text-white hover:bg-brand-700">Add context</button>
-                      </div>
-                    </form>
-                  )}
-                </div>
+                );
+              });
+            })()}
+
+            <Sec title="Open handoffs" count={data.handoffs.length} />
+            {data.handoffs.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">No open handoffs.</p> : data.handoffs.slice(0, 4).map((h, i) => (
+              <Row key={h.id} first={i === 0}>
+                <Dot level="wait" />
+                <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{h.by ?? "someone"}{h.branch ? ` · ${h.branch}` : ""}{data.scopeAll ? ` · ${h.repo}` : ""}</div><div className="truncate text-[11.5px] text-muted">{h.summary}{h.remaining ? ` — remaining: ${h.remaining}` : ""}</div></div>
+                {!isMe(h.by) && <form action={pickupHandoff}><input type="hidden" name="repoId" value={h.repo_id} /><input type="hidden" name="id" value={h.id} /><button className={ACT}>Pick up</button></form>}
+              </Row>
+            ))}
+
+            {data.lastRepo && (
+              <>
+                <Sec title="Claim a lane" right="teammates' Claudes route around it" />
+                <form action={createClaim} className="mt-1.5 flex gap-2">
+                  <input type="hidden" name="repoId" value={data.lastRepo.id} />
+                  <input name="paths" required placeholder="Path prefix, e.g. src/auth/" className="min-w-0 flex-1 rounded-lg border border-line2 bg-row px-3 py-2 text-[12.5px] text-txt placeholder:text-faint focus:border-accent focus:outline-none" />
+                  <select name="hours" defaultValue="4" className="rounded-lg border border-line2 bg-transparent px-2 py-2 font-mono text-[11px] text-txt focus:outline-none"><option value="1">1h</option><option value="2">2h</option><option value="4">4h</option><option value="8">8h</option><option value="24">24h</option></select>
+                  <button className={PRIMARY}>Claim</button>
+                </form>
               </>
             )}
 
-            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-              {focus ? (
-                <div className="mx-3.5 mt-2 rounded-xl border border-[var(--wg-coral-line)] bg-gradient-to-b from-[var(--wg-coral-deep)] to-row px-3.5 py-3">
-                  <div className="flex items-baseline gap-2 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-brand-400">Now<span className="ml-auto font-mono text-[11px] font-normal normal-case tracking-normal text-muted">{age(focus)}</span></div>
-                  <div className="mt-1.5 font-display text-[17px] font-semibold leading-tight tracking-tight text-txt">{focus.title}</div>
-                  <div className="mt-1 text-[11.5px] text-muted">{P(focus.priority)}{focus.tags.length ? ` · ${focus.tags.join(", ")}` : ""}{focus.detail ? ` · ${focus.detail}` : ""}</div>
-                  {(focus.footprint ?? []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">{(focus.footprint ?? []).slice(0, 4).map((fp) => <code key={fp} className="rounded border border-line2 bg-ink px-1.5 py-px font-mono text-[10px] text-[var(--wg-code)]">{fp}</code>)}</div>
-                  )}
-                  <div className="mt-2 font-mono text-[10.5px] text-go">{lane ? `▸ lane claimed · ${lane.paths[0]}${lane.paths.length > 1 ? ` +${lane.paths.length - 1}` : ""}${hoursLeft(lane.expires_at) ? ` · ${hoursLeft(lane.expires_at)}h left` : ""}` : "▸ no lane claimed"}</div>
-                  <div className="mt-2.5 flex gap-1.5">
-                    <form action={completeTask}><input type="hidden" name="repoId" value={focus.repo_id} /><input type="hidden" name="id" value={focus.id} /><button className="rounded-md bg-brand-600 px-2.5 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700">Mark done</button></form>
-                    <span className="flex items-center"><PinButton t={focus} /></span>
-                    <TaskMenu compact task={{ id: focus.id, repo_id: focus.repo_id, title: focus.title, detail: focus.detail, priority: focus.priority, tags: focus.tags, assigned_to: focus.assigned_to }} members={data.members} />
-                  </div>
-                </div>
+            <a href={`/desk${repoQ}`} target="_blank" onClick={(e) => desk(e, `/${repoQ}`)} className="mt-[18px] flex items-center gap-2 rounded-[10px] border border-line2 px-3.5 py-2.5 font-display text-[12.5px] font-semibold text-accent hover:border-line3">
+              Open the Desk <span className="ml-auto font-mono text-[10px] font-normal text-faint">board · PRs · brain · feed · team</span>→
+            </a>
+          </>
+        )}
+
+        {tab === "Tasks" && (() => {
+          const now = open.filter((t) => isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
+          const queue = open.filter((t) => isMe(t.assigned_to) && !isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
+          const maybe = open.filter((t) => t.maybe_done_pr);
+          const laneFor = (t: (typeof open)[number]) => data.claims.find((c) => isMe(c.dev_label) && c.repo_id === t.repo_id);
+          const hoursLeft = (iso: string | null) => (iso ? Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 3600_000)) : null);
+          return (
+            <>
+              {data.lastRepo ? (
+                <form action={createTask} className="mt-3 flex gap-2">
+                  <input type="hidden" name="repoId" value={data.lastRepo.id} /><input type="hidden" name="priority" value="3" />
+                  <input name="title" required placeholder="Quick add — what needs doing? ↵" className="min-w-0 flex-1 rounded-lg border border-line2 bg-row px-3 py-[9px] text-[13px] text-txt placeholder:text-faint focus:border-accent focus:outline-none" />
+                  <button className={PRIMARY}>Add</button>
+                </form>
               ) : (
-                <div className="mx-3.5 mt-2 rounded-xl border border-dashed border-line2 px-3.5 py-3 text-xs text-faint">Nothing in progress. Start one from your queue below — or tell your Claude which task you&apos;re taking and it will start it for you.</div>
+                <p className="mt-3 text-[12px] text-faint">Pick a repo in the header to add tasks.</p>
               )}
-              {now.length > 1 && <p className="wg-empty">+{now.length - 1} more in progress: {now.slice(1).map((t) => t.title).join(" · ")}</p>}
-
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Next for you <span className="n">{queue.length}</span></h2>
-                {queue.length === 0 ? <p className="wg-empty">Nothing queued for you.</p> : queue.map((t, i) => (
-                  <div key={t.id} className="wg-row">
-                    <span className="w-3.5 text-right font-mono text-[11px] text-faint">{i + 1}</span>
-                    <div className="k"><div className="t">{t.title}</div><div className="s">{t.tags.join(", ")}{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
-                    {P(t.priority)}<span className="m">{age(t)}</span>
-                    <form action={startTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-brand-400 hover:underline">Start</button></form>
-                    <PinButton t={t} />
-                  </div>
-                ))}
-              </section>
-
-              <section className="mt-2.5">
-                <h2 className="wg-sec">Team <span className="n">{team.length} open</span></h2>
-                {people.length > 0 && (
-                  <div className="flex gap-1.5 overflow-x-auto px-3.5 pb-1.5">
-                    {people.map(([who, n]) => (
-                      <button key={who} onClick={() => setTeamFilter(teamFilter === who ? null : who)} className={"flex flex-shrink-0 items-center gap-1.5 rounded-full border py-1 pl-1.5 pr-2.5 text-[11.5px] " + (teamFilter === who ? "border-brand-500 bg-brand-50 text-txt" : "border-line2 text-muted")}>
-                        <span className="wg-av" style={{ width: 18, height: 18, fontSize: 9 }}>{who ? initials(who) : "—"}</span>{who || "Unassigned"} <span className={"font-mono text-[11px] " + (teamFilter === who ? "text-brand-400" : "text-faint")}>{n}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {teamShown.length === 0 ? <p className="wg-empty">Nothing open for the team.</p> : teamShown.map((t) => <Row key={t.id} t={t} />)}
-              </section>
-
+              {suggested && suggestedTask && (
+                <div className="mt-3.5 rounded-xl border border-coralline bg-coralink px-3.5 py-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[.12em] text-accent">next for you</div>
+                  <div className="mt-1.5 font-display text-[16px] font-semibold tracking-[-.01em] text-txt">{suggested.title}</div>
+                  <div className="mt-1 text-[12px] leading-[1.5] text-muted">{reasonFor(suggested)}</div>
+                  <div className="mt-2.5"><form action={startTask}><Hidden t={suggestedTask} /><button className={PRIMARY}>Start</button></form></div>
+                </div>
+              )}
+              <Sec title="In progress" count={now.length} />
+              {now.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">Nothing in progress. Start one below — or tell your Claude which task you&apos;re taking and it will start it for you.</p> : now.map((t, i) => {
+                const lane = laneFor(t);
+                return (
+                  <Row key={t.id} first={i === 0}>
+                    <Pri p={t.priority} />
+                    <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{t.title}</div><div className="truncate text-[11.5px] text-muted">you{lane ? ` · lane ${lane.paths[0]}${lane.paths.length > 1 ? ` +${lane.paths.length - 1}` : ""}${hoursLeft(lane.expires_at) ? ` · ${hoursLeft(lane.expires_at)}h left` : ""}` : ""}{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
+                    <form action={completeTask}><Hidden t={t} /><button className={ACT_MUTED}>Done</button></form>
+                  </Row>
+                );
+              })}
+              <Sec title="Assigned to you" count={queue.length} />
+              {queue.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">Nothing queued for you.</p> : queue.map((t, i) => (
+                <Row key={t.id} first={i === 0}>
+                  <Pri p={t.priority} />
+                  <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{t.title}</div><div className="truncate text-[11.5px] text-muted">{t.tags.length ? `${t.tags.join(", ")} · ` : ""}created {timeAgo(t.created_at)} ago{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
+                  <form action={startTask}><Hidden t={t} /><button className={ACT}>Start</button></form>
+                  <form action={completeTask}><Hidden t={t} /><button className={ACT_MUTED}>Done</button></form>
+                  <Pin t={t} />
+                </Row>
+              ))}
               {maybe.length > 0 && (
-                <section className="mt-2.5">
-                  <h2 className="wg-sec text-wait">Possibly done <span className="n">{maybe.length}</span></h2>
-                  {maybe.map((t) => (
-                    <div key={t.id} className="wg-row wait">
-                      <div className="k"><div className="t">{t.title}</div><div className="s">closed by PR #{t.maybe_done_pr}?</div></div>
-                      <form action={confirmMaybeDone}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="font-display text-[11px] font-semibold text-go hover:underline">Yes, done</button></form>
-                      <form action={dismissMaybeDone}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="text-[11px] text-faint hover:text-txt">Still open</button></form>
-                    </div>
+                <>
+                  <Sec title="Possibly done" count={maybe.length} />
+                  {maybe.map((t, i) => (
+                    <Row key={t.id} first={i === 0}>
+                      <Dot level="wait" />
+                      <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{t.title}</div><div className="text-[11.5px] text-muted">PR #{t.maybe_done_pr} looks like it closed it</div></div>
+                      <form action={confirmMaybeDone}><Hidden t={t} /><button className="font-display text-[11.5px] font-semibold text-go hover:underline">Yes, done</button></form>
+                      <form action={dismissMaybeDone}><Hidden t={t} /><button className="font-display text-[11.5px] font-semibold text-faint hover:text-txt">Still open</button></form>
+                    </Row>
                   ))}
-                </section>
+                </>
               )}
-
-              {done.length > 0 && (
-                <section className="mt-2.5">
-                  <h2 className="wg-sec text-go">Done today <span className="n">{done.length}</span><span className="r">auto-clears at 72h</span></h2>
-                  {done.map((t) => (
-                    <div key={t.id} className="wg-row opacity-60">
-                      <span className="block h-3.5 w-3.5 flex-shrink-0 rounded border border-go bg-go" />
-                      <div className="k"><div className="t line-through">{t.title}</div><div className="s">{t.done_by}</div></div>
-                      <form action={reopenTask}><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /><button className="text-[11px] text-faint hover:text-brand-400">Reopen</button></form>
-                    </div>
-                  ))}
-                </section>
-              )}
-              {!data.lastRepo && <p className="wg-empty">Pick a repo in the header to add tasks.</p>}
-            </div>
-          </div>
+              <p className="mt-[18px] text-[12px] text-faint">Everything else — the team&apos;s board, braindump, edit, assign, delete — lives in the Desk. <a href={`/desk/board${repoQ}`} target="_blank" onClick={(e) => desk(e, `/board${repoQ}`)} className={ACT}>Open Board →</a></p>
+            </>
           );
         })()}
 
         {tab === "PRs" && (() => {
           const order = data.mergePlan?.order.map((o) => o.number) ?? [];
-          const reason = new Map((data.mergePlan?.order ?? []).map((o) => [o.number, o.reason]));
           const sorted = [...data.prs].sort((x, y) => {
             const ix = order.indexOf(x.number), iy = order.indexOf(y.number);
             if (ix !== -1 || iy !== -1) return (ix === -1 ? 99 : ix) - (iy === -1 ? 99 : iy);
             return 0;
           });
-          const st = (pr: (typeof sorted)[number]) => pr.mergeable_state === "dirty" ? "stop" : pr.light?.state === "green" ? "go" : pr.light?.state === "red" ? "stop" : pr.light?.state === "amber" || pr.review_state === "changes_requested" ? "wait" : "";
-          const node = { go: "border-go bg-go", wait: "border-wait", stop: "border-stop bg-stop", "": "border-muted" } as const;
-          const why = { go: "text-go", wait: "text-wait", stop: "text-stop", "": "text-faint" } as const;
+          const level = (pr: (typeof sorted)[number]): "go" | "wait" | "stop" | "dim" => pr.draft || !pr.light ? "dim" : pr.light.state === "green" ? "go" : pr.light.state === "red" || pr.mergeable_state === "dirty" ? "stop" : "wait";
+          const word = (pr: (typeof sorted)[number]) => pr.draft ? "draft — not in the merge order" : pr.light ? `${pr.light.state === "green" ? "cleared" : pr.light.state === "red" ? "conflicts" : "hold"}${pr.light.reason ? ` — ${pr.light.reason}` : ""}` : "pending";
+          const vtone = (v: string) => v === "looks_good" ? "text-go" : v === "risky" ? "text-stop" : v === "caution" ? "text-wait" : "text-faint";
           return (
-          <div className="-mx-3 -my-2.5 flex h-full flex-col">
-            <div className="mx-3.5 mb-1 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
-              PULL REQUESTS · <span className="text-brand-400">&nbsp;{data.prs.length} open</span>{data.conflicted > 0 ? <>&nbsp;· <span className="text-stop">{data.conflicted} conflicted</span></> : null}{data.mergePlan ? " · order below" : ""}
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-              {data.mergePlan && data.mergePlan.order.length > 1 && (
-                <div className="mx-3.5 mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-muted">
-                  <span className="text-faint">merge order</span>
-                  {data.mergePlan.order.map((o, i) => <span key={o.number} className="flex items-center gap-1.5"><span className="rounded border border-line2 px-1.5 text-txt">#{o.number}</span>{i < data.mergePlan!.order.length - 1 && <span className="text-faint">→</span>}</span>)}
-                  {!data.scopeAll ? null : <span className="text-faint">· {data.mergePlan.repo}</span>}
-                </div>
-              )}
-              {sorted.length === 0 ? (
-                <p className="wg-empty mt-3">No open pull requests.</p>
-              ) : (
-                <div className="relative mt-2 ml-7 before:absolute before:bottom-3.5 before:left-[-7px] before:top-3.5 before:w-0.5 before:bg-line2">
-                  {sorted.map((pr, i) => {
-                    const k = st(pr);
-                    return (
-                      <div key={pr.repo_id + pr.number} className={"relative py-2 pl-2.5 pr-3.5 text-[12.5px] " + (i > 0 ? "border-t border-line" : "")}>
-                        {order.length > 0 && <span className="absolute -left-[30px] top-2 font-display text-[10px] font-semibold text-faint">{order.indexOf(pr.number) === -1 ? "" : order.indexOf(pr.number) + 1}</span>}
-                        <span className={"absolute -left-3 top-2.5 h-3 w-3 rounded-full border-2 bg-ink " + node[k]} />
-                        <a href={pr.html_url ?? "#"} target="_blank" onClick={(e) => openExternal(e, pr.html_url ?? "#")} className="font-medium text-txt hover:text-brand-400"><span className="font-mono text-[11px] text-[var(--wg-code)]">#{pr.number}</span> {pr.title}</a>
-                        <div className="mt-0.5 text-[11.5px] text-muted">{pr.author}{pr.review_state ? ` · ${pr.review_state.replace("_", " ")}` : " · review pending"}{pr.draft ? " · draft" : ""}{data.scopeAll ? ` · ${pr.repo}` : ""}</div>
-                        {(pr.light?.reason || reason.get(pr.number)) && (
-                          <div className={"mt-1 font-mono text-[10.5px] " + why[k]}>▸ {pr.light?.reason ?? ""}{pr.light?.reason && reason.get(pr.number) ? " — " : ""}{reason.get(pr.number) ?? ""}</div>
-                        )}
-                        {pr.ai && (
-                          <div className="mt-1.5 flex items-start gap-1.5 text-[11.5px] leading-snug text-muted">
-                            <span className="wg-pill flex-shrink-0 border-[var(--wg-violet-line)] text-[var(--wg-violet)]">AI · {pr.ai.verdict.replace("_", " ")}</span>
-                            <span className="min-w-0">{pr.ai.summary}</span>
-                          </div>
-                        )}
-                        <div className="mt-1"><PrBadges pr={pr} defaultBranch={pr.defaultBranch} /></div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+            <>
+              <div className="mt-3 font-mono text-[10px] uppercase tracking-[.12em] text-faint">{data.prs.length} open{data.conflicted > 0 ? <> · <span className="text-stop">{data.conflicted} conflict{data.conflicted === 1 ? "" : "s"}</span></> : ""} · lights are deterministic</div>
+              <div className="mt-1.5">
+                {sorted.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">No open pull requests.</p> : sorted.map((pr, i) => (
+                  <a key={pr.repo_id + pr.number} href={`/desk/prs/${pr.number}?repo=${pr.repo_id}`} target="_blank" onClick={(e) => desk(e, `/prs/${pr.number}?repo=${pr.repo_id}`)} className={"flex items-center gap-2.5 py-[9px] " + (i === 0 ? "" : "border-t border-line") + (pr.draft ? " text-faint" : "")}>
+                    <Dot level={level(pr)} />
+                    <div className="min-w-0 flex-1">
+                      <div className={"truncate text-[13px] " + (pr.draft ? "" : "text-txt")}><span className={"mr-1.5 font-mono text-[11px] " + (pr.draft ? "" : "text-muted")}>#{pr.number}</span>{pr.title}</div>
+                      <div className={"truncate text-[11.5px] " + (pr.draft ? "" : "text-muted")}>{pr.author ?? "?"} · {word(pr)}{data.scopeAll ? ` · ${pr.repo}` : ""}</div>
+                    </div>
+                    <span className={"font-mono text-[10.5px] " + (pr.ai ? vtone(pr.ai.verdict) : "text-faint")}>{pr.ai ? `AI · ${pr.ai.verdict.replace("_", " ")}` : "—"}</span>
+                  </a>
+                ))}
+              </div>
+              <p className="mt-[18px] text-[12px] text-faint">Merge plan, rebase commands and review points are in the Desk. <a href={`/desk/prs${repoQ}`} target="_blank" onClick={(e) => desk(e, `/prs${repoQ}`)} className={ACT}>Open Pull requests →</a></p>
+            </>
           );
         })()}
-
-        {tab === "Brain" && (
-          data.brain ? (
-            <WidgetBrain notes={data.brain.notes} nodes={data.brain.nodes} edges={data.brain.edges} initialSlug="index" repoName={data.brain.repoName} />
-          ) : (
-            <p className="wg-empty mt-3">Pick a repo in the header — its .brain/ notes show here.</p>
-          )
-        )}
-
-        {tab === "Feed" && (() => {
-          type Ev = { at: string; kind: "decision" | "broadcast" | "journal" | "handoff"; who: string; body: string; chips?: string[] };
-          const events: Ev[] = [
-            ...data.feed.map((f) => ({ at: f.at, kind: (f.kind === "broadcast" ? "broadcast" : "decision") as Ev["kind"], who: f.by ?? "?", body: f.text })),
-            ...(data.journals ?? []).map((j) => ({ at: j.at, kind: "journal" as const, who: `${j.by}${j.branch ? " · " + j.branch : ""}`, body: j.summary, chips: [...j.learned.slice(0, 1).map((l) => `learned: ${l}`), ...j.tried_and_failed.slice(0, 1).map((l) => `didn't work: ${l}`), ...(j.remaining ? [`remaining: ${j.remaining}`] : [])] })),
-            ...data.handoffs.map((h) => ({ at: h.at, kind: "handoff" as const, who: h.by ?? "?", body: `left work${h.branch ? " on " + h.branch : ""}: ${h.summary}` })),
-          ].sort((x, y) => y.at.localeCompare(x.at));
-          const dot = { decision: "bg-brand-500", broadcast: "bg-wait", journal: "bg-[var(--wg-violet)]", handoff: "bg-wait" } as const;
-          const kc = { decision: "text-brand-400", broadcast: "text-wait", journal: "text-[var(--wg-violet)]", handoff: "text-wait" } as const;
-          const hhmm = (iso: string) => { const d = new Date(iso); const now = new Date(); const same = d.toDateString() === now.toDateString(); return same ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : d.toLocaleDateString([], { month: "short", day: "numeric" }); };
-          const counts = { decision: 0, broadcast: 0, journal: 0, handoff: 0 };
-          for (const e of events) counts[e.kind]++;
-          return (
-          <div className="-mx-3 -my-2.5 flex h-full flex-col">
-            <div className="mx-3.5 mb-1 flex h-8 flex-shrink-0 items-center border-b border-line font-mono text-[10px] tracking-wider text-muted">
-              FEED · <span className="text-brand-400">&nbsp;{counts.decision} decisions</span>&nbsp;· {counts.broadcast} broadcasts · {counts.journal} journals
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-              {data.digest && (
-                <details className="mx-3.5 mt-2 rounded-xl border border-line2 bg-row px-3 py-2.5">
-                  <summary className="flex cursor-pointer list-none items-baseline gap-2 font-display text-[10px] font-semibold uppercase tracking-[.14em] text-brand-400">Standup · {data.digest.repo}<span className="ml-auto font-mono text-[10px] font-normal normal-case tracking-normal text-faint">{data.digest.day} · tap to expand</span></summary>
-                  <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-txt">{data.digest.body}</p>
-                </details>
-              )}
-              {events.length === 0 ? (
-                <p className="wg-empty mt-3">Quiet. Claudes post here via broadcast and log_decision; journals arrive as sessions end.</p>
-              ) : (
-                <div className="mt-2 grid grid-cols-[46px_1fr]">
-                  {events.slice(0, 40).map((e, i) => (
-                    <React.Fragment key={i}>
-                      <div className="relative pr-2.5 pt-2 text-right font-mono text-[10px] text-faint">
-                        {hhmm(e.at)}
-                        <span className={"absolute -right-1 top-3 h-2 w-2 rounded-full " + dot[e.kind]} />
-                      </div>
-                      <div className="border-l-2 border-line py-1.5 pl-3 pr-3.5 text-[12.5px] text-txt">
-                        <span className={"mr-1.5 font-display text-[10px] font-semibold uppercase tracking-[.1em] " + kc[e.kind]}>{e.kind}</span>
-                        <span className="font-mono text-[11px] text-muted">{e.who}</span>
-                        <div className="mt-0.5">{e.body}</div>
-                        {e.chips && e.chips.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{e.chips.map((c, j) => <span key={j} className="rounded bg-row2 px-1.5 py-px font-mono text-[10px] text-[var(--wg-code)]">{c}</span>)}</div>}
-                      </div>
-                    </React.Fragment>
-                  ))}
-                </div>
-              )}
-              {data.activity.length > 0 && (
-                <section className="mt-3">
-                  <h2 className="wg-sec">Recent work <span className="n">24h</span></h2>
-                  <div className="px-3.5"><ActivityFeed rows={data.activity} limit={8} /></div>
-                </section>
-              )}
-            </div>
-          </div>
-        );
-        })()}
-      </div>
-
-      {/* Bottom tab bar — icon + label; the active tab takes the accent and a
-          short underline. */}
-      <div className="flex flex-shrink-0 items-stretch gap-0.5 border-t border-line bg-ink px-2.5 pb-2 pt-1.5">
-        {TABS.map((t) => {
-          const active = tab === t;
-          const attention = t === "Tasks" ? open.some((x) => x.priority === 1 && isMe(x.assigned_to)) : t === "PRs" ? data.conflicted > 0 : false;
-          return (
-            <button key={t} onClick={() => setTab(t)} aria-label={t} aria-current={active ? "page" : undefined} className={"wg-tab relative " + (active ? "on" : "")}>
-              <TabIcon tab={t} active={active} />
-              <span>{t}</span>
-              {attention && !active && <i className="absolute right-3 top-1.5 h-1.5 w-1.5 rounded-full bg-wait" />}
-            </button>
-          );
-        })}
       </div>
     </div>
   );

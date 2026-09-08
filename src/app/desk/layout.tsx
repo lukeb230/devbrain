@@ -1,4 +1,4 @@
-import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { FONT_VARS } from "@/app/fonts";
 import { redirect } from "next/navigation";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -16,9 +16,6 @@ import { DeskNav, DeskRepoSwitcher } from "./nav";
 // cookie jar, so a signed-in panel means a signed-in Desk.
 // ============================================================================
 
-const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "600", "700"], axes: ["opsz"], variable: "--font-display", display: "swap" });
-const body = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-body", display: "swap" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono", display: "swap" });
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +42,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
 
   const initial = (org.login.trim()[0] ?? "?").toUpperCase();
   return (
-    <div className={`wg ${display.variable} ${body.variable} ${mono.variable} font-body flex h-screen flex-col bg-ink text-[13.5px] text-txt`}>
+    <div className={`wg ${FONT_VARS} font-body flex h-screen flex-col bg-ink text-[13.5px] text-txt`}>
       <script dangerouslySetInnerHTML={{ __html: early }} />
 
       {/* Title bar (Dusk): mark + wordmark · team / repo · jump-to · avatar + login · role */}

@@ -1,10 +1,10 @@
 import { FONT_VARS } from "@/app/fonts";
 import { redirect } from "next/navigation";
-import { currentOrg } from "@/lib/org";
+import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
-import { DeskNav, DeskRepoSwitcher } from "./nav";
+import { DeskNav } from "./nav";
 import { ThemeFollow } from "./theme-follow";
 
 // ============================================================================
@@ -42,52 +42,39 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="dark"||t==="system")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
 
   const initial = (org.login.trim()[0] ?? "?").toUpperCase();
+  const appSlug = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
   return (
     <div className={`wg ${FONT_VARS} font-body flex h-screen flex-col bg-ink text-[13.5px] text-txt`}>
       <script dangerouslySetInnerHTML={{ __html: early }} />
       <ThemeFollow />
 
-      {/* Title bar (Dusk): mark + wordmark · team / repo · jump-to · avatar + login · role */}
-      {/* The header is the window's title bar (overlay style): the traffic
-          lights sit in the first ~78px, and the bar drags the window. Only
-          elements carrying data-tauri-drag-region start a drag, so the
-          switchers and the jump field keep their clicks. */}
-      <header data-tauri-drag-region className="flex h-12 flex-shrink-0 items-center gap-4 border-b border-line bg-row pl-[78px] pr-[18px]">
-        <span data-tauri-drag-region className="flex items-center gap-[9px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img data-tauri-drag-region src="/brain.png" width={25} height={20} alt="" />
-          <span data-tauri-drag-region className="font-display text-[19px] font-medium tracking-[-.01em]">DevBrain</span>
-        </span>
-        <span className="flex items-center text-[12.5px] text-muted">
-          {org.orgs.length > 1 ? (
-            <form action={switchOrg} className="flex items-center">
-              <input type="hidden" name="next" value="/desk" />
-              <select name="orgId" defaultValue={org.orgId} className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-muted focus:outline-none">
-                {org.orgs.map((o) => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </select>
-              <button className="ml-1 text-[11px] text-faint hover:text-txt">switch</button>
-            </form>
-          ) : (
-            <span>{org.orgName}</span>
-          )}
-          <span className="mx-1.5 text-line3">/</span>
-          <DeskRepoSwitcher repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
-        </span>
-        <span data-tauri-drag-region className="flex-1" />
-        <span className="flex w-[320px] items-center gap-2 rounded-lg border border-line bg-ink px-2.5 py-1.5 text-[12.5px] text-faint" title="Jump to anything (coming)">
-          ⌕ <span className="flex-1">Jump to anything</span><span className="font-mono text-[10px]">⌘K</span>
-        </span>
-        <span className="flex items-center gap-2">
-          <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accent">{initial}</span>
-          <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>
-        </span>
-      </header>
+      {/* Flush window: this strip is the title bar — only the traffic lights
+          live here, and it drags the window (data-tauri-drag-region). */}
+      <div data-tauri-drag-region className="h-[38px] flex-shrink-0 bg-row" />
 
       <div className="flex min-h-0 flex-1">
-        <DeskNav />
-        {children}
+        <DeskNav
+          orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))}
+          orgId={org.orgId}
+          switchOrg={switchOrg}
+          repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))}
+          remembered={scope.repoId}
+          appSlug={appSlug}
+          canLink={hasRole(org.role, "admin")}
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Toolbar over the panes: jump-to-anything and who you are. */}
+          <div className="flex h-11 flex-shrink-0 items-center gap-4 border-b border-line bg-pane px-4">
+            <span className="flex w-[320px] items-center gap-2 rounded-lg border border-line bg-ink px-2.5 py-1.5 text-[12.5px] text-faint" title="Jump to anything (coming)">
+              ⌕ <span className="flex-1">Jump to anything</span><span className="font-mono text-[10px]">⌘K</span>
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accent">{initial}</span>
+              <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>
+            </span>
+          </div>
+          <div className="flex min-h-0 flex-1">{children}</div>
+        </div>
       </div>
     </div>
   );

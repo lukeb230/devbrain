@@ -13,6 +13,8 @@ import { Pulse } from "./pulse";
 import { applyThemePref, applyThemeToDocument, readThemePref, THEME_KEY, type ThemePref } from "./theme";
 import { createClaim } from "../dashboard/[repoId]/claim-actions";
 import { pickSuggestedNext } from "@/lib/lanes";
+import { Picker } from "@/app/desk/picker";
+import { switchOrg } from "../settings/org/actions";
 import type { ActivityRow } from "@/components/ActivityFeed";
 import { pickupHandoff } from "../dashboard/[repoId]/handoff-actions";
 import { completeTask, confirmMaybeDone, createTask, dismissMaybeDone, startTask, togglePin } from "../dashboard/[repoId]/tasks/actions";
@@ -508,18 +510,31 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         <span className="font-display text-[15px] font-bold tracking-[-.02em] text-txt">DevBrain</span>
         <WidgetLive />
         <span className="ml-auto flex items-center gap-2">
-          <span className="text-[11.5px] text-faint">{data.teamName}</span>
+          {data.teams.length > 1 ? (
+            <Picker
+              size="sm"
+              align="right"
+              width={200}
+              items={data.teams.map((t) => ({ key: t.id, label: t.name }))}
+              value={data.teamId}
+              onPick={(id) => { const fd = new FormData(); fd.set("orgId", id); fd.set("stay", "1"); startSwitch(() => { void switchOrg(fd); }); }}
+              title="Team"
+              className={switching ? "opacity-50" : ""}
+            />
+          ) : (
+            <span className="text-[11.5px] text-faint">{data.teamName}</span>
+          )}
           {data.repos.length > 0 && (
-            <select
+            <Picker
+              size="sm"
+              align="right"
+              width={220}
+              items={[{ key: "all", label: "All repos" }, ...data.repos.map((r) => ({ key: r.id, label: r.name }))]}
               value={data.scopeAll ? "all" : (data.lastRepo?.id ?? "all")}
-              disabled={switching}
-              onChange={(e) => { const id = e.target.value; if (id) startSwitch(() => setWidgetRepo(id)); }}
+              onPick={(id) => startSwitch(() => setWidgetRepo(id))}
               title="Scope — filters everything in the panel to one repo"
-              className={"max-w-[150px] truncate rounded-md border border-line2 bg-ink px-1.5 py-[3px] font-mono text-[11px] text-txt focus:outline-none " + (switching ? "opacity-50" : "")}
-            >
-              <option value="all">All repos</option>
-              {data.repos.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
+              className={switching ? "opacity-50" : ""}
+            />
           )}
         </span>
         <button onClick={() => setMenu((m) => !m)} aria-label="Settings" title="Settings" className={"text-[15px] leading-none " + (menu ? "text-accent2" : "text-muted hover:text-txt")}>⚙</button>

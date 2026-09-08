@@ -2,16 +2,76 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
+import { Picker } from "./picker";
 import { DESK_SECTIONS } from "./sections";
 
-// The Desk's sidebar (Dusk): 180px, row bg, right hairline, grouped labels
-// with mono 9px eyebrows, no icons. Active item = coral ink + coral line.
+// The Desk's sidebar (Dusk, flush window): the mark + wordmark at the top,
+// aligned with the items and sitting under the traffic lights; the team and
+// repo pickers under it; then the grouped sections, no icons. Active item =
+// coral ink + coral line.
 
-export function DeskNav() {
+export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, canLink }: {
+  orgs: { id: string; name: string }[];
+  orgId: string;
+  switchOrg: (fd: FormData) => Promise<void>;
+  repos: { id: string; name: string }[];
+  remembered: string | null;
+  appSlug: string;
+  canLink: boolean;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
+  const params = useSearchParams();
+  const [, start] = useTransition();
   const active = pathname.replace(/^\/desk\/?/, "").split("/")[0] ?? "";
+  // URL wins; otherwise the remembered repo the pages are using; "all" is explicit.
+  const q = params.get("repo");
+  const repo = q === "all" ? "all" : q ?? remembered ?? "all";
+  const pickRepo = (v: string) => {
+    const next = new URLSearchParams(params.toString());
+    next.set("repo", v);
+    router.push(`${pathname}?${next}`);
+  };
+  const pickTeam = (id: string) => {
+    const fd = new FormData();
+    fd.set("orgId", id);
+    fd.set("next", "/desk");
+    start(() => { void switchOrg(fd); });
+  };
+  const openExternal = (e: React.MouseEvent, url: string) => {
+    const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
+    if (!core) return;
+    e.preventDefault();
+    void core.invoke("open_external", { url }).catch(() => window.open(url, "_blank"));
+  };
+
   return (
-    <nav className="flex w-[180px] flex-shrink-0 flex-col gap-px overflow-y-auto border-r border-line bg-row px-2 py-2.5">
+    <nav className="flex w-[180px] flex-shrink-0 flex-col gap-px overflow-y-auto border-r border-line bg-row px-2 pb-2.5 pt-1">
+      <div className="flex items-center gap-[9px] px-2.5 py-1.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brain.png" width={25} height={20} alt="" />
+        <span className="font-display text-[19px] font-medium tracking-[-.01em] text-txt">DevBrain</span>
+      </div>
+      <div className="mb-2 flex flex-col gap-px px-1">
+        {orgs.length > 1 ? (
+          <Picker items={orgs.map((o) => ({ key: o.id, label: o.name }))} value={orgId} onPick={pickTeam} width={200} title="Team" />
+        ) : (
+          <div className="px-1.5 py-1 text-[13px] text-txt">{orgs.find((o) => o.id === orgId)?.name ?? "team"}</div>
+        )}
+        {repos.length > 0 ? (
+          <Picker
+            items={[{ key: "all", label: "all repos" }, ...repos.map((r) => ({ key: r.id, label: r.name.split("/").pop() ?? r.name, hint: r.name.split("/")[0] }))]}
+            value={repo}
+            onPick={pickRepo}
+            width={232}
+            title="Repo scope — filters every page to one repo"
+            footer={canLink ? <a href={`https://github.com/apps/${appSlug}/installations/new`} target="_blank" onClick={(e) => openExternal(e, `https://github.com/apps/${appSlug}/installations/new`)} className="block rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-row2">Link a repo ↗</a> : undefined}
+          />
+        ) : (
+          <div className="px-1.5 py-1 font-mono text-[12px] text-faint">no repos linked</div>
+        )}
+      </div>
       {DESK_SECTIONS.map((g) => (
         <div key={g.group}>
           <div className="px-2.5 pb-1 pt-2.5 font-mono text-[9px] uppercase tracking-[.12em] text-faint">{g.group}</div>
@@ -33,33 +93,5 @@ export function DeskNav() {
         </div>
       ))}
     </nav>
-  );
-}
-
-// Repo scope for the Desk, in the title bar: "Team / <repo>" with a borderless
-// mono select (design). URL wins; otherwise the remembered repo; "all" is explicit.
-export function DeskRepoSwitcher({ repos, remembered }: { repos: { id: string; name: string }[]; remembered: string | null }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const q = params.get("repo");
-  const current = q === "all" ? "" : q ?? remembered ?? "";
-  if (repos.length === 0) return <span className="font-mono text-[12px] text-faint">no repos linked</span>;
-  return (
-    <select
-      value={current}
-      onChange={(e) => {
-        const v = e.target.value;
-        const q = new URLSearchParams(params.toString());
-        if (v) q.set("repo", v); else q.set("repo", "all");
-        router.push(`${pathname}${q.toString() ? `?${q}` : ""}`);
-      }}
-      className="cursor-pointer border-0 bg-transparent p-0 font-mono text-[12px] text-txt focus:outline-none"
-    >
-      <option value="">all repos</option>
-      {repos.map((r) => (
-        <option key={r.id} value={r.id}>{r.name}</option>
-      ))}
-    </select>
   );
 }

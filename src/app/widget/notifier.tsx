@@ -32,6 +32,13 @@ export interface NotifPrefs {
    *  is scoped to. Defaults to "all" — a silent P1 on the repo you're NOT
    *  looking at is the expensive failure. */
   scope: "all" | "repo";
+  /** Paused from the panel's gear menu: epoch ms until which nothing fires (0 / absent = not paused). */
+  pausedUntil?: number;
+}
+
+/** Notifications are on for this Mac right now: the master switch and no active pause. */
+export function notifOn(p: NotifPrefs): boolean {
+  return p.enabled && !(p.pausedUntil && p.pausedUntil > Date.now());
 }
 
 export const DEFAULT_PREFS: NotifPrefs = {
@@ -47,6 +54,21 @@ export const DEFAULT_PREFS: NotifPrefs = {
   alerts: true,
   scope: "all",
 };
+
+
+/** One row per notification kind — the switches on Desk › This Mac (and the panel before Dusk). */
+export type BoolPref = Exclude<keyof NotifPrefs, "scope">;
+export const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
+  { key: "broadcasts", label: "Broadcasts", detail: "A teammate sends a team-wide heads-up" },
+  { key: "pr_conflicts", label: "PR conflicts", detail: "An open pull request develops merge conflicts" },
+  { key: "pr_approvals", label: "PR approvals", detail: "A pull request gets approved" },
+  { key: "p1_tasks", label: "Critical tasks", detail: "Someone files a new P1 task" },
+  { key: "handoffs", label: "Handoffs", detail: "A teammate leaves unfinished work for pickup" },
+  { key: "task_autocomplete", label: "Auto-completed tasks", detail: "A merge closed a task on the board automatically" },
+  { key: "merge_lights", label: "Merge lights", detail: "Your PR is cleared to land, or was auto-merged" },
+  { key: "specs", label: "Context docs", detail: "A dropped spec finished analyzing and is ready to review" },
+  { key: "alerts", label: "Team alerts", detail: "Something broke for the team — a repo lost GitHub access, the AI budget ran out, a sync error (admins only)" },
+];
 
 export function readPrefs(): NotifPrefs {
   try {
@@ -223,7 +245,7 @@ export function WidgetNotifier({
         { event: "INSERT", schema: "public", table: "events" },
         (msg) => {
           const p = prefs.current;
-          if (!p.enabled) return;
+          if (!notifOn(p)) return;
           const row = msg.new as {
             kind?: string;
             repo_id?: string;
@@ -273,7 +295,7 @@ export function WidgetNotifier({
         { event: "INSERT", schema: "public", table: "tasks" },
         (msg) => {
           const p = prefs.current;
-          if (!p.enabled || !p.p1_tasks) return;
+          if (!notifOn(p) || !p.p1_tasks) return;
           const row = msg.new as { repo_id?: string; priority?: number; title?: string; created_by?: string; assigned_to?: string | null };
           if (!inScope(row.repo_id)) return;
           if (row.priority !== 1) return;
@@ -289,7 +311,7 @@ export function WidgetNotifier({
         { event: "INSERT", schema: "public", table: "handoffs" },
         (msg) => {
           const p = prefs.current;
-          if (!p.enabled || !p.handoffs) return;
+          if (!notifOn(p) || !p.handoffs) return;
           const row = msg.new as { repo_id?: string; dev_label?: string; summary?: string };
           if (!inScope(row.repo_id)) return;
           if (isSelf(row.dev_label)) return;
@@ -302,7 +324,7 @@ export function WidgetNotifier({
       // state ourselves and notify only on a transition.
       const onPr = (msg: { new: Record<string, unknown> }) => {
         const p = prefs.current;
-        if (!p.enabled) return;
+        if (!notifOn(p)) return;
         const row = msg.new as {
           repo_id?: string;
           number?: number;
@@ -348,7 +370,7 @@ export function WidgetNotifier({
           const row = msg.new as AlertRow;
           if (!row.id || !mine(row)) return;
           alertStamp.current.set(row.id, row.last_notified_at ?? null);
-          if (!p.enabled || !p.alerts) return;
+          if (!notifOn(p) || !p.alerts) return;
           deliver(`${label(row)}: ${row.title ?? ""}`, firstLine(row.detail));
         });
         channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "alert_log" }, (msg) => {
@@ -357,7 +379,7 @@ export function WidgetNotifier({
           if (!row.id || !mine(row)) return;
           const prev = alertStamp.current.get(row.id);
           alertStamp.current.set(row.id, row.last_notified_at ?? null);
-          if (!p.enabled || !p.alerts) return;
+          if (!notifOn(p) || !p.alerts) return;
           if (row.resolved_at) {
             if (row.resolved_by === "system") deliver(`Recovered: ${row.title ?? ""}`, row.org_id === null ? "ops" : "team");
             return;

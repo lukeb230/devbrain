@@ -1,38 +1,37 @@
-// The Desk's sections — one list that the sidebar, the placeholder and the
-// [section] route all read. A plain module (no "use client"): a client
-// module's non-component exports become client references on the server,
-// which is not an array you can flatMap.
+// The Desk's sections — the one list the sidebar reads. A plain module (no
+// "use client"): a client module's non-component exports become client
+// references on the server. No icons (Dusk): labels only.
 
-export const DESK_SECTIONS: { group: string; items: { slug: string; label: string; icon: string; arrives: string }[] }[] = [
+export const DESK_SECTIONS: { group: string; items: { slug: string; label: string }[] }[] = [
   {
     group: "Work",
     items: [
-      { slug: "", label: "Home", icon: "⌂", arrives: "Needs-you inbox, who's working, claims, handoffs, today's standup" },
-      { slug: "board", label: "Board", icon: "☑", arrives: "Every task and lane: create, edit, assign, pin, braindump, possibly-done" },
-      { slug: "prs", label: "Pull requests", icon: "⇅", arrives: "Lights with reasons, merge order, AI review points, rebase help" },
-      { slug: "specs", label: "Specs", icon: "▤", arrives: "Upload a spec, items → tasks, dismiss / restore" },
+      { slug: "", label: "Home" },
+      { slug: "board", label: "Board" },
+      { slug: "prs", label: "Pull requests" },
+      { slug: "specs", label: "Specs" },
     ],
   },
   {
     group: "Memory",
     items: [
-      { slug: "brain", label: "Brain", icon: "◉", arrives: "The repo's notes as a graph, reading pane, stale-note repairs" },
-      { slug: "feed", label: "Feed & memory", icon: "≣", arrives: "Decisions, broadcasts, journals, standup archive, team memory search" },
-      { slug: "history", label: "History", icon: "↺", arrives: "What landed on main, restore points, revert (via the Rules switch)" },
+      { slug: "brain", label: "Brain" },
+      { slug: "feed", label: "Feed & memory" },
+      { slug: "history", label: "History" },
     ],
   },
   {
     group: "Team",
     items: [
-      { slug: "rules", label: "Rules", icon: "⚙", arrives: "Team rules, features, and the 'act on GitHub' switches" },
-      { slug: "members", label: "Members", icon: "◌", arrives: "Roles, invites" },
-      { slug: "tokens", label: "Tokens & sessions", icon: "⌘", arrives: "Dev tokens, spawned sessions" },
-      { slug: "team", label: "Team settings", icon: "▣", arrives: "Name, AI usage, alerts, leave / delete" },
-      { slug: "reminders", label: "Reminders", icon: "☰", arrives: "Apple Reminders list → repo mapping" },
+      { slug: "rules", label: "Rules" },
+      { slug: "members", label: "Members" },
+      { slug: "tokens", label: "Tokens & sessions" },
+      { slug: "team", label: "Team settings" },
+      { slug: "reminders", label: "Reminders" },
     ],
   },
   {
     group: "This Mac",
-    items: [{ slug: "mac", label: "This Mac", icon: "▢", arrives: "Install health, Dock and login preferences, update" }],
+    items: [{ slug: "mac", label: "This Mac" }],
   },
 ];

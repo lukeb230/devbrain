@@ -2,20 +2,21 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, deleteTask, dismissMaybeDone, reopenTask, startTask, togglePin, updateTask } from "@/app/dashboard/[repoId]/tasks/actions";
 import { deskScope, withScope } from "@/lib/desk/scope";
+import { pickSuggestedNext } from "@/lib/lanes";
 import { teamMembers } from "@/lib/members";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { DeskNext } from "../desk-next";
+import { ListPane, ListRow, PaneEyebrow, Reading } from "../panes";
 import { RepoChooser } from "../repo-chooser";
-import { pickSuggestedNext } from "@/lib/lanes";
-import { Button, Card, Chip, Empty, Field, PageTitle, Select } from "../ui";
+import { ACTION, ACTION_STOP, Banner, Button, Card, Empty, Eyebrow, Field, Kv, Pill, Popover, Select, Textarea } from "../ui";
 
 // ============================================================================
-// Desk · Board — every task and lane for one repo. Three columns, a filter by
-// person, pinned first; the selected task (?task=<id>) opens a right-hand
-// drawer with everything the dashboard's board could do: start, mark done,
-// reopen, pin, assign, edit, delete, confirm / dismiss possibly-done. New
-// task and Braindump are disclosure forms. All 11 task actions reused.
+// Desk · Board (Dusk). List pane: Tasks with filter pills and the four
+// sections (in progress · open · possibly done · done), "+" for a new task.
+// Reading pane = the task drawer: the selected task (?task=), else the
+// dispatcher's pick for you, with every action, the edit form, delete, and
+// the Braindump card at the bottom. All 11 task actions reused unchanged.
 // ============================================================================
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export const maxDuration = 60; // braindump asks Claude to split the dump
 
 const PRESET_TAGS = ["bug", "feature", "ui", "backend", "plugin", "brain", "docs", "refactor"];
 const P: Record<number, string> = { 1: "text-stop", 2: "text-wait", 3: "text-muted", 4: "text-faint" };
-const act = "font-display text-[11.5px] font-semibold text-brand-400 hover:underline";
+const PNAME: Record<number, string> = { 1: "critical", 2: "high", 3: "normal", 4: "low" };
 
 type Task = {
   id: string; repo_id: string; title: string; detail: string | null; priority: number; tags: string[] | null; status: string;
@@ -53,14 +54,7 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
 
   const { data: repos } = await supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at");
   const scope = await deskScope(sp, (repos ?? []).map((r) => r.id));
-  if (!scope.repoId) {
-    return (
-      <>
-        <PageTitle title="Board" sub="Every task and lane, for one repo." />
-        <RepoChooser repos={repos ?? []} route="/desk/board" what="board" />
-      </>
-    );
-  }
+  if (!scope.repoId) return <RepoChooser repos={repos ?? []} route="/desk/board" what="board" title="Board" />;
   const repo = (repos ?? []).find((r) => r.id === scope.repoId)!;
   const [{ data: rows }, members, { data: claimRows }] = await Promise.all([
     supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr, started_by, footprint, pinned").eq("repo_id", repo.id).order("created_at"),
@@ -68,8 +62,6 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
     supabase.from("claims").select("dev_label, paths").eq("repo_id", repo.id).is("released_at", null),
   ]);
   const all = (rows ?? []) as Task[];
-  // The dispatcher's pick for you: same rule Claude gets in its context —
-  // lane-safe against others' claims and started-task footprints.
   const meta = (user.user_metadata ?? {}) as { user_name?: string; preferred_username?: string };
   const you = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "");
   const othersBusy: string[] = [];
@@ -83,136 +75,147 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
   const todo = open.filter((t) => !t.started_by && !t.maybe_done_pr).sort(byBoard);
   const maybe = open.filter((t) => !t.started_by && t.maybe_done_pr).sort(byBoard);
   const done = all.filter((t) => t.status === "done" && mine(t)).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? "")).slice(0, 15);
-  const selected = sp.task ? all.find((t) => t.id === sp.task) ?? null : null;
-  const here = withScope("/desk/board", scope) + (who ? `&who=${encodeURIComponent(who)}` : "");
+  const explicit = sp.task ? all.find((t) => t.id === sp.task) ?? null : null;
+  const selected = explicit ?? (suggested ? all.find((t) => t.id === suggested.id) ?? null : null) ?? inProgress[0] ?? todo[0] ?? maybe[0] ?? null;
+  const isSuggested = Boolean(selected && suggested && selected.id === suggested.id);
+  const base = withScope("/desk/board", scope);
+  const here = base + (who ? `&who=${encodeURIComponent(who)}` : "");
   const taskHref = (id: string) => `${here}&task=${id}`;
 
-  const CardRow = ({ t }: { t: Task }) => (
-    <Link href={taskHref(t.id)} className={"block rounded-lg border px-2.5 py-2 hover:border-brand-500 " + (selected?.id === t.id ? "border-brand-500 bg-ink" : "border-line2 bg-ink")}>
-      <div className="truncate text-[12.5px] text-txt">{t.pinned ? <span className="mr-1 text-brand-400">⌖</span> : null}{t.title}</div>
-      <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-muted">
-        <span className={P[t.priority] ?? "text-muted"}>P{t.priority}</span>
-        <span className="truncate">{t.started_by ?? t.assigned_to ?? "unassigned"}</span>
-        {t.maybe_done_pr ? <span className="text-wait">· PR #{t.maybe_done_pr}?</span> : null}
-        {(t.tags ?? []).length > 0 && <span className="truncate text-faint">· {(t.tags ?? []).join(", ")}</span>}
-      </div>
-    </Link>
-  );
-  const Col = ({ title, n, items, empty }: { title: string; n: number; items: Task[]; empty: string }) => (
-    <Card title={title} count={n} className="min-h-[200px]">
-      {items.length === 0 ? <Empty>{empty}</Empty> : <div className="flex flex-col gap-1.5">{items.map((t) => <CardRow key={t.id} t={t} />)}</div>}
-    </Card>
-  );
-  const Hidden = ({ t }: { t: Task }) => (<><DeskNext /><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /></>);
-
-  return (
-    <div className={selected ? "grid grid-cols-[1fr_360px] gap-3" : ""}>
-      <div className="min-w-0">
-        <PageTitle
-          title="Board"
-          sub={<>{repo.full_name} · {open.length} open · <Link href={withScope("/desk/board", scope)} className={!who ? "text-txt" : "hover:text-txt"}>everyone</Link>{members.map((m) => <Link key={m} href={`${withScope("/desk/board", scope)}&who=${encodeURIComponent(m)}`} className={"ml-2 " + (who === m ? "text-txt" : "hover:text-txt")}>{m}</Link>)}</>}
-          right={
-            <>
-              <details className="relative">
-                <summary className="cursor-pointer list-none rounded-lg bg-brand-600 px-3 py-1.5 font-display text-[11.5px] font-semibold text-white hover:bg-brand-700">＋ New task</summary>
-                <form action={createTask} className="absolute right-0 z-10 mt-1 flex w-[420px] flex-col gap-1.5 rounded-xl border border-line2 bg-row p-3 shadow-[var(--wg-shadow)]">
-                  <DeskNext /><input type="hidden" name="repoId" value={repo.id} />
-                  <Field name="title" required placeholder="What the work is" />
-                  <Field name="detail" placeholder="Detail (optional)" />
-                  <div className="flex gap-1.5">
-                    <Select name="priority" defaultValue="3"><option value="1">P1 · critical</option><option value="2">P2 · high</option><option value="3">P3 · normal</option><option value="4">P4 · low</option></Select>
-                    <Select name="assignee" defaultValue=""><option value="">unassigned</option>{members.map((m) => <option key={m} value={m}>{m}</option>)}</Select>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 text-[11px] text-muted">{PRESET_TAGS.map((t) => <label key={t} className="flex items-center gap-1"><input type="checkbox" name="tags" value={t} />{t}</label>)}</div>
-                  <Field name="customTags" placeholder="more tags, comma-separated" />
-                  <div className="text-right"><Button>Create</Button></div>
-                </form>
-              </details>
-              <details className="relative">
-                <summary className="cursor-pointer list-none rounded-lg border border-line2 px-3 py-1.5 font-display text-[11.5px] font-semibold text-muted hover:text-txt">Braindump</summary>
-                <form action={braindumpTasks} className="absolute right-0 z-10 mt-1 flex w-[460px] flex-col gap-1.5 rounded-xl border border-line2 bg-row p-3 shadow-[var(--wg-shadow)]">
-                  <DeskNext /><input type="hidden" name="repoId" value={repo.id} />
-                  <textarea name="dump" required rows={7} placeholder="Paste or type freely — one task per line, or a paragraph. Claude splits it into tasks with priorities and tags." className="w-full rounded-lg border border-line2 bg-ink px-2.5 py-1.5 font-mono text-[11.5px] text-txt placeholder:text-faint focus:border-brand-500 focus:outline-none" />
-                  <div className="flex items-center justify-between"><span className="text-[10.5px] text-faint">takes a few seconds · uses one AI call</span><Button>Split into tasks</Button></div>
-                </form>
-              </details>
-            </>
-          }
-        />
-        {suggested && !who && (
-          <Link href={`${withScope("/desk/board", scope)}&task=${suggested.id}`} className="mb-2.5 flex items-center gap-2.5 rounded-xl border border-line bg-row px-3.5 py-2 hover:border-brand-500">
-            <span className="font-mono text-[10px] tracking-wider text-brand-400">NEXT FOR YOU</span>
-            <span className="min-w-0 flex-1 truncate text-[12.5px] text-txt">{suggested.title}</span>
-            <span className="truncate font-mono text-[10.5px] text-muted" title={suggested.reason}>{suggested.reason}</span>
-          </Link>
-        )}
-        <div className="grid grid-cols-3 gap-2.5">
-          <Col title="In progress" n={inProgress.length} items={inProgress} empty="Nothing started." />
-          <Col title="Open" n={todo.length} items={todo} empty="Nothing open." />
-          <div>
-            {maybe.length > 0 && <Col title="Possibly done" n={maybe.length} items={maybe} empty="" />}
-            <Col title="Done" n={done.length} items={done} empty="Nothing done yet." />
+  const TaskRow = ({ t, dim }: { t: Task; dim?: boolean }) => (
+    <ListRow href={taskHref(t.id)} selected={selected?.id === t.id} dim={dim}>
+      <div className="flex items-baseline gap-2.5">
+        <span className={`font-mono text-[10px] ${dim ? "" : P[t.priority] ?? "text-muted"}`}>{dim ? "✓" : `P${t.priority}`}</span>
+        <div className="min-w-0 flex-1">
+          <div className={`truncate text-[13px] ${selected?.id === t.id ? "font-medium" : ""}`}>{t.pinned && <span className="text-accent2">⌖ </span>}{t.title}</div>
+          <div className={`truncate text-[11px] ${dim ? "" : "text-muted"}`}>
+            {dim ? `${t.done_by ?? "?"} · ${t.done_at ? timeAgo(t.done_at) : ""}` : <>{t.started_by ?? t.assigned_to ?? "unassigned"}{(t.tags ?? []).length > 0 && ` · ${(t.tags ?? []).join(", ")}`}{t.maybe_done_pr ? ` · PR #${t.maybe_done_pr}?` : ""}{suggested?.id === t.id ? " · next for you" : ""}</>}
           </div>
         </div>
-        {sp.error && <p className="mt-2 text-[11.5px] text-wait">That didn&apos;t go through ({sp.error}).</p>}
       </div>
+    </ListRow>
+  );
+  const Hidden = ({ t }: { t: Task }) => (<><DeskNext /><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /></>);
+  const status = (t: Task) => t.status === "done" ? `done · ${t.done_by ?? ""}` : t.started_by ? `in progress · ${t.started_by}` : t.maybe_done_pr ? `possibly done · PR #${t.maybe_done_pr}` : `open${t.pinned ? " · pinned" : ""}`;
 
-      {selected && (
-        <aside className="sticky top-0 self-start rounded-xl border border-line bg-row px-4 py-3">
-          <div className="mb-2 flex items-start gap-2">
-            <h2 className="min-w-0 flex-1 font-display text-[15px] font-semibold leading-snug">{selected.title}</h2>
-            <Link href={here} className="font-mono text-[10px] text-faint hover:text-txt">close</Link>
-          </div>
-          {selected.detail && <p className="mb-2 whitespace-pre-line text-[12px] text-muted">{selected.detail}</p>}
-          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
-            <span className="font-mono text-[10.5px] text-faint">priority</span><span className={P[selected.priority]}>P{selected.priority}</span>
-            <span className="font-mono text-[10.5px] text-faint">status</span><span>{selected.status === "done" ? `done · ${selected.done_by ?? ""}` : selected.started_by ? `in progress · ${selected.started_by}` : selected.maybe_done_pr ? `possibly done · PR #${selected.maybe_done_pr}` : "open"}</span>
-            <span className="font-mono text-[10.5px] text-faint">assigned</span>
-            <form action={assignTask} className="flex items-center gap-1.5"><Hidden t={selected} /><Select name="assignee" defaultValue={selected.assigned_to ?? ""}><option value="">unassigned</option>{members.map((m) => <option key={m} value={m}>{m}</option>)}</Select><button className={act}>set</button></form>
-            <span className="font-mono text-[10.5px] text-faint">created</span><span className="text-muted">{selected.created_by ?? "?"} · {timeAgo(selected.created_at)}</span>
-            {(selected.tags ?? []).length > 0 && <><span className="font-mono text-[10.5px] text-faint">tags</span><span>{(selected.tags ?? []).map((t) => <Chip key={t} tone="muted">{t}</Chip>)}</span></>}
-            {(selected.footprint ?? []).length > 0 && <><span className="font-mono text-[10.5px] text-faint">lane</span><span className="flex flex-wrap gap-1">{(selected.footprint ?? []).map((f) => <Chip key={f}>{f}</Chip>)}</span></>}
-          </div>
+  return (
+    <>
+      <ListPane
+        title="Tasks"
+        count={`${open.length} open`}
+        right={
+          <Popover label={<span className="text-[18px] leading-none text-accent2" title="New task">＋</span>} tone="link" width={420} align="right">
+            <form action={createTask} className="flex flex-col gap-2">
+              <DeskNext /><input type="hidden" name="repoId" value={repo.id} />
+              <Field name="title" required placeholder="What the work is" ground="ink" autoFocus />
+              <Field name="detail" placeholder="Detail (optional)" ground="ink" />
+              <div className="flex gap-2">
+                <Select name="priority" defaultValue="3" ground="ink"><option value="1">P1 · critical</option><option value="2">P2 · high</option><option value="3">P3 · normal</option><option value="4">P4 · low</option></Select>
+                <Select name="assignee" defaultValue="" ground="ink"><option value="">unassigned</option>{members.map((m) => <option key={m} value={m}>{m}</option>)}</Select>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[12px] text-muted">{PRESET_TAGS.map((t) => <label key={t} className="flex items-center gap-1"><input type="checkbox" name="tags" value={t} className="accent-[var(--wg-accent-strong)]" />{t}</label>)}</div>
+              <Field name="customTags" placeholder="more tags, comma-separated" ground="ink" />
+              <div className="text-right"><Button>Create</Button></div>
+            </form>
+          </Popover>
+        }
+      >
+        <div className="flex flex-wrap gap-1.5 px-4 pb-2.5 text-[11.5px]">
+          <Link href={base} className={`rounded-full px-[9px] py-0.5 ${!who ? "bg-txt text-ink" : "border border-line text-muted hover:text-txt"}`}>everyone</Link>
+          {members.map((m) => <Link key={m} href={`${base}&who=${encodeURIComponent(m)}`} className={`rounded-full px-[9px] py-0.5 ${who === m ? "bg-txt text-ink" : "border border-line text-muted hover:text-txt"}`}>{m}</Link>)}
+        </div>
+        <PaneEyebrow className="pt-2.5">in progress · {inProgress.length}</PaneEyebrow>
+        {inProgress.length === 0 && <p className="px-4 pb-1 text-[12px] text-faint">Nothing started.</p>}
+        {inProgress.map((t) => <TaskRow key={t.id} t={t} />)}
+        <PaneEyebrow>open · {todo.length}</PaneEyebrow>
+        {todo.length === 0 && <p className="px-4 pb-1 text-[12px] text-faint">Nothing open.</p>}
+        {todo.map((t) => <TaskRow key={t.id} t={t} />)}
+        {maybe.length > 0 && (
+          <>
+            <PaneEyebrow tone="wait">possibly done · {maybe.length}</PaneEyebrow>
+            {maybe.map((t) => <TaskRow key={t.id} t={t} />)}
+          </>
+        )}
+        <PaneEyebrow tone="go">done · {done.length}</PaneEyebrow>
+        {done.map((t) => <TaskRow key={t.id} t={t} dim />)}
+        <div className="pb-3" />
+      </ListPane>
 
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {selected.status === "open" && !selected.started_by && <form action={startTask}><Hidden t={selected} /><Button>Start</Button></form>}
-            {selected.status === "open" && <form action={completeTask}><Hidden t={selected} /><Button tone={selected.started_by ? "primary" : "ghost"}>Mark done</Button></form>}
-            {selected.status === "done" && <form action={reopenTask}><Hidden t={selected} /><Button tone="ghost">Reopen</Button></form>}
-            <form action={togglePin}><Hidden t={selected} /><input type="hidden" name="pinned" value={String(!selected.pinned)} /><Button tone="ghost">{selected.pinned ? "Unpin" : "Pin"}</Button></form>
-          </div>
-          {selected.maybe_done_pr && selected.status === "open" && (
-            <div className="mt-3 rounded-lg border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3 py-2 text-[12px]">
-              <div className="text-wait">PR #{selected.maybe_done_pr} looks like it closed this.</div>
-              <div className="mt-1.5 flex gap-2">
-                <form action={confirmMaybeDone}><Hidden t={selected} /><button className={act}>Yes, done</button></form>
-                <form action={dismissMaybeDone}><Hidden t={selected} /><button className="font-display text-[11.5px] font-semibold text-muted hover:underline">Still open</button></form>
+      <Reading>
+        {!selected ? (
+          <Empty>No tasks yet. Add one with ＋, or paste a braindump below.</Empty>
+        ) : (
+          <>
+            <div className="flex items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <div className={`font-mono text-[11px] uppercase tracking-[.1em] ${isSuggested ? "text-accent2" : "text-faint"}`}>{isSuggested ? `next for you · ${suggested!.footprint && suggested!.footprint.length > 0 ? "lane is free" : "footprint not predicted yet"}` : `task · ${status(selected)}`}</div>
+                <h1 className="mt-1.5 font-display text-[32px] font-medium leading-[1.1] tracking-[-.02em] text-txt">{selected.title}</h1>
+                {selected.detail && <p className="mt-3 max-w-[560px] whitespace-pre-line text-[14px] leading-[1.65] text-body">{selected.detail}</p>}
+              </div>
+              <div className="flex flex-shrink-0 gap-2">
+                {selected.status === "open" && !selected.started_by && <form action={startTask}><Hidden t={selected} /><Button>Start</Button></form>}
+                {selected.status === "open" && <form action={completeTask}><Hidden t={selected} /><Button tone={selected.started_by ? "primary" : "ghost"}>Mark done</Button></form>}
+                {selected.status === "done" && <form action={reopenTask}><Hidden t={selected} /><Button tone="ghost">Reopen</Button></form>}
+                <form action={togglePin}><Hidden t={selected} /><input type="hidden" name="pinned" value={String(!selected.pinned)} /><Button tone="ghost">{selected.pinned ? "Unpin" : "Pin"}</Button></form>
               </div>
             </div>
-          )}
 
-          <details className="mt-3">
-            <summary className="cursor-pointer list-none font-display text-[10px] uppercase tracking-[.14em] text-muted hover:text-txt">Edit</summary>
-            <form action={updateTask} className="mt-2 flex flex-col gap-1.5">
-              <Hidden t={selected} />
-              <Field name="title" required defaultValue={selected.title} />
-              <Field name="detail" defaultValue={selected.detail ?? ""} placeholder="Detail" />
-              <div className="flex gap-1.5">
-                <Select name="priority" defaultValue={String(selected.priority)}><option value="1">P1</option><option value="2">P2</option><option value="3">P3</option><option value="4">P4</option></Select>
-                <Select name="assignee" defaultValue={selected.assigned_to ?? ""}><option value="">unassigned</option>{members.map((m) => <option key={m} value={m}>{m}</option>)}</Select>
+            {selected.maybe_done_pr && selected.status === "open" && (
+              <Banner tone="wait" className="mt-6" right={<span className="flex gap-3"><form action={confirmMaybeDone}><Hidden t={selected} /><button className="text-[12px] font-semibold text-go hover:underline">Yes, done</button></form><form action={dismissMaybeDone}><Hidden t={selected} /><button className="text-[12px] font-semibold text-faint hover:text-txt">Still open</button></form></span>}>
+                PR #{selected.maybe_done_pr} looks like it closed this.
+              </Banner>
+            )}
+
+            <div className="mt-6 grid grid-cols-[repeat(4,auto)] justify-start gap-8 border-y border-line py-4 text-[13px]">
+              <Kv k="priority">P{selected.priority} · {PNAME[selected.priority] ?? "normal"}</Kv>
+              <Kv k="status">{status(selected)}</Kv>
+              <Kv k="assigned">
+                <form action={assignTask} className="flex items-center gap-2"><Hidden t={selected} /><Select name="assignee" defaultValue={selected.assigned_to ?? ""} size="sm"><option value="">unassigned</option>{members.map((m) => <option key={m} value={m}>{m}</option>)}</Select><button className="text-[12px] text-accent hover:underline">set</button></form>
+              </Kv>
+              <Kv k="created" muted>{selected.created_by ?? "?"} · {timeAgo(selected.created_at)}</Kv>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-7">
+              <div>
+                <Eyebrow>tags</Eyebrow>
+                <div className="mt-2 flex flex-wrap gap-1.5">{(selected.tags ?? []).length === 0 ? <span className="text-[12px] text-faint">none</span> : (selected.tags ?? []).map((t) => <Pill key={t} tone="sans">{t}</Pill>)}</div>
               </div>
-              <Field name="tags" defaultValue={(selected.tags ?? []).join(", ")} placeholder="tags, comma-separated" />
-              <div className="text-right"><Button>Save</Button></div>
+              <div>
+                <Eyebrow>lane · predicted footprint</Eyebrow>
+                <div className="mt-2 font-mono text-[12px] leading-[1.8] text-body">{(selected.footprint ?? []).length === 0 ? <span className="text-faint">not predicted yet — the tick fills it in</span> : (selected.footprint ?? []).map((f) => <div key={f}>{f}</div>)}</div>
+              </div>
+            </div>
+
+            <details className="mt-8 border-t border-line pt-4">
+              <summary className="cursor-pointer list-none font-display text-[17px] font-medium text-txt">Edit task</summary>
+              <form action={updateTask} className="mt-3 grid max-w-[640px] grid-cols-2 gap-2.5">
+                <Hidden t={selected} />
+                <Field name="title" required defaultValue={selected.title} className="col-span-2" />
+                <Field name="detail" defaultValue={selected.detail ?? ""} placeholder="Detail" className="col-span-2" />
+                <Select name="priority" defaultValue={String(selected.priority)}><option value="1">P1 · critical</option><option value="2">P2 · high</option><option value="3">P3 · normal</option><option value="4">P4 · low</option></Select>
+                <Select name="assignee" defaultValue={selected.assigned_to ?? ""}><option value="">unassigned</option>{members.map((m) => <option key={m} value={m}>{m}</option>)}</Select>
+                <Field name="tags" defaultValue={(selected.tags ?? []).join(", ")} placeholder="tags, comma-separated" className="col-span-2" />
+                <div className="col-span-2 text-right"><Button>Save</Button></div>
+              </form>
+            </details>
+            <form action={deleteTask} className="mt-5 flex items-center gap-3 text-[12.5px] text-muted">
+              <input type="hidden" name="next" value={here} /><input type="hidden" name="repoId" value={selected.repo_id} /><input type="hidden" name="id" value={selected.id} />
+              <span>Removes the task and releases its lane.</span><button className={ACTION_STOP}>Delete task</button>
             </form>
-          </details>
-          <details className="mt-3">
-            <summary className="cursor-pointer list-none font-display text-[10px] uppercase tracking-[.14em] text-stop/80 hover:text-stop">Delete</summary>
-            <form action={deleteTask} className="mt-2 flex items-center justify-between gap-2 text-[11.5px] text-muted">
-              {/* explicit next: the deleted task must not stay selected */}<input type="hidden" name="next" value={here} /><input type="hidden" name="repoId" value={selected.repo_id} /><input type="hidden" name="id" value={selected.id} />
-              <span>Removes the task and releases its lane.</span><Button tone="danger">Delete task</Button>
-            </form>
-          </details>
-        </aside>
-      )}
-    </div>
+          </>
+        )}
+
+        <Card pad="md" className="mt-10">
+          <form action={braindumpTasks}>
+            <DeskNext /><input type="hidden" name="repoId" value={repo.id} />
+            <div className="flex items-baseline gap-2"><span className="font-display text-[17px] font-medium text-txt">Braindump</span><span className="text-[12px] text-faint">· uses one AI call · duplicates are skipped</span></div>
+            <Textarea name="dump" required rows={3} placeholder="Paste or type freely — one task per line, or a paragraph. Claude splits it into tasks with priorities and tags." className="mt-2.5 h-[72px]" />
+            <div className="mt-2 text-right"><Button tone="ghost">Split into tasks</Button></div>
+          </form>
+        </Card>
+        {sp.error && <p className="mt-4 text-[12px] text-wait">That didn&apos;t go through ({sp.error}).</p>}
+        {explicit && suggested && explicit.id !== suggested.id && <Link href={here} className={`mt-4 inline-block ${ACTION}`}>← back to the pick for you</Link>}
+      </Reading>
+    </>
   );
 }

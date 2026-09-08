@@ -1,16 +1,18 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { deskScope } from "@/lib/desk/scope";
+import { deskScope, withScope } from "@/lib/desk/scope";
 import { formatHit, type MemoryHit } from "@/lib/memory";
 import { currentOrg } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
-import { RepoChooser } from "../repo-chooser";
-import { Card, Chip, Empty, Field, PageTitle } from "../ui";
+import { ListPane, Reading } from "../panes";
+import { Empty, Section } from "../ui";
 
 // ============================================================================
-// Desk · Feed & memory — decisions, broadcasts, handoffs, session journals
-// (full text), the standup archive, and team memory search over all of it.
-// Team-wide or one repo; search needs one repo (memory is indexed per repo).
-// Read-only.
+// Desk · Feed & memory (Dusk). List pane: the memory search and the kind
+// filters with counts. Reading pane: one chronological list — time column,
+// kind eyebrow in its colour, the line in display type; journals expanded
+// with learned / decided / failed / remaining; standups inline. Search needs
+// one repo (memory is indexed per repo). Read-only.
 // ============================================================================
 
 export const dynamic = "force-dynamic";
@@ -23,9 +25,23 @@ function ago(iso: string) {
   if (hr < 24) return `${hr}h ago`;
   return `${Math.floor(hr / 24)}d ago`;
 }
-const KIND_TONE: Record<string, "code" | "violet" | "muted"> = { decision: "violet", broadcast: "code", bot_write: "muted", handoff: "code", journal: "violet" };
+type Item =
+  | { kind: "decision" | "broadcast" | "bot"; at: string; text: string; by: string; repo: string; id: string }
+  | { kind: "journal"; at: string; by: string; branch: string | null; summary: string; learned: string[]; decided: string[]; failed: string[]; remaining: string | null; repo: string; id: string }
+  | { kind: "handoff"; at: string; by: string; branch: string | null; summary: string; remaining: string | null; open: boolean; repo: string; id: string }
+  | { kind: "standup"; at: string; day: string; body: string; repo: string; id: string };
 
-export default async function DeskFeed({ searchParams }: { searchParams: Promise<{ repo?: string; q?: string }> }) {
+const KIND_TEXT: Record<string, string> = { decision: "text-violet", journal: "text-accent2", broadcast: "text-wait", handoff: "text-wait", standup: "text-txt", bot: "text-faint" };
+const FILTERS: { key: string; label: string; kinds: Item["kind"][] }[] = [
+  { key: "all", label: "Everything", kinds: ["decision", "broadcast", "journal", "standup", "handoff", "bot"] },
+  { key: "decisions", label: "Decisions & broadcasts", kinds: ["decision", "broadcast"] },
+  { key: "journals", label: "Session journals", kinds: ["journal"] },
+  { key: "standups", label: "Standups", kinds: ["standup"] },
+  { key: "handoffs", label: "Handoffs", kinds: ["handoff"] },
+  { key: "bot", label: "Bot writes", kinds: ["bot"] },
+];
+
+export default async function DeskFeed({ searchParams }: { searchParams: Promise<{ repo?: string; q?: string; kind?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
   const {
@@ -40,6 +56,8 @@ export default async function DeskFeed({ searchParams }: { searchParams: Promise
   const ids = scope.repoId ? [scope.repoId] : (repos ?? []).map((r) => r.id);
   const short = (id: string) => (repos ?? []).find((r) => r.id === id)?.full_name.split("/")[1] ?? "?";
   const q = (sp.q ?? "").trim().slice(0, 300);
+  const filter = FILTERS.find((f) => f.key === sp.kind) ?? FILTERS[0];
+  const base = withScope("/desk/feed", scope);
 
   const [{ data: events }, { data: journals }, { data: digests }, { data: handoffs }] = await Promise.all([
     supabase.from("events").select("id, kind, payload, at, repo_id").in("repo_id", ids).in("kind", ["decision", "broadcast", "bot_write"]).order("at", { ascending: false }).limit(60),
@@ -47,6 +65,17 @@ export default async function DeskFeed({ searchParams }: { searchParams: Promise
     supabase.from("digests").select("day, body, repo_id").in("repo_id", ids).order("day", { ascending: false }).limit(14),
     supabase.from("handoffs").select("id, repo_id, dev_label, branch, summary, remaining, picked_up_at, created_at").in("repo_id", ids).order("created_at", { ascending: false }).limit(20),
   ]);
+  const items: Item[] = [];
+  for (const e of events ?? []) {
+    const p = (e.payload ?? {}) as { text?: string; by?: string; action?: string };
+    items.push({ kind: e.kind === "bot_write" ? "bot" : (e.kind as "decision" | "broadcast"), at: e.at, text: p.text ?? p.action ?? "", by: p.by ?? "DevBrain", repo: short(e.repo_id), id: e.id });
+  }
+  for (const j of journals ?? []) items.push({ kind: "journal", at: j.at, by: j.dev_label, branch: j.branch, summary: j.summary, learned: (j.learned as string[]) ?? [], decided: (j.decisions as string[]) ?? [], failed: (j.tried_and_failed as string[]) ?? [], remaining: j.remaining, repo: short(j.repo_id), id: j.id });
+  for (const h of handoffs ?? []) items.push({ kind: "handoff", at: h.created_at, by: h.dev_label, branch: h.branch, summary: h.summary, remaining: h.remaining, open: !h.picked_up_at, repo: short(h.repo_id), id: h.id });
+  for (const d of digests ?? []) items.push({ kind: "standup", at: `${d.day}T23:59:59Z`, day: d.day, body: d.body, repo: short(d.repo_id), id: `${d.repo_id}-${d.day}` });
+  items.sort((a, b) => b.at.localeCompare(a.at));
+  const count = (kinds: Item["kind"][]) => items.filter((i) => kinds.includes(i.kind)).length;
+  const shown = items.filter((i) => filter.kinds.includes(i.kind));
 
   let hits: ReturnType<typeof formatHit>[] = [];
   let mode: "strict" | "any" | null = null;
@@ -57,76 +86,91 @@ export default async function DeskFeed({ searchParams }: { searchParams: Promise
     if ((data ?? []).length === 0) { mode = "any"; ({ data } = await admin.rpc("memory_search", { p_repo: scope.repoId, p_q: q, p_limit: 12, p_mode: mode })); }
     hits = ((data ?? []) as MemoryHit[]).map(formatHit);
   }
+  const Eyebrow = ({ kind, children }: { kind: string; children: React.ReactNode }) => <span className={`mr-2 font-mono text-[10px] uppercase tracking-[.1em] ${KIND_TEXT[kind] ?? "text-faint"}`}>{children}</span>;
 
   return (
     <>
-      <PageTitle title="Feed & memory" sub={`${scope.repoId ? short(scope.repoId) : "all repos"} · decisions, broadcasts, bot writes, journals, handoffs, standups — and search across every journal, decision and note`} />
+      <ListPane title="Feed & memory">
+        <form method="get" className="mx-4 mb-3">
+          {scope.repoId && <input type="hidden" name="repo" value={scope.repoId} />}
+          {sp.kind && <input type="hidden" name="kind" value={sp.kind} />}
+          <div className="flex items-center gap-2 rounded-lg border border-line bg-row px-2.5 py-[7px] text-[12.5px] text-faint">
+            <span>⌕</span>
+            <input name="q" defaultValue={q} placeholder={scope.repoId ? "has anyone dealt with…" : "pick one repo to search"} disabled={!scope.repoId} className="min-w-0 flex-1 bg-transparent text-[12.5px] text-txt placeholder:text-faint focus:outline-none" />
+          </div>
+        </form>
+        {FILTERS.map((f) => (
+          <Link key={f.key} href={`${base}${f.key === "all" ? "" : `&kind=${f.key}`}${q ? `&q=${encodeURIComponent(q)}` : ""}`} className={`mx-2 flex items-center justify-between rounded-lg px-2.5 py-2 text-[13px] text-txt ${filter.key === f.key ? "bg-row2 font-medium" : "hover:bg-row"}`}>
+            <span>{f.label}</span>
+            <span className="font-mono text-[10.5px] text-muted">{f.key === "all" ? FILTERS.slice(1).map((x) => count(x.kinds)).filter((n) => n > 0).join(" + ") || "0" : count(f.kinds)}</span>
+          </Link>
+        ))}
+      </ListPane>
 
-      <form method="get" className="mb-3 flex items-center gap-2">
-        {scope.repoId && <input type="hidden" name="repo" value={scope.repoId} />}
-        <Field name="q" defaultValue={q} placeholder={scope.repoId ? "has anyone dealt with…  (searches journals, decisions, handoffs, reviews, notes for this repo)" : "pick one repo to search its memory"} />
-        <button className="rounded-lg border border-line2 px-3 py-1.5 font-display text-[11.5px] font-semibold text-muted hover:text-txt" disabled={!scope.repoId}>Search</button>
-      </form>
-      {!scope.repoId && q && <RepoChooser repos={repos ?? []} route="/desk/feed" what="memory" />}
-      {q && scope.repoId && (
-        <Card title={`Memory · "${q}"`} count={hits.length} right={mode === "any" ? "loose match — nothing matched every word" : undefined}>
-          {hits.length === 0 ? <Empty>Nothing in this repo&apos;s memory mentions that.</Empty> : hits.map((h) => (
-            <div key={`${h.kind}-${h.id}`} className="border-t border-line py-2 first:border-t-0">
-              <div className="flex items-center gap-2 text-[12.5px]"><Chip tone={KIND_TONE[h.kind] ?? "muted"}>{h.kind}</Chip><span className="text-txt">{h.title}</span><span className="ml-auto font-mono text-[10px] text-faint">{h.by ?? ""}{h.at ? ` · ${ago(h.at)}` : ""}</span></div>
-              {h.snippet && <div className="mt-0.5 text-[11.5px] text-muted">{h.snippet}</div>}
-            </div>
-          ))}
-        </Card>
-      )}
+      <Reading>
+        <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">{filter.label} <span className="ml-2 font-mono text-[12px] font-normal text-faint">{scope.repoId ? short(scope.repoId) : "all repos"} · newest first</span></h1>
 
-      <div className="grid grid-cols-[1.4fr_1fr] gap-2.5">
-        <div>
-          <Card title="Feed" count={(events ?? []).length}>
-            {(events ?? []).length === 0 ? <Empty>Quiet.</Empty> : (events ?? []).map((e) => {
-              const p = (e.payload ?? {}) as { text?: string; by?: string; action?: string };
-              return (
-                <div key={e.id} className="flex items-start gap-2 border-t border-line py-1.5 first:border-t-0">
-                  <span className="mt-0.5 w-12 flex-shrink-0 font-mono text-[10px] text-faint">{ago(e.at)}</span>
-                  <Chip tone={KIND_TONE[e.kind] ?? "muted"}>{e.kind === "bot_write" ? "bot" : e.kind}</Chip>
-                  <div className="min-w-0 flex-1 text-[12px] text-txt">{p.text ?? p.action ?? ""}<span className="ml-1.5 font-mono text-[10px] text-muted">{p.by ?? "DevBrain"}{!scope.repoId ? ` · ${short(e.repo_id)}` : ""}</span></div>
+        {q && scope.repoId && (
+          <Section title={`Memory · “${q}”`} count={hits.length} hint={mode === "any" ? "loose match — nothing matched every word" : undefined} className="mt-6">
+            {hits.length === 0 ? <Empty className="mt-2">Nothing in this repo&apos;s memory mentions that.</Empty> : (
+              <div className="mt-2.5">
+                {hits.map((h) => (
+                  <div key={`${h.kind}-${h.id}`} className="border-t border-line py-3">
+                    <div className="flex items-baseline gap-2"><Eyebrow kind={h.kind === "note" ? "standup" : h.kind}>{h.kind}</Eyebrow><span className="font-display text-[17px] text-txt">{h.title}</span><span className="ml-auto font-mono text-[11px] text-faint">{h.by ?? ""}{h.at ? ` · ${ago(h.at)}` : ""}</span></div>
+                    {h.snippet && <div className="mt-1 text-[13px] leading-[1.55] text-muted">{h.snippet}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
+
+        {shown.length === 0 ? (
+          <Empty className="mt-6">Quiet{filter.key === "journals" ? " — turn on session journals under Rules → Features" : ""}.</Empty>
+        ) : (
+          <div className="mt-6 grid grid-cols-[64px_1fr] gap-x-5">
+            {shown.map((it) => (
+              <div key={`${it.kind}-${it.id}`} className="contents">
+                <span className="py-4 text-right font-mono text-[11px] text-faint">{it.kind === "standup" ? (it.day === new Date().toISOString().slice(0, 10) ? "today" : it.day.slice(5)) : ago(it.at)}</span>
+                <div className={`border-b border-line py-4 ${it.kind === "handoff" && !it.open ? "text-faint" : ""}`}>
+                  {it.kind === "decision" || it.kind === "broadcast" || it.kind === "bot" ? (
+                    <>
+                      <Eyebrow kind={it.kind}>{it.kind}</Eyebrow>
+                      <span className="font-display text-[17px] text-txt">{it.text}</span>
+                      <span className="ml-2.5 text-[12px] text-muted">{it.by}{!scope.repoId ? ` · ${it.repo}` : ""}</span>
+                    </>
+                  ) : it.kind === "journal" ? (
+                    <>
+                      <Eyebrow kind="journal">journal</Eyebrow>
+                      <span className="text-[12px] text-muted">{it.by}{it.branch ? ` · ${it.branch}` : ""}{!scope.repoId ? ` · ${it.repo}` : ""}</span>
+                      <div className="mt-1 font-display text-[17px] leading-[1.5] text-txt">{it.summary}</div>
+                      {(it.learned.length + it.decided.length + it.failed.length > 0 || it.remaining) && (
+                        <div className="mt-2.5 grid grid-cols-[76px_1fr] gap-x-3 gap-y-1 text-[13px] leading-[1.55] text-body">
+                          {it.learned.map((l, i) => <span key={`l${i}`} className="contents"><span className="pt-[3px] font-mono text-[10px] uppercase tracking-[.1em] text-accent2">learned</span><span>{l}</span></span>)}
+                          {it.decided.map((l, i) => <span key={`d${i}`} className="contents"><span className="pt-[3px] font-mono text-[10px] uppercase tracking-[.1em] text-accent2">decided</span><span>{l}</span></span>)}
+                          {it.failed.map((l, i) => <span key={`f${i}`} className="contents"><span className="pt-[3px] font-mono text-[10px] uppercase tracking-[.1em] text-faint">failed</span><span className="text-muted">{l}</span></span>)}
+                          {it.remaining && <span className="contents"><span className="pt-[3px] font-mono text-[10px] uppercase tracking-[.1em] text-wait">remaining</span><span>{it.remaining}</span></span>}
+                        </div>
+                      )}
+                    </>
+                  ) : it.kind === "handoff" ? (
+                    <>
+                      <Eyebrow kind={it.open ? "handoff" : "bot"}>handoff · {it.open ? "open" : "picked up"}</Eyebrow>
+                      <span className={`text-[12px] ${it.open ? "text-muted" : ""}`}>{it.by}{it.branch ? ` · ${it.branch}` : ""}{!scope.repoId ? ` · ${it.repo}` : ""}</span>
+                      <div className={`mt-1 font-display text-[17px] leading-[1.5] ${it.open ? "text-txt" : ""}`}>{it.summary}{it.remaining && <i className={it.open ? "text-muted" : ""}> Remaining: {it.remaining}.</i>}</div>
+                    </>
+                  ) : it.kind === "standup" ? (
+                    <>
+                      <Eyebrow kind="standup">standup · {it.repo}</Eyebrow>
+                      <div className="mt-1 whitespace-pre-line font-display text-[17px] leading-[1.55] text-body">{it.body}</div>
+                    </>
+                  ) : null}
                 </div>
-              );
-            })}
-          </Card>
-          <Card title="Session journals" count={(journals ?? []).length}>
-            {(journals ?? []).length === 0 ? <Empty>No journals yet — turn on session journals under Rules → Features.</Empty> : (journals ?? []).map((j) => (
-              <details key={j.id} className="border-t border-line py-1.5 first:border-t-0">
-                <summary className="cursor-pointer list-none text-[12.5px] text-txt"><span className="font-mono text-[10.5px] text-muted">{j.dev_label}{j.branch ? ` · ${j.branch}` : ""}{!scope.repoId ? ` · ${short(j.repo_id)}` : ""} · {ago(j.at)}</span><div>{j.summary}</div></summary>
-                <div className="mt-1.5 space-y-1 text-[11.5px]">
-                  {((j.learned as string[]) ?? []).map((l, i) => <div key={`l${i}`}><Chip tone="violet">learned</Chip> <span className="text-txt">{l}</span></div>)}
-                  {((j.decisions as string[]) ?? []).map((l, i) => <div key={`d${i}`}><Chip tone="violet">decided</Chip> <span className="text-txt">{l}</span></div>)}
-                  {((j.tried_and_failed as string[]) ?? []).map((l, i) => <div key={`f${i}`}><Chip tone="muted">failed</Chip> <span className="text-txt">{l}</span></div>)}
-                  {j.remaining && <div><Chip tone="code">remaining</Chip> <span className="text-txt">{j.remaining}</span></div>}
-                </div>
-              </details>
-            ))}
-          </Card>
-        </div>
-        <div>
-          <Card title="Standups" count={(digests ?? []).length}>
-            {(digests ?? []).length === 0 ? <Empty>No standups yet.</Empty> : (digests ?? []).map((d) => (
-              <details key={`${d.repo_id}-${d.day}`} className="border-t border-line py-1.5 first:border-t-0">
-                <summary className="cursor-pointer list-none font-mono text-[11px] text-muted">{d.day}{!scope.repoId ? ` · ${short(d.repo_id)}` : ""}</summary>
-                <p className="mt-1 whitespace-pre-line text-[12px] leading-relaxed text-txt">{d.body}</p>
-              </details>
-            ))}
-          </Card>
-          <Card title="Handoffs" count={(handoffs ?? []).length}>
-            {(handoffs ?? []).length === 0 ? <Empty>None.</Empty> : (handoffs ?? []).map((h) => (
-              <div key={h.id} className="border-t border-line py-1.5 first:border-t-0 text-[12px]">
-                <div className="font-mono text-[10.5px] text-muted">{h.dev_label}{h.branch ? ` · ${h.branch}` : ""} · {ago(h.created_at)} · {h.picked_up_at ? "picked up" : "open"}</div>
-                <div className="text-txt">{h.summary}</div>
-                {h.remaining && <div className="text-muted">remaining: {h.remaining}</div>}
               </div>
             ))}
-          </Card>
-        </div>
-      </div>
+          </div>
+        )}
+      </Reading>
     </>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
-// Drag-and-drop (or pick, or paste) a context doc. Submits the real <form>
-// so the server action handles it — no custom upload endpoint.
+// Drag-and-drop (or pick, or paste) a context doc, Dusk-styled for the
+// Specs list pane: a dashed drop target, a "paste text" alternative, an
+// optional title, submit. Submits the real <form> so the server action
+// handles it — no custom upload endpoint.
 
 import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
@@ -9,49 +11,22 @@ import { useFormStatus } from "react-dom";
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button
-      disabled={pending}
-      className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-    >
+    <button disabled={pending} className="whitespace-nowrap rounded-lg bg-accent2 px-[11px] py-1.5 font-display text-[11.5px] font-semibold text-white disabled:opacity-50">
       {pending ? "Reading…" : label}
     </button>
   );
 }
 
-export function SpecDropzone({
-  repoId,
-  action,
-}: {
-  repoId: string;
-  action: (fd: FormData) => Promise<void>;
-}) {
+export function SpecDropzone({ repoId, action }: { repoId: string; action: (fd: FormData) => Promise<void> }) {
   const [over, setOver] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [mode, setMode] = useState<"file" | "paste">("file");
+  const [paste, setPaste] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const formRef = useRef<HTMLFormElement | null>(null);
 
   return (
-    <form ref={formRef} action={action} className="card card-pad">
+    <form action={action} className="mx-4 mb-3">
       <input type="hidden" name="repoId" value={repoId} />
-
-      <div className="mb-3 flex gap-2 text-xs">
-        {(["file", "paste"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            className={
-              "rounded-md px-2.5 py-1 " +
-              (mode === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
-            }
-          >
-            {m === "file" ? "Drop a file" : "Paste text"}
-          </button>
-        ))}
-      </div>
-
-      {mode === "file" ? (
+      {!paste ? (
         <div
           onDragOver={(e) => { e.preventDefault(); setOver(true); }}
           onDragLeave={() => setOver(false)}
@@ -67,47 +42,22 @@ export function SpecDropzone({
             }
           }}
           onClick={() => inputRef.current?.click()}
-          className={
-            "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors " +
-            (over ? "border-brand-500 bg-brand-50" : "border-slate-300 hover:border-brand-400 hover:bg-slate-50")
-          }
+          className={`cursor-pointer rounded-[10px] border border-dashed px-3 py-4 text-center text-[12px] leading-[1.5] text-muted ${over ? "border-accent bg-coralink" : "border-line3 hover:border-line2"}`}
         >
-          <svg viewBox="0 0 24 24" className="mb-2 h-7 w-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" strokeLinecap="round" />
-          </svg>
-          <p className="text-sm font-medium text-slate-700">
-            {fileName ?? "Drop a spec, brief, or braindump here"}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Markdown, text, HTML, or PDF (mockups and screenshots inside PDFs get read too)
-          </p>
-          <input
-            ref={inputRef}
-            type="file"
-            name="file"
-            accept=".md,.markdown,.txt,.html,.htm,.pdf"
-            className="hidden"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-          />
+          {fileName ?? "Drop a spec, brief, or braindump"}
+          <br />
+          <span className="text-[11px] text-faint">md · txt · html · pdf — or <button type="button" onClick={(e) => { e.stopPropagation(); setPaste(true); }} className="text-accent hover:underline">paste text</button></span>
+          <input ref={inputRef} type="file" name="file" accept=".md,.markdown,.txt,.html,.htm,.pdf" className="hidden" onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)} />
         </div>
       ) : (
-        <textarea
-          name="text"
-          rows={6}
-          placeholder="Paste the doc — everything you want this app to become. DevBrain works out what already exists and what doesn't."
-          className="w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-        />
+        <textarea name="text" rows={5} autoFocus placeholder="Paste the doc — everything you want this app to become." className="w-full resize-none rounded-lg border border-line2 bg-ink px-3 py-2.5 text-[12.5px] leading-[1.5] text-txt placeholder:text-faint focus:border-accent focus:outline-none" />
       )}
-
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          name="title"
-          placeholder="Title (optional — we'll name it from the doc)"
-          className="min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-        />
-        <Submit label="Add context" />
-      </div>
+      {(fileName || paste) && (
+        <div className="mt-2 flex items-center gap-2">
+          <input name="title" placeholder="Title (optional)" className="min-w-0 flex-1 rounded-lg border border-line2 bg-ink px-2.5 py-1.5 text-[12px] text-txt placeholder:text-faint focus:border-accent focus:outline-none" />
+          <Submit label="Add" />
+        </div>
+      )}
     </form>
   );
 }

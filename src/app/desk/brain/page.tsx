@@ -1,21 +1,22 @@
-import Link from "next/link";
 import { marked } from "marked";
 import { redirect } from "next/navigation";
-import { BrainExplorer, type NotePayload } from "@/app/dashboard/[repoId]/brain/explorer";
+import type { NotePayload } from "@/app/dashboard/[repoId]/brain/explorer";
 import { linkifyBody, parseBrain } from "@/lib/brain";
 import { cachedBrainDocs } from "@/lib/brain-cache";
+import { staleBrain } from "@/lib/brain-stale";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
+import { ListPane, Reading } from "../panes";
 import { RepoChooser } from "../repo-chooser";
-import { staleBrain } from "@/lib/brain-stale";
-import { Card, Chip, Empty, PageTitle } from "../ui";
+import { Card, Empty, H1 } from "../ui";
+import { BrainDesk } from "./explorer";
 
 // ============================================================================
-// Desk · Brain — the repo's linked notes as a graph with a reading pane, on
-// any branch. The explorer is the dashboard's client component; the graph is
-// built the same way (same parser, same cache). Regenerating is a line you
-// paste to your Claude — the brain is a PR, never a DevBrain write.
+// Desk · Brain (Dusk) — the repo's linked notes: list pane of notes + the
+// reading pane with the graph aside (BrainDesk, client). Same parser and
+// cache as before. Regenerating is a line you paste to your Claude — the
+// brain is a PR, never a DevBrain write.
 // ============================================================================
 
 export const dynamic = "force-dynamic";
@@ -36,14 +37,7 @@ export default async function DeskBrain({ searchParams }: { searchParams: Promis
 
   const { data: repos } = await supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at");
   const scope = await deskScope(sp, (repos ?? []).map((r) => r.id));
-  if (!scope.repoId) {
-    return (
-      <>
-        <PageTitle title="Brain" sub="One repo's linked notes." />
-        <RepoChooser repos={repos ?? []} route="/desk/brain" what="brain" />
-      </>
-    );
-  }
+  if (!scope.repoId) return <RepoChooser repos={repos ?? []} route="/desk/brain" what="brain" title="Brain" />;
   const repo = (repos ?? []).find((r) => r.id === scope.repoId)!;
   const since72h = new Date(Date.now() - 72 * 3600_000).toISOString();
   const [{ data: branchRows }, { data: mergedRows }, { data: mergedPrs }] = await Promise.all([
@@ -58,7 +52,7 @@ export default async function DeskBrain({ searchParams }: { searchParams: Promis
 
   let notes: NotePayload[] = [];
   let nodes: { slug: string; title: string; type: string; degree: number }[] = [];
-  let edges: { a: string; b: string }[] = [];
+  const edges: { a: string; b: string }[] = [];
   let failed = false;
   try {
     const files = await cachedBrainDocs(repo.installation_id, repo.full_name, ref);
@@ -85,40 +79,28 @@ export default async function DeskBrain({ searchParams }: { searchParams: Promis
   }
   const branchNames = [repo.default_branch, ...(branchRows ?? []).filter((b) => !b.merged_at && b.name !== repo.default_branch).map((b) => b.name)];
 
-  return (
-    <>
-      <PageTitle
-        title="Brain"
-        sub={<span className="flex flex-wrap items-center gap-1.5">{repo.full_name} · {notes.length} notes on <span className="font-mono">{ref}</span><span className="ml-2 text-faint">branch:</span>{branchNames.map((b) => <Link key={b} href={`${base}${b === repo.default_branch ? "" : `&branch=${encodeURIComponent(b)}`}`} className={b === ref ? "" : "opacity-70 hover:opacity-100"}><Chip tone={b === ref ? "violet" : "muted"}>{b}</Chip></Link>)}</span>}
-      />
-      {failed ? (
-        <Card title="Could not read the brain"><Empty>GitHub didn&apos;t return the .brain/ folder for {ref}. Check the app still has access to {repo.full_name}.</Empty></Card>
-      ) : notes.length === 0 ? (
-        <Card title="No brain yet">
-          <p className="text-[12.5px] text-txt">No <span className="font-mono">.brain/</span> on <span className="font-mono">{ref}</span>. Tell your Claude, in a session on this repo:</p>
-          <pre className="mt-2 rounded-lg border border-line2 bg-ink px-2.5 py-2 font-mono text-[11px] text-[var(--wg-code)]">generate the brain for this repo</pre>
-          <p className="mt-1.5 text-[11px] text-faint">The plugin&apos;s generate-brain skill builds the linked knowledge graph and opens it as a PR.</p>
-        </Card>
-      ) : (
-        <div className="rounded-xl border border-line bg-row p-2">
-          <BrainExplorer notes={notes} nodes={nodes} edges={edges} initialSlug={sp.note || "index"} repoId={repo.id} branch={sp.branch ?? null} searchable />
-        </div>
-      )}
-      {stale.length > 0 && (
-        <Card title="Merged without a brain update" count={stale.length} right="last 72h" className="mt-3">
-          {stale.map((s) => (
-            <div key={s.branch} className="flex items-start gap-2.5 border-t border-line py-1.5 first:border-t-0">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[12.5px] text-txt">{s.pr ? `#${s.pr} ` : ""}{s.title ?? s.branch}</div>
-                <div className="mt-0.5 truncate font-mono text-[10.5px] text-muted">{s.code_files.slice(0, 4).join(" · ")}{s.code_files.length > 4 ? ` · +${s.code_files.length - 4}` : ""}</div>
-              </div>
-              <span className="font-mono text-[10px] text-faint">{s.merged_at ? new Date(s.merged_at).toLocaleDateString() : ""}</span>
-            </div>
-          ))}
-          <p className="mt-2 text-[10.5px] text-faint">Code changed but nothing in <span className="font-mono">.brain/</span> did. Tell your Claude &ldquo;repair the brain notes for the files that changed&rdquo; — it sees this same list in its context.</p>
-        </Card>
-      )}
-      {stale.length === 0 && <p className="mt-2 text-[10.5px] text-faint">Every merge in the last 72h that changed code also updated the brain.</p>}
-    </>
-  );
+  if (failed || notes.length === 0) {
+    return (
+      <>
+        <ListPane title="Brain" count="0 notes"><p className="px-4 py-1 text-[12.5px] leading-[1.55] text-faint">{failed ? "Could not read the brain." : `No notes on ${ref}.`}</p></ListPane>
+        <Reading>
+          <H1 title="Brain" sub={`${repo.full_name} · ${ref}`} />
+          <Card pad="sm" className="mt-6 max-w-[420px]">
+            <div className="font-display text-[13px] font-semibold text-txt">{failed ? "Could not read the brain" : "No brain yet"}</div>
+            {failed ? (
+              <Empty className="mt-2 py-0">GitHub didn&apos;t return the .brain/ folder for {ref}. Check the app still has access to {repo.full_name}.</Empty>
+            ) : (
+              <>
+                <p className="mt-2 text-[12.5px] leading-[1.55] text-faint">No <span className="font-mono">.brain/</span> on {ref}. Tell your Claude, in a session on this repo:</p>
+                <pre className="mt-2 rounded-lg border border-line2 bg-ink px-2.5 py-2 font-mono text-[11px] text-txt">generate the brain for this repo</pre>
+                <p className="mt-2 text-[11.5px] text-faint">The plugin&apos;s generate-brain skill builds the linked knowledge graph and opens it as a PR.</p>
+              </>
+            )}
+          </Card>
+        </Reading>
+      </>
+    );
+  }
+
+  return <BrainDesk notes={notes} nodes={nodes} edges={edges} initialSlug={sp.note || "index"} branchNames={branchNames} currentRef={ref} defaultBranch={repo.default_branch} base={base} stale={stale} repoName={repo.full_name} />;
 }

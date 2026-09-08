@@ -33,6 +33,8 @@ import {
   type DeliveryResult,
   WidgetNotifier,
   writePrefs,
+  NOTIF_ROWS,
+  type BoolPref,
   type NotifPrefs,
 } from "./notifier";
 
@@ -472,19 +474,7 @@ function Switch({ on, small }: { on: boolean; small?: boolean }) {
   );
 }
 
-type BoolPref = Exclude<keyof NotifPrefs, "scope">;
 
-const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
-  { key: "broadcasts", label: "Broadcasts", detail: "A teammate sends a team-wide heads-up" },
-  { key: "pr_conflicts", label: "PR conflicts", detail: "An open pull request develops merge conflicts" },
-  { key: "pr_approvals", label: "PR approvals", detail: "A pull request gets approved" },
-  { key: "p1_tasks", label: "Critical tasks", detail: "Someone files a new P1 task" },
-  { key: "handoffs", label: "Handoffs", detail: "A teammate leaves unfinished work for pickup" },
-  { key: "task_autocomplete", label: "Auto-completed tasks", detail: "A merge closed a task on the board automatically" },
-  { key: "merge_lights", label: "Merge lights", detail: "Your PR is cleared to land, or was auto-merged" },
-  { key: "specs", label: "Context docs", detail: "A dropped spec finished analyzing and is ready to review" },
-  { key: "alerts", label: "Team alerts", detail: "Something broke for the team — a repo lost GitHub access, the AI budget ran out, a sync error (admins only)" },
-];
 
 export function WidgetApp({ data }: { data: WidgetData }) {
   const [tab, setTab] = useState<View>("Home");

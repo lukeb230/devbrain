@@ -12,9 +12,11 @@ const config: Config = {
         // Widget "instrument" palette (scoped to the desktop panel via .wg).
         // Values live in globals.css (.wg dark set, light set under
         // [data-wg-theme="light"] / prefers-color-scheme) so the panel can switch.
-        ink: "var(--wg-ink)", row: "var(--wg-row)", row2: "var(--wg-row2)", line: "var(--wg-line)", line2: "var(--wg-line2)",
-        txt: "var(--wg-txt)", muted: "var(--wg-muted)", faint: "var(--wg-faint)",
+        ink: "var(--wg-ink)", row: "var(--wg-row)", pane: "var(--wg-pane)", row2: "var(--wg-row2)", line: "var(--wg-line)", line2: "var(--wg-line2)", line3: "var(--wg-line3)",
+        txt: "var(--wg-txt)", body: "var(--wg-body)", prose: "var(--wg-prose)", muted: "var(--wg-muted)", faint: "var(--wg-faint)",
         go: "var(--wg-go)", wait: "var(--wg-wait)", stop: "var(--wg-stop)",
+        accent: "var(--wg-accent)", accent2: "var(--wg-accent-strong)", coralink: "var(--wg-coral-ink)", coralline: "var(--wg-coral-line)",
+        violet: "var(--wg-violet)", violetbg: "var(--wg-violet-bg)", codebg: "var(--wg-code-bg)", codefg: "var(--wg-code-fg)",
         brand: {
           50: "#fdf1ef",
           100: "#fadfdb",

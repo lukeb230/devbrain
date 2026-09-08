@@ -16,12 +16,15 @@ export function Pulse({
   collision,
   people,
   prEvents,
+  variant = "panel",
 }: {
   activity: { at: string }[];
   events: { at: string; kind: string }[];
   collision: boolean;
   people: number;
   prEvents: number;
+  /** "desk": the Dusk card variant — eyebrow row with the axis inline, 56px trace, coral-ink fill. */
+  variant?: "panel" | "desk";
 }) {
   const now = Date.now();
   const since = now - MINUTES * 60_000;
@@ -50,6 +53,27 @@ export function Pulse({
   const dots = events.map((e) => ({ x: xAt(e.at), kind: e.kind })).filter((d): d is { x: number; kind: string } => d.x !== null);
   const quiet = counts.every((c) => c === 0) && dots.length === 0;
 
+  if (variant === "desk") {
+    return (
+      <div className="rounded-xl border border-line bg-row px-[18px] py-4">
+        <div className="flex items-baseline font-mono text-[10.5px] uppercase tracking-[.08em] text-muted">
+          last hour · <span className="ml-1 text-accent2">{people} {people === 1 ? "person" : "people"}</span>
+          {prEvents > 0 ? ` · ${prEvents} PR ${prEvents === 1 ? "event" : "events"}` : ""}
+          {collision ? " · collision" : ""}
+          {quiet && !collision ? " · quiet" : ""}
+          <span className="ml-auto text-faint">−60m · −30m · now</span>
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-2 block h-14 w-full" aria-hidden>
+          <path className="wg-trace-fill" d={area} fill="var(--wg-coral-ink)" />
+          <path className="wg-trace" d={line} />
+          {dots.map((d, i) => (
+            <circle key={i} cx={d.x} cy={yAt(d.x)} r="2" fill="var(--wg-row)" stroke={d.kind === "handoff" || d.kind === "broadcast" ? "var(--wg-wait)" : "var(--wg-go)"} strokeWidth="1" />
+          ))}
+          {collision && <circle cx={W - 8} cy={yAt(W - 8)} r="2" fill="var(--wg-stop)" />}
+        </svg>
+      </div>
+    );
+  }
   return (
     <div className="relative mx-3.5 mb-1.5 h-11 border-b border-line">
       <span className="absolute left-0 top-0 font-mono text-[10px] tracking-wider text-muted">

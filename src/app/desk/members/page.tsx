@@ -1,15 +1,18 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createInvite, removeMember, revokeInvite, setRole } from "@/app/settings/members/actions";
+import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { Copy } from "../copy";
 import { DeskNext } from "../desk-next";
-import { Button, Card, Empty, PageTitle, Row, Select } from "../ui";
+import { Reading, TeamPane } from "../panes";
+import { ACTION_MUTED, ACTION_STOP, Avatar, Button, Empty, Pill, Section, Select } from "../ui";
 
 // ============================================================================
-// Desk · Members — roles (owner / admin / member), remove, and invite links
-// (create with role + single-use, copy, revoke). Same four actions as the
-// dashboard's Members page. Owners change roles and remove; admins invite.
+// Desk · Members (Dusk) — people rows (36px avatar, role pill or role select
+// + set + remove), the roles footnote, invite links (new link as role +
+// single-use; copy / revoke). Owners change roles and remove; admins invite.
 // ============================================================================
 
 export const dynamic = "force-dynamic";
@@ -22,7 +25,6 @@ function timeAgo(iso: string) {
   if (hr < 24) return `${hr}h ago`;
   return `${Math.floor(hr / 24)}d ago`;
 }
-const act = "font-display text-[11.5px] font-semibold text-brand-400 hover:underline";
 
 export default async function DeskMembers({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const sp = await searchParams;
@@ -34,10 +36,11 @@ export default async function DeskMembers({ searchParams }: { searchParams: Prom
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
 
   const admin = supabaseAdmin();
-  const [{ data: members }, { data: invites }, { data: sessions }] = await Promise.all([
+  const [{ data: members }, { data: invites }, { data: sessions }, hints] = await Promise.all([
     admin.from("org_members").select("user_id, role, github_login, created_at").eq("org_id", me.orgId).order("created_at"),
     admin.from("org_invites").select("id, code, role, created_by, max_uses, uses, expires_at").eq("org_id", me.orgId).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }),
     admin.from("sessions").select("dev_label, last_seen").eq("org_id", me.orgId).order("last_seen", { ascending: false }).limit(200),
+    teamHints(me.orgId, me.userId, null),
   ]);
   const lastSeen = new Map<string, string>();
   for (const s of sessions ?? []) {
@@ -48,63 +51,70 @@ export default async function DeskMembers({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageTitle title="Members" sub={`${me.orgName} · ${members?.length ?? 0} people · invite links add someone with one click: they sign in with GitHub, install the app, and they're in`} />
+      <TeamPane current="members" hints={hints} />
+      <Reading>
+        <div className="flex items-end gap-4">
+          <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Members <span className="ml-2 font-mono text-[12px] font-normal text-faint">{me.orgName} · {members?.length ?? 0} {members?.length === 1 ? "person" : "people"}</span></h1>
+          {isAdmin && <Button form="invite-form" className="ml-auto">New invite link</Button>}
+        </div>
+        <p className="mt-2 text-[13px] leading-[1.6] text-muted">Invite links add someone with one click: they sign in with GitHub, install the app, and they&apos;re in.</p>
 
-      <Card title="People" count={members?.length ?? 0}>
-        {(members ?? []).map((m) => {
-          const login = String(m.github_login || "");
-          const seen = lastSeen.get(login.toLowerCase());
-          const self = m.user_id === me.userId;
-          const lastOwner = m.role === "owner" && owners <= 1;
-          return (
-            <Row
-              key={m.user_id}
-              title={<span className={self ? "text-brand-400" : ""}>{login || "(no GitHub login)"}{self ? " · you" : ""}</span>}
-              sub={`${seen ? `last seen ${timeAgo(seen)}` : "never seen in a session"} · joined ${timeAgo(m.created_at)}`}
-              right={
-                isOwner && !self ? (
-                  <>
-                    <form action={setRole} className="flex items-center gap-1">
+        <section className="mt-6">
+          {(members ?? []).map((m, i) => {
+            const login = String(m.github_login || "");
+            const seen = lastSeen.get(login.toLowerCase());
+            const self = m.user_id === me.userId;
+            const lastOwner = m.role === "owner" && owners <= 1;
+            return (
+              <div key={m.user_id} className={`grid grid-cols-[36px_1fr_auto] items-center gap-4 border-t border-line py-3.5 ${i === (members?.length ?? 0) - 1 ? "border-b" : ""}`}>
+                <Avatar name={login || "?"} me={self} size={36} />
+                <div>
+                  <div className={`text-[14px] ${self ? "text-accent2" : "text-txt"}`}>{login || "(no GitHub login)"}{self && <span className="text-faint"> · you</span>}</div>
+                  <div className="mt-0.5 text-[12px] text-muted">{seen ? `last seen ${timeAgo(seen)}` : "never seen in a session"} · joined {timeAgo(m.created_at)}</div>
+                </div>
+                {isOwner && !self ? (
+                  <span className="flex items-center gap-3">
+                    <form action={setRole} className="flex items-center gap-3">
                       <DeskNext /><input type="hidden" name="userId" value={m.user_id} />
-                      <Select name="role" defaultValue={m.role}><option value="owner">owner</option><option value="admin">admin</option><option value="member">member</option></Select>
-                      <button className={act}>set</button>
+                      <Select name="role" defaultValue={m.role} size="sm"><option value="owner">owner</option><option value="admin">admin</option><option value="member">member</option></Select>
+                      <button className="text-[12px] text-accent hover:underline">set</button>
                     </form>
-                    <form action={removeMember}><DeskNext /><input type="hidden" name="userId" value={m.user_id} /><button className="font-display text-[11.5px] font-semibold text-stop/80 hover:text-stop" title={lastOwner ? "The last owner can't be removed" : undefined} disabled={lastOwner}>remove</button></form>
-                  </>
+                    <form action={removeMember}><DeskNext /><input type="hidden" name="userId" value={m.user_id} /><button className={ACTION_MUTED} title={lastOwner ? "The last owner can't be removed" : undefined} disabled={lastOwner}>remove</button></form>
+                  </span>
                 ) : (
-                  <span className="rounded-full border border-line2 px-2 py-0.5 font-mono text-[10px] text-muted">{m.role}</span>
-                )
-              }
-            />
-          );
-        })}
-        <p className="mt-2 text-[10.5px] text-faint">owner manages roles, members and the team itself · admin also mints invites, links repos, edits rules and maps Reminders · member does everything else.</p>
-      </Card>
+                  <Pill tone="muted">{m.role}</Pill>
+                )}
+              </div>
+            );
+          })}
+          <p className="mt-3 text-[12px] leading-[1.6] text-faint">owner manages roles, members and the team itself · admin also mints invites, links repos, edits rules and maps Reminders · member does everything else.</p>
+        </section>
 
-      <Card title="Invite links" count={invites?.length ?? 0} right="expire after 7 days">
-        {isAdmin && (
-          <form action={createInvite} className="mb-2 flex items-center gap-2 border-b border-line pb-2.5 text-[12px]">
-            <DeskNext />
-            <Select name="role" defaultValue="member"><option value="member">member</option><option value="admin">admin</option></Select>
-            <label className="flex items-center gap-1.5 text-muted"><input type="checkbox" name="single" /> single-use</label>
-            <span className="flex-1" />
-            <Button>New invite link</Button>
-          </form>
-        )}
-        {!invites || invites.length === 0 ? (
-          <Empty>No active invite links.</Empty>
-        ) : (
-          invites.map((i) => (
-            <Row
-              key={i.id}
-              title={<code className="select-all font-mono text-[11.5px] text-[var(--wg-code)]">{origin}/join/{i.code}</code>}
-              sub={`${i.role} · ${i.max_uses === 1 ? (i.uses >= 1 ? "used" : "single-use") : `used ${i.uses}×`} · by ${i.created_by} · expires in ${Math.max(1, Math.round((new Date(i.expires_at).getTime() - Date.now()) / 86_400_000))}d`}
-              right={isAdmin && <form action={revokeInvite}><DeskNext /><input type="hidden" name="id" value={i.id} /><button className="font-display text-[11.5px] font-semibold text-stop/80 hover:text-stop">revoke</button></form>}
-            />
-          ))
-        )}
-      </Card>
-      {sp.error && <p className="mt-2 text-[11.5px] text-wait">That didn&apos;t go through ({sp.error}).</p>}
+        <Section title="Invite links" count={invites?.length ?? 0} hint="expire after 7 days" className="mt-8">
+          {isAdmin && (
+            <form id="invite-form" action={createInvite} className="mt-2.5 flex items-center gap-3 border-t border-line py-3 text-[12.5px] text-muted">
+              <DeskNext />
+              New link as <Select name="role" defaultValue="member" size="sm"><option value="member">member</option><option value="admin">admin</option></Select>
+              <label className="flex items-center gap-1.5"><input type="checkbox" name="single" className="accent-[var(--wg-accent-strong)]" /> single-use</label>
+            </form>
+          )}
+          {!invites || invites.length === 0 ? (
+            <Empty className="border-t border-line">No active invite links.</Empty>
+          ) : (
+            invites.map((i) => (
+              <div key={i.id} className="flex items-center gap-3 border-t border-line py-3">
+                <div className="min-w-0 flex-1">
+                  <code className="font-mono text-[12.5px] text-txt">{origin}/join/{i.code}</code>
+                  <div className="mt-[3px] text-[12px] text-muted">{i.role} · {i.max_uses === 1 ? (i.uses >= 1 ? "used" : "single-use") : `used ${i.uses}×`} · by {i.created_by} · expires in {Math.max(1, Math.round((new Date(i.expires_at).getTime() - Date.now()) / 86_400_000))}d</div>
+                </div>
+                <Copy text={`${origin}/join/${i.code}`} />
+                {isAdmin && <form action={revokeInvite}><DeskNext /><input type="hidden" name="id" value={i.id} /><button className={ACTION_STOP}>revoke</button></form>}
+              </div>
+            ))
+          )}
+        </Section>
+        {sp.error && <p className="mt-4 text-[12px] text-wait">That didn&apos;t go through ({sp.error}).</p>}
+      </Reading>
     </>
   );
 }

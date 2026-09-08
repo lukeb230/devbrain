@@ -21,11 +21,11 @@
 // ============================================================================
 
 import { execSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { devbrainHome, httpHint, loadConfig } from "./home.mjs";
-import { detectHost, editedFile, emitContext, git as gitIn, readInput, relative, repoFromRemote, workdir } from "./host.mjs";
+import { detectHost, editedFile, emitContext, git as gitIn, readInput, relative, repoFromRemote, sessionKey, workdir } from "./host.mjs";
 import { fileURLToPath } from "node:url";
 import { buildExcerpt } from "./journal-extract.mjs";
 
@@ -163,6 +163,15 @@ async function main() {
   };
 
   if (kind === "session_start") {
+    // Cursor runs Claude Code plugin hooks AND ~/.cursor/hooks.json, so the
+    // same conversation can reach us twice. The sidecar remembers which host
+    // conversation opened the session; a repeat within two minutes is a no-op
+    // (no second session, no second brief).
+    const convo = sessionKey(hookInput);
+    try {
+      const st = statSync(sessionFile);
+      if (Date.now() - st.mtimeMs < 2 * 60_000 && readFileSync(sessionFile + ".convo", "utf8").trim() === convo) process.exit(0);
+    } catch { /* no live session */ }
     const out = await post({
       kind: "session_start",
       repo,
@@ -173,6 +182,7 @@ async function main() {
       try {
         mkdirSync(CONFIG_DIR, { recursive: true });
         writeFileSync(sessionFile, out.session_id);
+        writeFileSync(sessionFile + ".convo", convo);
       } catch { /* non-fatal */ }
     }
     // Emit team context so the session starts informed (SessionStart hook
@@ -212,6 +222,13 @@ async function main() {
   let file = editedFile(hookInput);
   if (file) {
     file = relative(file, git("git rev-parse --show-toplevel"));
+    // Same double-delivery guard for edits: one row per file per few seconds.
+    const stamp = join(CONFIG_DIR, "last-edit-" + repo.replace("/", "_"));
+    try {
+      const [prevFile, prevAt] = readFileSync(stamp, "utf8").split("\n");
+      if (prevFile === file && Date.now() - Number(prevAt) < 5000) process.exit(0);
+    } catch { /* first edit */ }
+    try { writeFileSync(stamp, file + "\n" + Date.now()); } catch { /* best effort */ }
     await post({
       kind: "activity",
       repo,

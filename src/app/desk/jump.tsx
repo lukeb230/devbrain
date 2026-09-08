@@ -55,11 +55,11 @@ export function Jump({ orgs, orgId, switchOrg, repos, remembered }: {
   const show = useCallback(() => {
     setOpen(true);
     setLoading(true);
-    fetch(`/api/desk/jump?repo=${encodeURIComponent(repo)}`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setIndex(j))
-      .catch(() => setIndex(null))
-      .finally(() => setLoading(false));
+    const get = (part: string) => fetch(`/api/desk/jump?repo=${encodeURIComponent(repo)}&part=${part}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    // Tasks and PRs are one query each; the brain's note titles can mean a
+    // GitHub round-trip, so they arrive second and never hold up the list.
+    get("core").then((j) => { if (j) setIndex((i) => ({ ...(i ?? { notes: [], noteRepo: null }), ...j })); }).finally(() => setLoading(false));
+    get("notes").then((j) => { if (j) setIndex((i) => ({ ...(i ?? { tasks: [], prs: [] }), ...j })); });
   }, [repo]);
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export function Jump({ orgs, orgId, switchOrg, repos, remembered }: {
           <div className="w-[520px] overflow-hidden rounded-xl border border-line2 bg-row shadow-[var(--wg-shadow)]" onKeyDown={onKey}>
             <div className="flex items-center gap-2.5 border-b border-line px-3.5 py-3">
               <span className="text-[13px] text-faint">⌕</span>
-              <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="team, repo, page, task, PR, note…" className="min-w-0 flex-1 bg-transparent text-[14px] text-txt placeholder:text-faint focus:outline-none" />
+              <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="team, repo, page, task, PR, note…" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} className="min-w-0 flex-1 bg-transparent text-[14px] text-txt placeholder:text-faint focus:outline-none" />
               {loading && <span className="font-mono text-[10px] text-faint">loading…</span>}
               <span className="font-mono text-[10px] text-faint">esc</span>
             </div>

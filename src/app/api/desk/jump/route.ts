@@ -21,17 +21,23 @@ export async function GET(req: Request) {
   const org = await currentOrg();
   if (!org) return NextResponse.json({ error: "no team" }, { status: 404 });
 
-  const repoParam = new URL(req.url).searchParams.get("repo") ?? "all";
+  const url = new URL(req.url);
+  const repoParam = url.searchParams.get("repo") ?? "all";
+  const part = url.searchParams.get("part") ?? "all";
   const { data: repos } = await supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").eq("org_id", org.orgId).is("unlinked_at", null);
   const all = repos ?? [];
   const scoped = all.find((r) => r.id === repoParam) ?? null;
   const ids = scoped ? [scoped.id] : all.map((r) => r.id);
   const name = (id: string) => all.find((r) => r.id === id)?.full_name.split("/")[1] ?? "";
 
-  const [{ data: tasks }, { data: prs }] = await Promise.all([
+  const [{ data: tasks }, { data: prs }] = part === "notes" ? [{ data: [] }, { data: [] }] : await Promise.all([
     supabase.from("tasks").select("id, repo_id, title, priority, assigned_to, started_by").in("repo_id", ids).eq("status", "open").order("priority").limit(200),
     supabase.from("prs").select("repo_id, number, title, author").in("repo_id", ids).eq("state", "open").order("number", { ascending: false }).limit(100),
   ]);
+  if (part === "core") return NextResponse.json({
+    tasks: (tasks ?? []).map((t) => ({ id: t.id, repo_id: t.repo_id, repo: name(t.repo_id), title: t.title, priority: t.priority, who: t.started_by ?? t.assigned_to ?? null })),
+    prs: (prs ?? []).map((p) => ({ repo_id: p.repo_id, repo: name(p.repo_id), number: p.number, title: p.title, author: p.author })),
+  });
 
   let notes: { slug: string; title: string; type: string }[] = [];
   if (scoped) {
@@ -43,6 +49,7 @@ export async function GET(req: Request) {
     }
   }
 
+  if (part === "notes") return NextResponse.json({ notes, noteRepo: scoped?.id ?? null });
   return NextResponse.json({
     tasks: (tasks ?? []).map((t) => ({ id: t.id, repo_id: t.repo_id, repo: name(t.repo_id), title: t.title, priority: t.priority, who: t.started_by ?? t.assigned_to ?? null })),
     prs: (prs ?? []).map((p) => ({ repo_id: p.repo_id, repo: name(p.repo_id), number: p.number, title: p.title, author: p.author })),

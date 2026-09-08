@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, deleteTask, dismissMaybeDone, reopenTask, startTask, togglePin, updateTask } from "@/app/dashboard/[repoId]/tasks/actions";
 import { deskScope, withScope } from "@/lib/desk/scope";
-import { pickSuggestedNext } from "@/lib/lanes";
+import { pickSuggestedNext, type SuggestedNext } from "@/lib/lanes";
 import { teamMembers } from "@/lib/members";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -17,6 +17,10 @@ import { ACTION, ACTION_STOP, Banner, Button, Card, Empty, Eyebrow, Field, Kv, P
 // Reading pane = the task drawer: the selected task (?task=), else the
 // dispatcher's pick for you, with every action, the edit form, delete, and
 // the Braindump card at the bottom. All 11 task actions reused unchanged.
+//
+// Scope "all repos": the list pane groups every repo's open tasks under a
+// repo eyebrow, the pick for you is lane-safe per repo and best across them,
+// and New task / Braindump ask which repo.
 // ============================================================================
 
 export const dynamic = "force-dynamic";
@@ -52,35 +56,50 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
   const org = await currentOrg();
   if (!org) redirect("/welcome");
 
-  const { data: repos } = await supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at");
-  const scope = await deskScope(sp, (repos ?? []).map((r) => r.id));
-  if (!scope.repoId) return <RepoChooser repos={repos ?? []} route="/desk/board" what="board" title="Board" />;
-  const repo = (repos ?? []).find((r) => r.id === scope.repoId)!;
+  const { data: repoRows } = await supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at");
+  const repos = repoRows ?? [];
+  const scope = await deskScope(sp, repos.map((r) => r.id));
+  if (repos.length === 0) return <RepoChooser repos={[]} route="/desk/board" what="board" title="Board" />;
+  const scopedRepo = scope.repoId ? repos.find((r) => r.id === scope.repoId) ?? null : null;
+  const inScope = scopedRepo ? [scopedRepo] : repos;
+  const ids = inScope.map((r) => r.id);
+  const repoName = (id: string) => repos.find((r) => r.id === id)?.full_name ?? "?";
+  const short = (id: string) => repoName(id).split("/").pop() ?? "?";
+
   const [{ data: rows }, members, { data: claimRows }] = await Promise.all([
-    supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr, started_by, footprint, pinned").eq("repo_id", repo.id).order("created_at"),
+    supabase.from("tasks").select("id, repo_id, title, detail, priority, tags, status, created_by, created_at, done_by, done_at, assigned_to, maybe_done_pr, started_by, footprint, pinned").in("repo_id", ids).order("created_at"),
     teamMembers(org.orgId),
-    supabase.from("claims").select("dev_label, paths").eq("repo_id", repo.id).is("released_at", null),
+    supabase.from("claims").select("repo_id, dev_label, paths").in("repo_id", ids).is("released_at", null),
   ]);
   const all = (rows ?? []) as Task[];
   const meta = (user.user_metadata ?? {}) as { user_name?: string; preferred_username?: string };
   const you = String(meta.user_name || meta.preferred_username || user.email?.split("@")[0] || "");
-  const othersBusy: string[] = [];
-  for (const c of claimRows ?? []) if (c.dev_label?.toLowerCase() !== you.toLowerCase()) othersBusy.push(...(((c.paths as string[]) ?? [])));
-  for (const t of all) if (t.status === "open" && t.started_by && t.started_by.toLowerCase() !== you.toLowerCase()) othersBusy.push(...(t.footprint ?? []));
-  const suggested = you ? pickSuggestedNext(all.filter((t) => t.status === "open" && !t.maybe_done_pr).map((t) => ({ id: t.id, title: t.title, priority: t.priority, tags: t.tags ?? [], assigned_to: t.assigned_to, started_by: t.started_by, footprint: t.footprint, created_at: t.created_at })), you, othersBusy) : null;
+
+  // The dispatcher's pick for you — lane-safe per repo (claims and started
+  // footprints don't cross repos), then the best across repos.
+  let suggested: (SuggestedNext & { repo_id: string }) | null = null;
+  if (you) {
+    for (const rid of ids) {
+      const othersBusy: string[] = [];
+      for (const c of claimRows ?? []) if (c.repo_id === rid && c.dev_label?.toLowerCase() !== you.toLowerCase()) othersBusy.push(...(((c.paths as string[]) ?? [])));
+      for (const t of all) if (t.repo_id === rid && t.status === "open" && t.started_by && t.started_by.toLowerCase() !== you.toLowerCase()) othersBusy.push(...(t.footprint ?? []));
+      const pick = pickSuggestedNext(all.filter((t) => t.repo_id === rid && t.status === "open" && !t.maybe_done_pr).map((t) => ({ id: t.id, title: t.title, priority: t.priority, tags: t.tags ?? [], assigned_to: t.assigned_to, started_by: t.started_by, footprint: t.footprint, created_at: t.created_at })), you, othersBusy);
+      if (pick && (!suggested || pick.priority < suggested.priority)) suggested = { ...pick, repo_id: rid };
+    }
+  }
   const who = sp.who && sp.who !== "all" ? sp.who : null;
   const mine = (t: Task) => !who || t.assigned_to === who || t.started_by === who || t.done_by?.startsWith(who);
   const open = all.filter((t) => t.status === "open" && mine(t));
-  const inProgress = open.filter((t) => t.started_by).sort(byBoard);
-  const todo = open.filter((t) => !t.started_by && !t.maybe_done_pr).sort(byBoard);
-  const maybe = open.filter((t) => !t.started_by && t.maybe_done_pr).sort(byBoard);
-  const done = all.filter((t) => t.status === "done" && mine(t)).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? "")).slice(0, 15);
   const explicit = sp.task ? all.find((t) => t.id === sp.task) ?? null : null;
-  const selected = explicit ?? (suggested ? all.find((t) => t.id === suggested.id) ?? null : null) ?? inProgress[0] ?? todo[0] ?? maybe[0] ?? null;
+  const inProgressAll = open.filter((t) => t.started_by).sort(byBoard);
+  const todoAll = open.filter((t) => !t.started_by && !t.maybe_done_pr).sort(byBoard);
+  const maybeAll = open.filter((t) => !t.started_by && t.maybe_done_pr).sort(byBoard);
+  const selected = explicit ?? (suggested ? all.find((t) => t.id === suggested!.id) ?? null : null) ?? inProgressAll[0] ?? todoAll[0] ?? maybeAll[0] ?? null;
   const isSuggested = Boolean(selected && suggested && selected.id === suggested.id);
   const base = withScope("/desk/board", scope);
   const here = base + (who ? `&who=${encodeURIComponent(who)}` : "");
   const taskHref = (id: string) => `${here}&task=${id}`;
+  const selRepo = selected ? repoName(selected.repo_id) : null;
 
   const TaskRow = ({ t, dim }: { t: Task; dim?: boolean }) => (
     <ListRow href={taskHref(t.id)} selected={selected?.id === t.id} dim={dim}>
@@ -97,16 +116,47 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
   );
   const Hidden = ({ t }: { t: Task }) => (<><DeskNext /><input type="hidden" name="repoId" value={t.repo_id} /><input type="hidden" name="id" value={t.id} /></>);
   const status = (t: Task) => t.status === "done" ? `done · ${t.done_by ?? ""}` : t.started_by ? `in progress · ${t.started_by}` : t.maybe_done_pr ? `possibly done · PR #${t.maybe_done_pr}` : `open${t.pinned ? " · pinned" : ""}`;
+  const RepoField = ({ name = "repoId" }: { name?: string }) =>
+    scopedRepo ? <input type="hidden" name={name} value={scopedRepo.id} /> : <Select name={name} defaultValue={repos[0]?.id} ground="ink">{repos.map((r) => <option key={r.id} value={r.id}>{r.full_name}</option>)}</Select>;
+
+  // One block of sections per repo in scope (one repo = no eyebrow).
+  const Sections = ({ rid }: { rid: string | null }) => {
+    const pick = (list: Task[]) => (rid ? list.filter((t) => t.repo_id === rid) : list);
+    const inProgress = pick(inProgressAll), todo = pick(todoAll), maybe = pick(maybeAll);
+    const done = all.filter((t) => t.status === "done" && mine(t) && (!rid || t.repo_id === rid)).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? "")).slice(0, scopedRepo ? 15 : 3);
+    return (
+      <>
+        <PaneEyebrow className="pt-2.5">in progress · {inProgress.length}</PaneEyebrow>
+        {inProgress.length === 0 && <p className="px-4 pb-1 text-[12px] text-faint">Nothing started.</p>}
+        {inProgress.map((t) => <TaskRow key={t.id} t={t} />)}
+        <PaneEyebrow>open · {todo.length}</PaneEyebrow>
+        {todo.length === 0 && <p className="px-4 pb-1 text-[12px] text-faint">Nothing open.</p>}
+        {todo.map((t) => <TaskRow key={t.id} t={t} />)}
+        {maybe.length > 0 && (
+          <>
+            <PaneEyebrow tone="wait">possibly done · {maybe.length}</PaneEyebrow>
+            {maybe.map((t) => <TaskRow key={t.id} t={t} />)}
+          </>
+        )}
+        {done.length > 0 && (
+          <>
+            <PaneEyebrow tone="go">done · {done.length}</PaneEyebrow>
+            {done.map((t) => <TaskRow key={t.id} t={t} dim />)}
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <>
       <ListPane
         title="Tasks"
-        count={`${open.length} open`}
+        count={`${open.length} open${scopedRepo ? "" : ` · ${inScope.length} repos`}`}
         right={
           <Popover label={<span className="text-[18px] leading-none text-accent2" title="New task">＋</span>} tone="link" width={420} align="right">
             <form action={createTask} className="flex flex-col gap-2">
-              <DeskNext /><input type="hidden" name="repoId" value={repo.id} />
+              <DeskNext /><RepoField />
               <Field name="title" required placeholder="What the work is" ground="ink" autoFocus />
               <Field name="detail" placeholder="Detail (optional)" ground="ink" />
               <div className="flex gap-2">
@@ -124,20 +174,16 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
           <Link href={base} className={`rounded-full px-[9px] py-0.5 ${!who ? "bg-txt text-ink" : "border border-line text-muted hover:text-txt"}`}>everyone</Link>
           {members.map((m) => <Link key={m} href={`${base}&who=${encodeURIComponent(m)}`} className={`rounded-full px-[9px] py-0.5 ${who === m ? "bg-txt text-ink" : "border border-line text-muted hover:text-txt"}`}>{m}</Link>)}
         </div>
-        <PaneEyebrow className="pt-2.5">in progress · {inProgress.length}</PaneEyebrow>
-        {inProgress.length === 0 && <p className="px-4 pb-1 text-[12px] text-faint">Nothing started.</p>}
-        {inProgress.map((t) => <TaskRow key={t.id} t={t} />)}
-        <PaneEyebrow>open · {todo.length}</PaneEyebrow>
-        {todo.length === 0 && <p className="px-4 pb-1 text-[12px] text-faint">Nothing open.</p>}
-        {todo.map((t) => <TaskRow key={t.id} t={t} />)}
-        {maybe.length > 0 && (
-          <>
-            <PaneEyebrow tone="wait">possibly done · {maybe.length}</PaneEyebrow>
-            {maybe.map((t) => <TaskRow key={t.id} t={t} />)}
-          </>
+        {scopedRepo ? (
+          <Sections rid={null} />
+        ) : (
+          inScope.map((r) => (
+            <div key={r.id} className="pb-1">
+              <div className="flex items-baseline gap-2 px-4 pb-0.5 pt-3"><span className="font-display text-[13px] font-semibold text-txt">{short(r.id)}</span><Link href={`/desk/board?repo=${r.id}`} className="font-mono text-[10px] text-faint hover:text-accent">scope ↗</Link></div>
+              <Sections rid={r.id} />
+            </div>
+          ))
         )}
-        <PaneEyebrow tone="go">done · {done.length}</PaneEyebrow>
-        {done.map((t) => <TaskRow key={t.id} t={t} dim />)}
         <div className="pb-3" />
       </ListPane>
 
@@ -148,7 +194,7 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
           <>
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
-                <div className={`font-mono text-[11px] uppercase tracking-[.1em] ${isSuggested ? "text-accent2" : "text-faint"}`}>{isSuggested ? `next for you · ${suggested!.footprint && suggested!.footprint.length > 0 ? "lane is free" : "footprint not predicted yet"}` : `task · ${status(selected)}`}</div>
+                <div className={`font-mono text-[11px] uppercase tracking-[.1em] ${isSuggested ? "text-accent2" : "text-faint"}`}>{isSuggested ? `next for you · ${suggested!.footprint && suggested!.footprint.length > 0 ? "lane is free" : "footprint not predicted yet"}` : `task · ${status(selected)}`}{!scopedRepo && selRepo ? <span className="text-faint"> · {selRepo}</span> : null}</div>
                 <h1 className="mt-1.5 font-display text-[32px] font-medium leading-[1.1] tracking-[-.02em] text-txt">{selected.title}</h1>
                 {selected.detail && <p className="mt-3 max-w-[560px] whitespace-pre-line text-[14px] leading-[1.65] text-body">{selected.detail}</p>}
               </div>
@@ -207,8 +253,9 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
 
         <Card pad="md" className="mt-10">
           <form action={braindumpTasks}>
-            <DeskNext /><input type="hidden" name="repoId" value={repo.id} />
-            <div className="flex items-baseline gap-2"><span className="font-display text-[17px] font-medium text-txt">Braindump</span><span className="text-[12px] text-faint">· uses one AI call · duplicates are skipped</span></div>
+            <DeskNext />
+            <div className="flex items-baseline gap-2"><span className="font-display text-[17px] font-medium text-txt">Braindump</span><span className="text-[12px] text-faint">· uses one AI call · duplicates are skipped</span>{!scopedRepo && <span className="ml-auto"><RepoField /></span>}</div>
+            {scopedRepo && <RepoField />}
             <Textarea name="dump" required rows={3} placeholder="Paste or type freely — one task per line, or a paragraph. Claude splits it into tasks with priorities and tags." className="mt-2.5 h-[72px]" />
             <div className="mt-2 text-right"><Button tone="ghost">Split into tasks</Button></div>
           </form>

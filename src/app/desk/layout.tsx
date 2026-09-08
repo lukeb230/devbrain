@@ -48,11 +48,15 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
       <ThemeFollow />
 
       {/* Title bar (Dusk): mark + wordmark · team / repo · jump-to · avatar + login · role */}
-      <header className="flex h-12 flex-shrink-0 items-center gap-4 border-b border-line bg-row px-[18px]">
-        <span className="flex items-center gap-[9px]">
+      {/* The header is the window's title bar (overlay style): the traffic
+          lights sit in the first ~78px, and the bar drags the window. Only
+          elements carrying data-tauri-drag-region start a drag, so the
+          switchers and the jump field keep their clicks. */}
+      <header data-tauri-drag-region className="flex h-12 flex-shrink-0 items-center gap-4 border-b border-line bg-row pl-[78px] pr-[18px]">
+        <span data-tauri-drag-region className="flex items-center gap-[9px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brain.png" width={25} height={20} alt="" />
-          <span className="font-display text-[19px] font-medium tracking-[-.01em]">DevBrain</span>
+          <img data-tauri-drag-region src="/brain.png" width={25} height={20} alt="" />
+          <span data-tauri-drag-region className="font-display text-[19px] font-medium tracking-[-.01em]">DevBrain</span>
         </span>
         <span className="flex items-center text-[12.5px] text-muted">
           {org.orgs.length > 1 ? (
@@ -71,7 +75,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
           <span className="mx-1.5 text-line3">/</span>
           <DeskRepoSwitcher repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
         </span>
-        <span className="flex-1" />
+        <span data-tauri-drag-region className="flex-1" />
         <span className="flex w-[320px] items-center gap-2 rounded-lg border border-line bg-ink px-2.5 py-1.5 text-[12.5px] text-faint" title="Jump to anything (coming)">
           ⌕ <span className="flex-1">Jump to anything</span><span className="font-mono text-[10px]">⌘K</span>
         </span>

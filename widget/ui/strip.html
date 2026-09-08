@@ -41,13 +41,17 @@
      contested, green = cleared to land, amber = something waits on you. */
   #wrap img { display: block; width: var(--size); height: var(--size); object-fit: contain;
               filter: drop-shadow(0 2px 8px rgba(15, 23, 42, .45)); }
-  #ring { position: absolute; inset: -3px; border-radius: 50%; border: 3px solid currentColor;
+  /* Dusk: a 1.5px hairline of the status colour with a 3px paper gap, over a
+     breathing halo — legible in peripheral vision without shouting. */
+  #ring { position: absolute; inset: -4px; border-radius: 50%; border: 3px solid #f4f1ea;
+          box-shadow: 0 0 0 1.5px currentColor;
           opacity: 0; transition: opacity 260ms ease; pointer-events: none; }
+  @media (prefers-color-scheme: dark) { #ring { border-color: #18171e; } }
   body:not(.lvl-idle) #ring { opacity: 1; }
   body            { color: #e88078; }
-  body.lvl-red    { color: #d03b3b; }
-  body.lvl-green  { color: #0ca30c; }
-  body.lvl-amber  { color: #d98514; }
+  body.lvl-red    { color: #ff5a5f; }
+  body.lvl-green  { color: #5ad18e; }
+  body.lvl-amber  { color: #f0b652; }
 
   /* A slow halo instead of a flashing dot — legible in peripheral vision,
      not the kind of thing you want to kill after ten minutes. */

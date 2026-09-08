@@ -669,6 +669,13 @@ fn main() {
                 })
                 .title(format!("{} Desk", setup::app_name()))
                 .decorations(true)
+                // Flush: macOS keeps the traffic lights, the bar itself is ours
+                // (the Desk's 48px header is the drag region; see desk/layout.tsx).
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true)
+                .traffic_light_position(LogicalPosition::new(14.0, 16.0))
+                // Paper behind the first paint so a load never flashes a foreign colour.
+                .background_color(tauri::window::Color(0xf4, 0xf1, 0xea, 0xff))
                 .resizable(true)
                 .visible(false)
                 .inner_size(desk_bounds.map(|b| b.w.max(DESK_MIN_W)).unwrap_or(DESK_W), desk_bounds.map(|b| b.h.max(DESK_MIN_H)).unwrap_or(DESK_H))

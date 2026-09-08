@@ -20,7 +20,7 @@ type Prefs = { dock: boolean; autostart: boolean; reminders: boolean; app_versio
 type Setup = { app_version?: string; bootstrap_ok?: boolean | null; bootstrap_failed?: string[]; bootstrap_at?: string | null; configured?: boolean };
 
 const APP_ROWS: { key: "dock" | "autostart" | "reminders"; title: string; sub: string }[] = [
-  { key: "dock", title: "Show in Dock", sub: "Off by default — the menu-bar brain is home. While the Desk is open the app shows a Dock icon anyway, then returns to menu-bar-only when you close it." },
+  { key: "dock", title: "Show in Dock", sub: "Off by default — the menu-bar brain is home. While the Console is open the app shows a Dock icon anyway, then returns to menu-bar-only when you close it." },
   { key: "autostart", title: "Launch at login", sub: "Keeps presence, notifications and Reminders sync running." },
   { key: "reminders", title: "Reminders sync", sub: "Every 3 minutes, items on the lists mapped under Reminders become tasks. Needs the Reminders permission the app asked for at setup." },
 ];
@@ -115,8 +115,8 @@ export function AppSettings() {
   return (
     <section>
       <SectionHead title="App" right="this Mac only" />
-      <PrefRow first title="Appearance" sub="The Desk follows the panel." right={<Seg options={[{ key: "light", label: "Light" }, { key: "system", label: "System" }, { key: "dark", label: "Dark" }]} value={theme} onPick={(k) => { setTheme(k); applyThemePref(k); }} />} />
-      {core === null && <p className="border-t border-line py-[11px] text-[12px] leading-[1.55] text-muted">You&apos;re reading this in a browser. Dock, login, Reminders sync and updates are switches in the DevBrain app: open this page in the Desk, or use the app&apos;s tray menu.</p>}
+      <PrefRow first title="Appearance" sub="The Console follows the panel." right={<Seg options={[{ key: "light", label: "Light" }, { key: "system", label: "System" }, { key: "dark", label: "Dark" }]} value={theme} onPick={(k) => { setTheme(k); applyThemePref(k); }} />} />
+      {core === null && <p className="border-t border-line py-[11px] text-[12px] leading-[1.55] text-muted">You&apos;re reading this in a browser. Dock, login, Reminders sync and updates are switches in the DevBrain app: open this page in the Console, or use the app&apos;s tray menu.</p>}
       {inApp && APP_ROWS.map((r) => (
         <PrefRow key={r.key} title={r.title} sub={r.sub} right={<button type="button" disabled={!prefs || busy !== null} onClick={() => prefs && flip(r.key, !prefs[r.key])} title={prefs ? (prefs[r.key] ? "On — click to turn off" : "Off — click to turn on") : "Reading…"}><Switch on={Boolean(prefs?.[r.key])} disabled={!prefs} /></button>} />
       ))}

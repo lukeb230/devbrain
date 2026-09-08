@@ -2,8 +2,8 @@
 
 // The panel (Dusk): the glance. Header with tabs (Home · Tasks · PRs) and a
 // gear menu that only pauses notifications, picks appearance, opens the
-// Desk's settings or signs out. Never a form longer than one line, never an
-// admin switch — those live in the Desk. Tab switches are pure client state.
+// Console's settings or signs out. Never a form longer than one line, never an
+// admin switch — those live in the Console. Tab switches are pure client state.
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { mintDeviceToken, setWidgetRepo } from "./actions";
@@ -348,16 +348,16 @@ function SetupCard({ state, inline }: { state: SetupState; inline?: boolean }) {
 // Outward links. `target="_blank"` asks the webview for a new window, which
 // the shell never creates — so inside the app every external link goes
 // through the opener command instead. In a browser it behaves normally.
-/** Open the Desk window on a route (e.g. "/prs"). Inside the app this is the
+/** Open the Console window on a route (e.g. "/prs"). Inside the app this is the
  *  open_desk command; in a plain browser it falls back to /desk in a tab. */
 function openDesk(e: React.MouseEvent, route: string, browserFallback: string) {
   const w = window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } }; __devbrainChannel?: string };
   const core = w.__TAURI__?.core;
-  if (!core) return; // plain browser: let the anchor navigate (target=_blank) to the Desk route
+  if (!core) return; // plain browser: let the anchor navigate (target=_blank) to the Console route
   e.preventDefault();
   void core.invoke("open_desk", { route }).catch(() => {
     // IPC refused (an older shell, a capability mismatch): the app's own URL
-    // scheme still reaches it. Only a shell without the Desk at all lands in
+    // scheme still reaches it. Only a shell without the Console at all lands in
     // the browser.
     const scheme = w.__devbrainChannel === "beta" ? "devbrain-beta" : w.__devbrainChannel === "stable" ? "devbrain" : null;
     if (scheme) window.location.href = `${scheme}://desk${route}`;
@@ -398,7 +398,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const [themePref, setThemePref] = useState<ThemePref>("light");
   useEffect(() => {
     setThemePref(readThemePref());
-    // The Desk's This Mac page writes the same key: follow it live.
+    // The Console's This Mac page writes the same key: follow it live.
     const onStorage = (e: StorageEvent) => { if (e.key === THEME_KEY) { const p = readThemePref(); setThemePref(p); applyThemeToDocument(p); } };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -409,7 +409,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  // Notification prefs live in localStorage, shared with the Desk's This Mac
+  // Notification prefs live in localStorage, shared with the Console's This Mac
   // page; the gear only pauses them. (PREFS_EVENT fires on any write.)
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   useEffect(() => {
@@ -550,7 +550,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               </div>
               <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Appearance</span><Seg options={[{ key: "light", label: "Light" }, { key: "system", label: "System" }, { key: "dark", label: "Dark" }]} value={themePref} onPick={pickTheme} /></div>
               <div className="my-1 border-t border-line" />
-              <a href="/desk/mac" target="_blank" onClick={(e) => { setMenu(false); desk(e, "/mac"); }} className="block rounded-lg px-2.5 py-2 font-display text-[12.5px] font-semibold text-accent hover:bg-row2">Open settings in the Desk →</a>
+              <a href="/desk/mac" target="_blank" onClick={(e) => { setMenu(false); desk(e, "/mac"); }} className="block rounded-lg px-2.5 py-2 font-display text-[12.5px] font-semibold text-accent hover:bg-row2">Open settings in the Console →</a>
               <form action="/auth/sign-out" method="post"><button className="block w-full rounded-lg px-2.5 py-2 text-left text-[12.5px] text-muted hover:bg-row2 hover:text-txt">Sign out</button></form>
             </div>
           </>
@@ -597,7 +597,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                 {cta(n)}
               </Row>
             ))}
-            {needs.length > 5 && <div className="border-t border-line pt-1.5 font-mono text-[10px] text-faint">+{needs.length - 5} more in the Desk</div>}
+            {needs.length > 5 && <div className="border-t border-line pt-1.5 font-mono text-[10px] text-faint">+{needs.length - 5} more in the Console</div>}
 
             <div className="mt-3.5 grid grid-cols-4 gap-2">
               {[
@@ -620,7 +620,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               return (
                 <>
                   <Sec title="Pinned" count={list.length} right="start · done only" />
-                  {list.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">No pinned or critical tasks. Pin any task from the Tasks tab or the Desk to keep it here.</p> : list.map((t, i) => (
+                  {list.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">No pinned or critical tasks. Pin any task from the Tasks tab or the Console to keep it here.</p> : list.map((t, i) => (
                     <Row key={t.id} first={i === 0}>
                       <Pri p={t.priority} />
                       <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{t.title}</div><div className="text-[11.5px] text-muted">{t.started_by ? `${isMe(t.started_by) ? "you" : t.started_by} · in progress` : `${t.assigned_to ? (isMe(t.assigned_to) ? "you" : t.assigned_to) : "unassigned"} · open`}{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
@@ -679,7 +679,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
             )}
 
             <a href={`/desk${repoQ}`} target="_blank" onClick={(e) => desk(e, `/${repoQ}`)} className="mt-[18px] flex items-center gap-2 rounded-[10px] border border-line2 px-3.5 py-2.5 font-display text-[12.5px] font-semibold text-accent hover:border-line3">
-              Open the Desk <span className="ml-auto font-mono text-[10px] font-normal text-faint">board · PRs · brain · feed · team</span>→
+              Open the Console <span className="ml-auto font-mono text-[10px] font-normal text-faint">board · PRs · brain · feed · team</span>→
             </a>
           </>
         )}
@@ -754,7 +754,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   ))}
                 </>
               )}
-              <p className="mt-[18px] text-[12px] text-faint">Everything else — teammates&apos; tasks, braindump, edit, assign, delete — lives in the Desk. <a href={`/desk/board${repoQ}`} target="_blank" onClick={(e) => desk(e, `/board${repoQ}`)} className={ACT}>Open Board →</a></p>
+              <p className="mt-[18px] text-[12px] text-faint">Everything else — teammates&apos; tasks, braindump, edit, assign, delete — lives in the Console. <a href={`/desk/board${repoQ}`} target="_blank" onClick={(e) => desk(e, `/board${repoQ}`)} className={ACT}>Open Board →</a></p>
             </>
           );
         })()}
@@ -784,7 +784,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   </a>
                 ))}
               </div>
-              <p className="mt-[18px] text-[12px] text-faint">Merge plan, rebase commands and review points are in the Desk. <a href={`/desk/prs${repoQ}`} target="_blank" onClick={(e) => desk(e, `/prs${repoQ}`)} className={ACT}>Open Pull requests →</a></p>
+              <p className="mt-[18px] text-[12px] text-faint">Merge plan, rebase commands and review points are in the Console. <a href={`/desk/prs${repoQ}`} target="_blank" onClick={(e) => desk(e, `/prs${repoQ}`)} className={ACT}>Open Pull requests →</a></p>
             </>
           );
         })()}

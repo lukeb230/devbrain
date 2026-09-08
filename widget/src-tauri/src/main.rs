@@ -667,7 +667,7 @@ fn main() {
                     }
                     allowed
                 })
-                .title(format!("{} Desk", setup::app_name()))
+                .title(format!("{} Console", setup::app_name()))
                 .decorations(true)
                 // Flush: macOS keeps the traffic lights, the bar itself is ours
                 // (the Desk's 48px header is the drag region; see desk/layout.tsx).
@@ -758,7 +758,7 @@ fn main() {
 
             // --- menu-bar (tray) icon -------------------------------------
             let open_i = MenuItem::with_id(app, "open", &format!("Open {} panel", setup::app_name()), true, None::<&str>)?;
-            let desk_i = MenuItem::with_id(app, "desk", "Open Desk", true, None::<&str>)?;
+            let desk_i = MenuItem::with_id(app, "desk", "Open Console", true, None::<&str>)?;
             let dock_i = CheckMenuItem::with_id(app, "dock", "Show in Dock", true, dock, None::<&str>)?;
             let sep_i = PredefinedMenuItem::separator(app)?;
             let reload_i = MenuItem::with_id(app, "reload", "Reload panel", true, None::<&str>)?;

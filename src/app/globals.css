@@ -36,7 +36,7 @@
 
 /* ============================================================================
    The app's tokens — Dusk (Direction C v3), scoped to .wg: the panel, the
-   Desk and the browser pages. Light is the base; dark applies when the user
+   Console and the browser pages. Light is the base; dark applies when the user
    chose Dark (html[data-wg-theme="dark"]) or chose System and macOS is dark.
    Nothing stored = light.
    ========================================================================= */

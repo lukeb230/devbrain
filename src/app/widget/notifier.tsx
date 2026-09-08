@@ -56,7 +56,7 @@ export const DEFAULT_PREFS: NotifPrefs = {
 };
 
 
-/** One row per notification kind — the switches on Desk › This Mac (and the panel before Dusk). */
+/** One row per notification kind — the switches on Console › This Mac (and the panel before Dusk). */
 export type BoolPref = Exclude<keyof NotifPrefs, "scope" | "pausedUntil">;
 export const NOTIF_ROWS: { key: BoolPref; label: string; detail: string }[] = [
   { key: "broadcasts", label: "Broadcasts", detail: "A teammate sends a team-wide heads-up" },
@@ -219,7 +219,7 @@ export function WidgetNotifier({
       prefs.current = readPrefs();
     };
     window.addEventListener(PREFS_EVENT, onPrefs);
-    window.addEventListener("storage", onPrefs); // the Desk's This Mac page writes the same key
+    window.addEventListener("storage", onPrefs); // the Console's This Mac page writes the same key
 
     const supabase = supabaseBrowser();
     let cancelled = false;

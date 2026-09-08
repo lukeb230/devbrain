@@ -1,7 +1,7 @@
 #!/bin/sh
-# Desk smoke test — run BY HAND on a Mac with the app installed, never from CI
+# Console smoke test — run BY HAND on a Mac with the app installed, never from CI
 # or a hook. Launches the installed app with stderr captured, deep-links every
-# Desk route, and fails if the shell refused a navigation (a URL handed to the
+# Console route, and fails if the shell refused a navigation (a URL handed to the
 # browser) or panicked. This is the check that would have caught both 2026-09-07
 # bugs (the /widget bounce and the reload loop).
 #
@@ -37,7 +37,7 @@ for r in $ROUTES; do
   echo "ok   $r"
 done
 
-# Close the Desk (hide) so the Mac is left as found: menu-bar only.
+# Close the Console (hide) so the Mac is left as found: menu-bar only.
 osascript -e "tell application \"System Events\" to tell (first application process whose bundle identifier is \"app.devbrain.desktop$([ "$CH" = beta ] && echo .beta)\") to click button 1 of window 1" >/dev/null 2>&1 || true
 
 [ "$fail" = 0 ] && echo "desk-smoke: all routes clean" || { echo "desk-smoke: FAILED — see $LOG"; exit 1; }

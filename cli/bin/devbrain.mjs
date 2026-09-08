@@ -359,7 +359,7 @@ function updatePlugin() {
 }
 
 // 4. Reminders sync is run by the DevBrain app (every 3 min while it runs)
-//    for every list the TEAM mapped under Desk → Reminders — the mapping
+//    for every list the TEAM mapped under Console → Reminders — the mapping
 //    lives on the server, never on a Mac. Locally there is only an on/off
 //    flag (config.reminders = true). Old per-Mac mappings are migrated up
 //    once, then the app takes over. Legacy launchd jobs are retired.
@@ -382,7 +382,7 @@ async function updateReminderJobs(cfg) {
   const on = cfg.reminders === true;
   const appOk = existsSync(WIDGET_APP);
   const base = on
-    ? `on — lists mapped under Desk → Reminders, synced by the ${CH.appName} app${appOk ? "" : " (app not installed!)"}`
+    ? `on — lists mapped under Console → Reminders, synced by the ${CH.appName} app${appOk ? "" : " (app not installed!)"}`
     : `off (${CH.cmd} reminders on)`;
   const extras = [migrated ? `migrated ${migrated} mapping(s) to the server` : "", retired ? `retired ${retired} launchd job(s)` : ""].filter(Boolean);
   return extras.length ? `${base}; ${extras.join("; ")}` : base;
@@ -585,7 +585,7 @@ if (cmd === "setup" || cmd === "init") {
   let cfg = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, "utf8")) : {};
   if (!cfg.server || !cfg.token || flags.has("--reconfigure")) {
     const server = (await rl.question(`DevBrain server URL [${cfg.server || DEFAULT_SERVER}]: `)).trim();
-    const token = (await rl.question("Your dev token (Desk → Tokens in the DevBrain app, shown once): ")).trim();
+    const token = (await rl.question("Your dev token (Console → Tokens in the DevBrain app, shown once): ")).trim();
     cfg.server = server || cfg.server || DEFAULT_SERVER;
     if (token) cfg.token = token;
     if (!cfg.token) { console.error("A dev token is required."); process.exit(1); }
@@ -664,7 +664,7 @@ if (cmd === "reminders") {
   const r = await api(cfg, "GET", "/api/v1/reminders/sources");
   const list = r.ok ? r.out.sources : [];
   console.log(`Reminders sync on this Mac: ${cfg.reminders === true ? "on" : "off"}   (${CH.cmd} reminders on|off)`);
-  if (list.length === 0) console.log(`No lists mapped. Map one: ${CH.cmd} reminders add "<List>" "<owner/repo>"  (or Desk → Reminders in the app)`);
+  if (list.length === 0) console.log(`No lists mapped. Map one: ${CH.cmd} reminders add "<List>" "<owner/repo>"  (or Console → Reminders in the app)`);
   for (const s of list) console.log(`  "${s.list}" → ${s.repo}${s.by ? `  (by ${s.by})` : ""}`);
   process.exit(0);
 }
@@ -737,7 +737,7 @@ if (cmd === "doctor") {
       const t = setTimeout(() => ctrl.abort(), 5000);
       const res = await fetch(`${cfg.server}/api/v1/context`, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: ctrl.signal });
       clearTimeout(t);
-      if (res.status === 401) bad("auth", `token rejected — create a new one under Desk → Tokens in the app, then run: ${CH.cmd} setup --reconfigure`);
+      if (res.status === 401) bad("auth", `token rejected — create a new one under Console → Tokens in the app, then run: ${CH.cmd} setup --reconfigure`);
       else if (res.status === 400) ok("server + auth", cfg.server);
       else ok("server reachable", `status ${res.status}`);
     } catch (e) { bad("server", `unreachable (${e.name === "AbortError" ? "timeout" : e.message})`); }
@@ -753,7 +753,7 @@ if (cmd === "doctor") {
         else bad("agent tick", h.tick.last_at ? `last heartbeat ${h.tick.age_s}s ago — check the pg_cron job (supabase/cron/agent-tick.sql)` : "never ran — schedule it with supabase/cron/agent-tick.sql");
         if (h.journals) {
           const j = h.journals;
-          if (j.disabled.length && !j.enabled.length) results.push(`  · session journals are OFF for ${j.disabled.join(", ")} — enable under Rules (Desk or panel Settings)`);
+          if (j.disabled.length && !j.enabled.length) results.push(`  · session journals are OFF for ${j.disabled.join(", ")} — enable under Rules (Console or panel Settings)`);
           else if (j.disabled.length) results.push(`  · session journals on for ${j.enabled.join(", ")}; off for ${j.disabled.join(", ")}`);
           else if (j.enabled.length) ok("session journals", `on for ${j.enabled.join(", ")}`);
         }
@@ -761,7 +761,7 @@ if (cmd === "doctor") {
           const a = h.alerts;
           // Delivery is native: the Mac app watches alert_log. Say whether this team also gets ops alerts.
           const where = a.this_team_is_operator ? "native notifications, incl. ops alerts (this team is the operator)" : "native notifications";
-          if (a.team_open > 0) bad("alerts", `${a.team_open} open for your team — see the Desk home (delivery: ${where})`);
+          if (a.team_open > 0) bad("alerts", `${a.team_open} open for your team — see the Console home (delivery: ${where})`);
           else ok("alerts", `none open for your team (delivery: ${where})`);
         }
       }
@@ -789,7 +789,7 @@ if (cmd === "doctor") {
         const res = await fetch(`${cfg.server}/api/v1/context?repo=${encodeURIComponent(repo)}`, { headers: { Authorization: `Bearer ${cfg.token}` } });
         if (res.ok) ok("repo linked in DevBrain");
         else if (res.status === 401) bad("auth", "token rejected");
-        else bad("repo not linked", "an admin installs the GitHub App on it from the Desk (Team → Link repo)");
+        else bad("repo not linked", "an admin installs the GitHub App on it from the Console (Team → Link repo)");
       } catch { /* covered above */ }
     }
   } else results.push("  · not inside a git repo (repo checks skipped)");

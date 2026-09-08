@@ -77,12 +77,12 @@ STOP and tell your human instead of overriding).
 2. **Conflict check — mandatory before any pull request:**
    `git fetch origin && git merge origin/main` on your branch. If there are
    conflicts, resolve them yourself now (and re-run the build) — a PR must
-   never be opened while it conflicts with main. The Desk flags
+   never be opened while it conflicts with main. The Console flags
    conflicting PRs in red; don't be the red one.
 3. Remind your human to open a pull request; they cannot approve their own —
    a teammate reviews it.
 4. After the PR merges, the branch is done: it shows as "merged" on the
-   Desk for 48 hours, then a scheduled cleanup deletes it. Never reuse a
+   Console for 48 hours, then a scheduled cleanup deletes it. Never reuse a
    merged branch. Before the next task: `git switch main && git pull --ff-only
    && git branch -d <merged-branch>` — the next branch must start from the
    main that includes your merge.
@@ -176,7 +176,7 @@ take an action, confirm with your human first.
 ## After finishing a task
 
 - If you made a non-obvious choice (library, pattern, tradeoff), call
-  `log_decision` with one sentence — it appears in the team's Desk and in
+  `log_decision` with one sentence — it appears in the team's Console and in
   every teammate's Claude context. This is how the hive mind learns.
 
 ## Team memory search (ask the hive)

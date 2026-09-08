@@ -4,6 +4,7 @@ import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
+import { Jump } from "./jump";
 import { DeskNav } from "./nav";
 import { ThemeFollow } from "./theme-follow";
 
@@ -65,9 +66,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Toolbar over the panes: jump-to-anything and who you are. */}
           <div className="flex h-11 flex-shrink-0 items-center gap-4 border-b border-line bg-pane px-4">
-            <span className="flex w-[320px] items-center gap-2 rounded-lg border border-line bg-ink px-2.5 py-1.5 text-[12.5px] text-faint" title="Jump to anything (coming)">
-              ⌕ <span className="flex-1">Jump to anything</span><span className="font-mono text-[10px]">⌘K</span>
-            </span>
+            <Jump orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))} orgId={org.orgId} switchOrg={switchOrg} repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
             <span className="ml-auto flex items-center gap-2">
               <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accent">{initial}</span>
               <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>

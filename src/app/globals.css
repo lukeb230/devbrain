@@ -35,28 +35,13 @@
 .brain-prose a { @apply text-brand-600 hover:underline; }
 
 /* ============================================================================
-   Desktop panel — "instrument" theme, scoped to .wg (src/app/widget/layout.tsx).
-   The panel is a readout floating over the desktop: ink ground, one warm
-   accent (the brain), status carried by a left stripe. Everything below only
-   applies inside the panel; the dashboard keeps its light theme.
-   Two colour sets. Dark is the default; light applies when the user picks it
-   in Settings (html[data-wg-theme="light"]) or, on "System", when macOS is
-   light (prefers-color-scheme) and the user hasn't forced dark.
+   The app's tokens — Dusk (Direction C v3), scoped to .wg: the panel, the
+   Desk and the browser pages. Light is the base; dark applies when the user
+   chose Dark (html[data-wg-theme="dark"]) or chose System and macOS is dark.
+   Nothing stored = light.
    ========================================================================= */
 .wg {
-  /* Dusk — dark warm ink, coral as the only accent (Direction C v3, 2026-09-08). */
-  --wg-ink: #131218; --wg-row: #18171e; --wg-pane: #15141a; --wg-row2: #262129; --wg-line: #26242e; --wg-line2: #322f3b; --wg-line3: #3d3947;
-  --wg-txt: #efe9df; --wg-body: #d9d3c8; --wg-prose: #e4dfd5; --wg-muted: #8e8a99; --wg-faint: #5f5b6b;
-  --wg-go: #5ad18e; --wg-wait: #f0b652; --wg-stop: #ff5a5f;
-  --wg-accent: #ec8b82; --wg-accent-strong: #d9645b; --wg-on-accent: #ffffff;
-  --wg-coral-ink: #3a1f22; --wg-coral-line: #5a2e31; --wg-coral-deep: #2a1a1d;
-  --wg-code: #c9cdda; --wg-code-bg: #0b0a0e; --wg-code-fg: #d9d3c8; --wg-violet: #b9a8ff; --wg-violet-line: #3a3352; --wg-violet-bg: #2a2340;
-  --wg-go-bg: #17301f; --wg-go-line: #2a4a38; --wg-wait-bg: #3a2c12; --wg-wait-line: #5a4320; --wg-stop-bg: #3d1c1e; --wg-stop-line: #5a2a2d;
-  --wg-graph-line: #26242e; --wg-dim: rgba(19, 18, 24, .6); --wg-shadow: 0 20px 40px rgba(0, 0, 0, .6);
-  --wg-glow: rgba(232, 128, 120, .35);
-  color-scheme: dark;
-}
-.wg-light {
+  /* Dusk — light by default (2026-09-08); dark is an explicit choice, or "system" when macOS is dark. */
   --wg-ink: #f4f1ea; --wg-row: #fbfaf6; --wg-pane: #f8f6f0; --wg-row2: #ebe6da; --wg-line: #e3ded2; --wg-line2: #d6d0c2; --wg-line3: #c8c2b4;
   --wg-txt: #1d1b17; --wg-body: #3a3630; --wg-prose: #2a2722; --wg-muted: #6b675e; --wg-faint: #9b968a;
   --wg-go: #1d9a55; --wg-wait: #a86b12; --wg-stop: #d1353a;
@@ -68,9 +53,21 @@
   --wg-glow: rgba(217, 100, 91, .25);
   color-scheme: light;
 }
-html[data-wg-theme="light"] .wg { @apply wg-light; }
-@media (prefers-color-scheme: light) {
-  html:not([data-wg-theme="dark"]) .wg { @apply wg-light; }
+.wg-dark {
+  --wg-ink: #131218; --wg-row: #18171e; --wg-pane: #15141a; --wg-row2: #262129; --wg-line: #26242e; --wg-line2: #322f3b; --wg-line3: #3d3947;
+  --wg-txt: #efe9df; --wg-body: #d9d3c8; --wg-prose: #e4dfd5; --wg-muted: #8e8a99; --wg-faint: #5f5b6b;
+  --wg-go: #5ad18e; --wg-wait: #f0b652; --wg-stop: #ff5a5f;
+  --wg-accent: #ec8b82; --wg-accent-strong: #d9645b; --wg-on-accent: #ffffff;
+  --wg-coral-ink: #3a1f22; --wg-coral-line: #5a2e31; --wg-coral-deep: #2a1a1d;
+  --wg-code: #c9cdda; --wg-code-bg: #0b0a0e; --wg-code-fg: #d9d3c8; --wg-violet: #b9a8ff; --wg-violet-line: #3a3352; --wg-violet-bg: #2a2340;
+  --wg-go-bg: #17301f; --wg-go-line: #2a4a38; --wg-wait-bg: #3a2c12; --wg-wait-line: #5a4320; --wg-stop-bg: #3d1c1e; --wg-stop-line: #5a2a2d;
+  --wg-graph-line: #26242e; --wg-dim: rgba(19, 18, 24, .6); --wg-shadow: 0 20px 40px rgba(0, 0, 0, .6);
+  --wg-glow: rgba(232, 128, 120, .35);
+  color-scheme: dark;
+}
+html[data-wg-theme="dark"] .wg { @apply wg-dark; }
+@media (prefers-color-scheme: dark) {
+  html[data-wg-theme="system"] .wg { @apply wg-dark; }
 }
 .wg { background: var(--wg-ink); color: var(--wg-txt); min-height: 100vh; }
 .wg .bg-slate-50, .wg .bg-white { background-color: var(--wg-row); }

@@ -39,7 +39,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   // The effective scope (URL, else the remembered repo) — so the switcher
   // shows what the pages actually use.
   const scope = await deskScope(undefined, (repos ?? []).map((r) => r.id));
-  const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="light"||t==="dark")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
+  const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="dark"||t==="system")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
 
   const initial = (org.login.trim()[0] ?? "?").toUpperCase();
   return (

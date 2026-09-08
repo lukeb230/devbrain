@@ -393,7 +393,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
     }
   }, [data.deploy]);
   const [switching, startSwitch] = useTransition();
-  const [themePref, setThemePref] = useState<ThemePref>("system");
+  const [themePref, setThemePref] = useState<ThemePref>("light");
   useEffect(() => {
     setThemePref(readThemePref());
     // The Desk's This Mac page writes the same key: follow it live.
@@ -533,7 +533,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <button key={k} onClick={() => pause(k)} className={"flex-1 rounded-md border border-line2 py-[3px] text-center font-display text-[10.5px] font-semibold " + (pausedMode === k ? "bg-row2 text-txt" : "text-muted hover:text-txt")}>{label}</button>
                 ))}
               </div>
-              <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Appearance</span><Seg options={[{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }]} value={themePref} onPick={pickTheme} /></div>
+              <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Appearance</span><Seg options={[{ key: "light", label: "Light" }, { key: "system", label: "System" }, { key: "dark", label: "Dark" }]} value={themePref} onPick={pickTheme} /></div>
               <div className="my-1 border-t border-line" />
               <a href="/desk/mac" target="_blank" onClick={(e) => { setMenu(false); desk(e, "/mac"); }} className="block rounded-lg px-2.5 py-2 font-display text-[12.5px] font-semibold text-accent hover:bg-row2">Open settings in the Desk →</a>
               <form action="/auth/sign-out" method="post"><button className="block w-full rounded-lg px-2.5 py-2 text-left text-[12.5px] text-muted hover:bg-row2 hover:text-txt">Sign out</button></form>
@@ -546,7 +546,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       <div className="flex flex-shrink-0 border-b border-line bg-row px-2.5">
         {TABS.map((t) => {
           const active = tab === t;
-          const attention = t === "PRs" ? data.conflicted > 0 : false;
+          const attention = t === "PRs" ? data.conflicted > 0 : t === "Tasks" ? open.some((x) => x.priority === 1 && !x.started_by && (!x.assigned_to || isMe(x.assigned_to))) : false;
           return (
             <button key={t} onClick={() => { setTab(t); setMenu(false); }} aria-current={active ? "page" : undefined} className={"relative flex-1 border-b-2 py-[7px] text-center font-display text-[12px] font-medium " + (active ? "border-accent2 text-accent" : "border-transparent text-muted hover:text-txt")}>
               {t}
@@ -672,6 +672,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         {tab === "Tasks" && (() => {
           const now = open.filter((t) => isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
           const queue = open.filter((t) => isMe(t.assigned_to) && !isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
+          const unassigned = open.filter((t) => !t.assigned_to && !t.started_by && !t.maybe_done_pr).sort((a, b) => a.priority - b.priority || a.created_at.localeCompare(b.created_at));
           const maybe = open.filter((t) => t.maybe_done_pr);
           const laneFor = (t: (typeof open)[number]) => data.claims.find((c) => isMe(c.dev_label) && c.repo_id === t.repo_id);
           const hoursLeft = (iso: string | null) => (iso ? Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 3600_000)) : null);
@@ -715,6 +716,16 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   <Pin t={t} />
                 </Row>
               ))}
+              <Sec title="Unassigned" count={unassigned.length} right="start takes it" />
+              {unassigned.length === 0 ? <p className="py-2 text-[12.5px] leading-[1.55] text-faint">Nothing unassigned.</p> : unassigned.map((t, i) => (
+                <Row key={t.id} first={i === 0}>
+                  <Pri p={t.priority} />
+                  <div className="min-w-0 flex-1"><div className="truncate text-[13px] text-txt">{t.title}</div><div className="truncate text-[11.5px] text-muted">{t.tags.length ? `${t.tags.join(", ")} · ` : ""}{t.created_by ? `${isMe(t.created_by) ? "you" : t.created_by} · ` : ""}created {timeAgo(t.created_at)} ago{data.scopeAll ? ` · ${t.repo}` : ""}</div></div>
+                  <form action={startTask}><Hidden t={t} /><button className={ACT}>Start</button></form>
+                  <form action={completeTask}><Hidden t={t} /><button className={ACT_MUTED}>Done</button></form>
+                  <Pin t={t} />
+                </Row>
+              ))}
               {maybe.length > 0 && (
                 <>
                   <Sec title="Possibly done" count={maybe.length} />
@@ -728,7 +739,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
                   ))}
                 </>
               )}
-              <p className="mt-[18px] text-[12px] text-faint">Everything else — the team&apos;s board, braindump, edit, assign, delete — lives in the Desk. <a href={`/desk/board${repoQ}`} target="_blank" onClick={(e) => desk(e, `/board${repoQ}`)} className={ACT}>Open Board →</a></p>
+              <p className="mt-[18px] text-[12px] text-faint">Everything else — teammates&apos; tasks, braindump, edit, assign, delete — lives in the Desk. <a href={`/desk/board${repoQ}`} target="_blank" onClick={(e) => desk(e, `/board${repoQ}`)} className={ACT}>Open Board →</a></p>
             </>
           );
         })()}

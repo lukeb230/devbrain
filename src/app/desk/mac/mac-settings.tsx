@@ -81,7 +81,7 @@ export function AppSettings() {
   const [core, setCore] = useState<Core | null | undefined>(undefined);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [setup, setSetup] = useState<Setup | null>(null);
-  const [theme, setTheme] = useState<ThemePref>("system");
+  const [theme, setTheme] = useState<ThemePref>("light");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -115,7 +115,7 @@ export function AppSettings() {
   return (
     <section>
       <SectionHead title="App" right="this Mac only" />
-      <PrefRow first title="Appearance" sub="The Desk follows the panel." right={<Seg options={[{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }]} value={theme} onPick={(k) => { setTheme(k); applyThemePref(k); }} />} />
+      <PrefRow first title="Appearance" sub="The Desk follows the panel." right={<Seg options={[{ key: "light", label: "Light" }, { key: "system", label: "System" }, { key: "dark", label: "Dark" }]} value={theme} onPick={(k) => { setTheme(k); applyThemePref(k); }} />} />
       {core === null && <p className="border-t border-line py-[11px] text-[12px] leading-[1.55] text-muted">You&apos;re reading this in a browser. Dock, login, Reminders sync and updates are switches in the DevBrain app: open this page in the Desk, or use the app&apos;s tray menu.</p>}
       {inApp && APP_ROWS.map((r) => (
         <PrefRow key={r.key} title={r.title} sub={r.sub} right={<button type="button" disabled={!prefs || busy !== null} onClick={() => prefs && flip(r.key, !prefs[r.key])} title={prefs ? (prefs[r.key] ? "On — click to turn off" : "Off — click to turn on") : "Reading…"}><Switch on={Boolean(prefs?.[r.key])} disabled={!prefs} /></button>} />

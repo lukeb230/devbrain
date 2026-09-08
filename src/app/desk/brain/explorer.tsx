@@ -22,15 +22,16 @@ export const DARK_GRAPH_COLORS: Record<string, string> = {
 };
 
 function useResolvedTheme(): "light" | "dark" {
-  const [t, setT] = useState<"light" | "dark">("dark");
+  const [t, setT] = useState<"light" | "dark">("light");
   useEffect(() => {
     const read = () => {
-      const forced = document.documentElement.dataset.wgTheme;
-      if (forced === "light" || forced === "dark") return setT(forced);
-      setT(window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      const pref = document.documentElement.dataset.wgTheme;
+      if (pref === "dark") return setT("dark");
+      if (pref === "system") return setT(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      setT("light");
     };
     read();
-    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
     mq.addEventListener("change", read);
     const mo = new MutationObserver(read);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-wg-theme"] });

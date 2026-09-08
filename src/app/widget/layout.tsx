@@ -6,7 +6,7 @@ import { FONT_VARS } from "@/app/fonts";
 
 export default function WidgetLayout({ children }: { children: React.ReactNode }) {
   // Apply the saved appearance before first paint (no flash of the wrong theme).
-  const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="light"||t==="dark")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
+  const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="dark"||t==="system")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
   return (
     <div className={`wg ${FONT_VARS} font-body`}>
       <script dangerouslySetInnerHTML={{ __html: early }} />

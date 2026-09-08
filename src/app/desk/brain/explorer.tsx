@@ -107,11 +107,11 @@ export function BrainDesk({ notes, nodes, edges, initialSlug, branchNames, curre
       </ListPane>
 
       <main className="min-w-0 flex-1 overflow-y-auto px-10 pb-12 pt-8">
-        <div className="grid grid-cols-[1fr_340px] gap-9">
+        <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-7 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-9">
           <article>
             {current ? (
               <>
-                <div className="font-mono text-[11px] text-faint">.brain/{current.slug}.md · <span style={{ color: COLORS[current.type] }}>{current.type}</span> · {outs.length} out · {backlinks.length} in</div>
+                <div className="whitespace-nowrap font-mono text-[11px] text-faint">.brain/{current.slug}.md · <span style={{ color: COLORS[current.type] }}>{current.type}</span> · {outs.length} out · {backlinks.length} in</div>
                 <h1 className="mt-1.5 font-display text-[36px] font-medium leading-[1.05] tracking-[-.02em] text-txt">{current.title}</h1>
                 {current.touches.length > 0 && (
                   <div className="mt-3.5 flex flex-wrap gap-1.5">{current.touches.map((f) => <code key={f} className="rounded-md bg-row2 px-2 py-0.5 font-mono text-[11px] text-txt">{f}</code>)}</div>

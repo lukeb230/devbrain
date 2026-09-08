@@ -57,10 +57,12 @@ export function Pulse({
     return (
       <div className="rounded-xl border border-line bg-row px-[18px] py-4">
         <div className="flex items-baseline font-mono text-[10.5px] uppercase tracking-[.08em] text-muted">
-          last hour · <span className="ml-1 text-accent2">{people} {people === 1 ? "person" : "people"}</span>
-          {prEvents > 0 ? ` · ${prEvents} PR ${prEvents === 1 ? "event" : "events"}` : ""}
-          {collision ? " · collision" : ""}
-          {quiet && !collision ? " · quiet" : ""}
+          <span>
+            last hour · <span className="text-accent2">{people} {people === 1 ? "person" : "people"}</span>
+            {prEvents > 0 ? ` · ${prEvents} PR ${prEvents === 1 ? "event" : "events"}` : ""}
+            {collision ? " · collision" : ""}
+            {quiet && !collision ? " · quiet" : ""}
+          </span>
           <span className="ml-auto text-faint">−60m · −30m · now</span>
         </div>
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-2 block h-14 w-full" aria-hidden>
@@ -75,7 +77,7 @@ export function Pulse({
     );
   }
   return (
-    <div className="relative mt-3 h-[58px]">
+    <div className="relative mt-3 h-[72px]">
       <span className="absolute left-0 top-0 font-mono text-[10px] uppercase tracking-[.12em] text-faint">
         last hour · <span className="text-accent">{people} {people === 1 ? "person" : "people"}</span>
         {prEvents > 0 ? ` · ${prEvents} PR ${prEvents === 1 ? "event" : "events"}` : ""}

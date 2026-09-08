@@ -62,7 +62,7 @@ describe("Cursor mcp.json", () => {
   it("adds our server beside others", () => {
     const out = mergeCursorMcp({ mcpServers: { other: { command: "x" } } }, { id: "devbrain-beta", node, serverPath, home });
     expect(Object.keys(out.mcpServers)).toEqual(["other", "devbrain-beta"]);
-    expect(out.mcpServers["devbrain-beta"].env.DEVBRAIN_CWD).toBe("${workspaceFolder}");
+    expect(out.mcpServers["devbrain-beta"].env.DEVBRAIN_CWD).toBeUndefined();
     expect(out.mcpServers["devbrain-beta"].env.DEVBRAIN_HOST).toBe("cursor");
     expect(stripMcpJson(out, "devbrain-beta")).toEqual({ mcpServers: { other: { command: "x" } } });
   });

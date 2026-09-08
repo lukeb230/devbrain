@@ -73,16 +73,17 @@ export function stripCursorHooks(existing, hooksDir) {
   return out;
 }
 
-/** Merge our MCP server into ~/.cursor/mcp.json. Cursor interpolates
- *  ${workspaceFolder} in env, which is how the server learns the repo (user
- *  level servers do not start in the workspace). */
+/** Merge our MCP server into ~/.cursor/mcp.json. No ${workspaceFolder}: Cursor
+ *  refuses to start a user-level server whenever it cannot resolve it (the
+ *  Cursor Agents window has no workspace). The server learns the repo from
+ *  MCP roots/list or from the last workspace a presence hook saw. */
 export function mergeCursorMcp(existing, { id, node, serverPath, home }) {
   const out = existing && typeof existing === "object" ? structuredClone(existing) : {};
   out.mcpServers = out.mcpServers && typeof out.mcpServers === "object" ? out.mcpServers : {};
   out.mcpServers[id] = {
     command: node,
     args: [serverPath],
-    env: { DEVBRAIN_HOME: home, DEVBRAIN_HOST: "cursor", DEVBRAIN_CWD: "${workspaceFolder}" },
+    env: { DEVBRAIN_HOME: home, DEVBRAIN_HOST: "cursor" },
   };
   return out;
 }

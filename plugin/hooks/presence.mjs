@@ -144,6 +144,10 @@ async function main() {
   if (!repo) process.exit(0); // not a GitHub repo — nothing to report
 
   const sessionFile = join(CONFIG_DIR, "session-" + repo.replace("/", "_"));
+  // Hosts that start the MCP server outside the workspace (Cursor's user-level
+  // servers) can't tell it which repo it speaks for; the hooks can — remember
+  // the last workspace we saw so the server can fall back to it.
+  try { mkdirSync(CONFIG_DIR, { recursive: true }); writeFileSync(join(CONFIG_DIR, "last-workdir"), CWD); } catch { /* best effort */ }
   const post = async (body) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 4000);

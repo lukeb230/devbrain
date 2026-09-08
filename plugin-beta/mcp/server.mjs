@@ -15,6 +15,7 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { appName, cmdName, devbrainHome, loadConfig } from "../hooks/home.mjs";
 import { normalizeHost } from "../hooks/host.mjs";
 import { createInterface } from "node:readline";
@@ -24,7 +25,20 @@ const CONFIG_DIR = devbrainHome();
 // The repo this server speaks for. Claude Code and Codex start the server in
 // the project; Cursor starts user-level servers elsewhere and passes the
 // workspace through DEVBRAIN_CWD=${workspaceFolder} (see cli/bin/hosts.mjs).
-const WORKDIR = process.env.DEVBRAIN_CWD && existsSync(process.env.DEVBRAIN_CWD) ? process.env.DEVBRAIN_CWD : process.cwd();
+// Resolution order: DEVBRAIN_CWD → the client's MCP roots (roots/list, asked
+// for after initialize when the client advertises them) → our own cwd when
+// it is a git repo → the last workspace a presence hook saw (<home>/last-workdir).
+function isRepoDir(d) {
+  try { return !!d && existsSync(d) && !!execSync("git rev-parse --show-toplevel", { cwd: d, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }).trim(); } catch { return false; }
+}
+function initialWorkdir() {
+  const env = process.env.DEVBRAIN_CWD;
+  if (env && !env.includes("${") && existsSync(env)) return env;
+  if (isRepoDir(process.cwd())) return process.cwd();
+  try { const last = readFileSync(join(CONFIG_DIR, "last-workdir"), "utf8").trim(); if (isRepoDir(last)) return last; } catch { /* none */ }
+  return process.cwd();
+}
+let WORKDIR = initialWorkdir();
 const HOST = normalizeHost(process.env.DEVBRAIN_HOST || "claude-code");
 
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
@@ -535,12 +549,25 @@ if (LIFECYCLE) {
   process.on("SIGINT", bye);
 }
 
+let clientHasRoots = false;
+const ROOTS_REQ = "devbrain-roots";
+function askRoots() { if (clientHasRoots) send({ jsonrpc: "2.0", id: ROOTS_REQ, method: "roots/list" }); }
+
 rl.on("line", async (line) => {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
   const { id, method, params } = msg;
+  // Answer to our roots/list: the first file:// root is the workspace.
+  if (id === ROOTS_REQ && !method) {
+    const uri = msg.result?.roots?.[0]?.uri;
+    if (typeof uri === "string" && uri.startsWith("file://")) {
+      try { const dir = fileURLToPath(uri); if (isRepoDir(dir)) WORKDIR = dir; } catch { /* ignore */ }
+    }
+    return;
+  }
   try {
     if (method === "initialize") {
+      clientHasRoots = !!params?.capabilities?.roots;
       send({ jsonrpc: "2.0", id, result: {
         protocolVersion: params?.protocolVersion || "2024-11-05",
         capabilities: { tools: {} },
@@ -548,7 +575,9 @@ rl.on("line", async (line) => {
       }});
       if (LIFECYCLE) lifecycleStart().catch(() => {});
     } else if (method === "notifications/initialized") {
-      // no response for notifications
+      askRoots(); // no response for notifications; we may ask one question back
+    } else if (method === "notifications/roots/list_changed") {
+      askRoots();
     } else if (method === "tools/list") {
       send({ jsonrpc: "2.0", id, result: { tools: TOOLS } });
     } else if (method === "tools/call") {

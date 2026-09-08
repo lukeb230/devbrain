@@ -673,7 +673,7 @@ fn main() {
                 // (the Desk's 48px header is the drag region; see desk/layout.tsx).
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
                 .hidden_title(true)
-                .traffic_light_position(LogicalPosition::new(14.0, 12.0))
+                .traffic_light_position(LogicalPosition::new(20.0, 11.0))
                 // Paper behind the first paint so a load never flashes a foreign colour.
                 .background_color(tauri::window::Color(0xf4, 0xf1, 0xea, 0xff))
                 .resizable(true)

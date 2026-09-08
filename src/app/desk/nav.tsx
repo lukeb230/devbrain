@@ -47,8 +47,8 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
   };
 
   return (
-    <nav className="flex w-[180px] flex-shrink-0 flex-col gap-px overflow-y-auto border-r border-line bg-row px-2 pb-2.5 pt-1">
-      <div className="flex items-center gap-[9px] px-2.5 py-1.5">
+    <nav className="flex w-[180px] flex-shrink-0 flex-col gap-px overflow-y-auto border-r border-line bg-row px-2 pb-2.5 pt-0">
+      <div className="flex items-center gap-[9px] px-3 pb-2 pt-0.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brain.png" width={25} height={20} alt="" />
         <span className="font-display text-[19px] font-medium tracking-[-.01em] text-txt">DevBrain</span>

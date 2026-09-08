@@ -50,7 +50,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
 
       {/* Flush window: this strip is the title bar — only the traffic lights
           live here, and it drags the window (data-tauri-drag-region). */}
-      <div data-tauri-drag-region className="h-[38px] flex-shrink-0 bg-row" />
+      <div data-tauri-drag-region className="h-[34px] flex-shrink-0 bg-row" />
 
       <div className="flex min-h-0 flex-1">
         <DeskNav

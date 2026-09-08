@@ -88,6 +88,16 @@ export function editedFile(input) {
   return typeof cand === "string" && cand ? cand : null;
 }
 
+/** Is this tool call going to change a file? Claude's hooks.json matcher
+ *  already limits PreToolUse to Edit|Write|MultiEdit; Cursor and Codex hooks
+ *  have no matcher, so the guard must not fire (and pay a network round
+ *  trip) for Read, Grep, Shell… A missing tool_name counts as an edit. */
+export function isEditTool(input) {
+  const name = input?.tool_name;
+  if (typeof name !== "string" || !name) return true;
+  return /edit|write|patch|replace|delete|create|apply|notebook/i.test(name);
+}
+
 /** Repo-relative path; never leak the machine's layout. */
 export function relative(file, root) {
   if (root && file.startsWith(root)) return file.slice(root.length + 1);

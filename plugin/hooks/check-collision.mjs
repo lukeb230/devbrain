@@ -8,7 +8,7 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { devbrainHome, loadConfig } from "./home.mjs";
-import { detectHost, editedFile, emitGuard, readInput, workdir } from "./host.mjs";
+import { detectHost, editedFile, emitGuard, isEditTool, readInput, workdir } from "./host.mjs";
 
 // This hook runs on EVERY Edit/Write. The repo's root and remote don't change
 // between edits, so resolve them once per working directory and keep the
@@ -43,7 +43,7 @@ try {
   const input = readInput();
   const host = detectHost(process.argv, process.env, input);
   const filePath = editedFile(input);
-  if (!filePath) process.exit(0);
+  if (!filePath || !isEditTool(input)) process.exit(0);
 
   // Config file first; DEVBRAIN_URL/DEVBRAIN_TOKEN env vars as the headless
   // fallback (Cowork, CI). No config at all → exit silently (guard is a no-op).

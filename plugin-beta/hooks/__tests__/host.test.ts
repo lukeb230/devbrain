@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectHost, editedFile, hostLabel, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
+import { detectHost, editedFile, hostLabel, isEditTool, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
 
 describe("detectHost", () => {
   it("prefers the --host flag, then the env, then the payload shape", () => {
@@ -25,6 +25,16 @@ describe("payload normalization", () => {
     expect(editedFile({ tool_input: { path: "/r/c.ts" } })).toBe("/r/c.ts");
     expect(editedFile({ tool_name: "Shell", tool_input: { command: "ls" } })).toBeNull();
     expect(editedFile({})).toBeNull();
+  });
+  it("only guards tools that change files", () => {
+    expect(isEditTool({ tool_name: "Read", tool_input: { file_path: "/r/a.ts" } })).toBe(false);
+    expect(isEditTool({ tool_name: "Grep" })).toBe(false);
+    expect(isEditTool({ tool_name: "Shell" })).toBe(false);
+    expect(isEditTool({ tool_name: "Write" })).toBe(true);
+    expect(isEditTool({ tool_name: "StrReplace" })).toBe(true);
+    expect(isEditTool({ tool_name: "MultiEdit" })).toBe(true);
+    expect(isEditTool({ tool_name: "apply_patch" })).toBe(true);
+    expect(isEditTool({})).toBe(true);
   });
   it("uses the agent's cwd or first workspace root, never a missing path", () => {
     expect(workdir({ cwd: "/definitely/not/here", workspace_roots: [process.cwd()] })).toBe(process.cwd());

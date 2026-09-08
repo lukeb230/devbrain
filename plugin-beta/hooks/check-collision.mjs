@@ -8,7 +8,7 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { devbrainHome, loadConfig } from "./home.mjs";
-import { detectHost, editedFile, emitGuard, isEditTool, readInput, workdir } from "./host.mjs";
+import { detectHost, editedFile, emitGuard, isEditTool, readInput, sessionKey, workdir } from "./host.mjs";
 
 // This hook runs on EVERY Edit/Write. The repo's root and remote don't change
 // between edits, so resolve them once per working directory and keep the
@@ -70,8 +70,10 @@ try {
   if (!res.ok) process.exit(0);
   const ctx = await res.json();
 
+  // Someone else = another identity. Your own other windows/hosts share your
+  // label and are not teammates (spawned identities have their own label).
   const others = (ctx.active_sessions || []).filter(
-    (s) => String(s.id || "") !== ownSession && (s.files || []).includes(rel),
+    (s) => String(s.id || "") !== ownSession && s.dev !== ctx.you && (s.files || []).includes(rel),
   );
   const claimed = (ctx.claims || []).filter(
     (c) =>
@@ -89,6 +91,7 @@ try {
   emitGuard(host, {
     repo,
     rel,
+    convo: sessionKey(input),
     reason: `DevBrain: ${rel} is being worked on right now by ${who}. Editing it anyway risks a collision — coordinate first, or approve to proceed deliberately.`,
   });
 } catch {

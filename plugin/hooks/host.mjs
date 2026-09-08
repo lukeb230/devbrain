@@ -21,7 +21,7 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { devbrainHome } from "./home.mjs";
 
 export const HOSTS = ["claude-code", "cursor", "codex", "other"];
@@ -115,11 +115,27 @@ export function emitContext(host, text) {
   else process.stdout.write(text + "\n");
 }
 
-/** Answer a before-edit guard: Claude/Codex get "ask"; Cursor only enforces
- *  "deny", so the first attempt on a contested file is denied with the reason
- *  and a retry within ten minutes is allowed — the same "deliberate second
- *  step" as Claude's ask, expressed in what Cursor can do. */
-export function emitGuard(host, { repo, rel, reason }) {
+/** Where `presence.mjs touch` records the last time the user spoke in a host
+ *  conversation (Cursor's beforeSubmitPrompt). */
+export function promptStamp(convo) {
+  return join(devbrainHome(), "prompts", Buffer.from(String(convo || "unknown")).toString("base64url").slice(0, 120));
+}
+export function markPrompt(convo) {
+  try { mkdirSync(dirname(promptStamp(convo)), { recursive: true }); writeFileSync(promptStamp(convo), String(Date.now())); } catch { /* best effort */ }
+}
+function lastPromptAt(convo) {
+  try { return Number(readFileSync(promptStamp(convo), "utf8")); } catch { return 0; }
+}
+
+/** Answer a before-edit guard. Claude/Codex get "ask" — the host shows the
+ *  reason and waits for the person. Cursor only enforces "deny", so we
+ *  emulate "ask": the first attempt on a contested file is denied with the
+ *  reason for both the person and the agent; the agent is told to stop and
+ *  ask. A later attempt goes through only after the person has sent another
+ *  prompt in that conversation (any prompt — they have seen the warning and
+ *  chosen to continue), and only within an hour. A bare retry by the agent
+ *  stays denied. */
+export function emitGuard(host, { repo, rel, reason, convo }) {
   if (host !== "cursor") {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: reason },
@@ -128,14 +144,17 @@ export function emitGuard(host, { repo, rel, reason }) {
   }
   const dir = join(devbrainHome(), "collision-acks");
   const key = join(dir, `${repo.replace("/", "_")}--${Buffer.from(rel).toString("base64url").slice(0, 80)}`);
+  let deniedAt = 0;
+  try { deniedAt = Number(readFileSync(key, "utf8")) || 0; } catch { /* first time */ }
+  const fresh = deniedAt && Date.now() - deniedAt < 60 * 60_000;
+  if (fresh && lastPromptAt(convo) > deniedAt) return; // the person replied after seeing the warning → allow silently
   try {
-    if (existsSync(key) && Date.now() - Number(readFileSync(key, "utf8")) < 10 * 60_000) return; // deliberate retry → allow silently
     mkdirSync(dir, { recursive: true });
-    writeFileSync(key, String(Date.now()));
+    if (!fresh) writeFileSync(key, String(Date.now()));
   } catch { /* fall through to deny */ }
   process.stdout.write(JSON.stringify({
     permission: "deny",
     user_message: reason,
-    agent_message: `${reason} If the user confirms, edit the file again — the second attempt within ten minutes goes through.`,
+    agent_message: `${reason} Do not retry on your own: stop, tell the user, and wait — once they reply, the edit will be allowed.`,
   }));
 }

@@ -115,7 +115,7 @@ re-run replaces only our own entries — a user's existing Cursor hooks survive.
 | Host | Files | Presence | Guard before an edit | Session brief |
 |---|---|---|---|---|
 | Claude Code | plugin | hooks | `ask` | SessionStart stdout |
-| Cursor | `~/.cursor/hooks.json`, `~/.cursor/mcp.json` | hooks (`sessionStart/End`, `afterFileEdit`; `beforeSubmitPrompt`/`stop` heartbeat) | `deny` once, retry within 10 min allowed (Cursor does not enforce `ask`) | `additional_context` |
+| Cursor | `~/.cursor/hooks.json`, `~/.cursor/mcp.json` | hooks (`sessionStart/End`, `afterFileEdit`; `beforeSubmitPrompt`/`stop` heartbeat) | `deny` with the reason; allowed again only after the person sends another prompt in that conversation (Cursor does not enforce `ask`) | `additional_context` |
 | Codex CLI | `~/.codex/config.toml` (`[mcp_servers.*]`, `features.hooks`), `~/.codex/hooks.json` | hooks when the feature is on, else the MCP server itself (`DEVBRAIN_PRESENCE=lifecycle`: start on connect, heartbeat, end on disconnect) | `ask` | `devbrain hosts agents` writes an AGENTS.md block |
 
 Observed on real installs (2026-09): Cursor 3.19 also runs Claude Code plugin

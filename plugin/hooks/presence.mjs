@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSyn
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { devbrainHome, httpHint, loadConfig } from "./home.mjs";
-import { detectHost, editedFile, emitContext, git as gitIn, readInput, relative, repoFromRemote, sessionKey, workdir } from "./host.mjs";
+import { detectHost, editedFile, emitContext, git as gitIn, markPrompt, readInput, relative, repoFromRemote, sessionKey, workdir } from "./host.mjs";
 import { fileURLToPath } from "node:url";
 import { buildExcerpt } from "./journal-extract.mjs";
 
@@ -223,6 +223,7 @@ async function main() {
   // these events cannot inject context).
   if (kind === "touch") {
     const convo = sessionKey(hookInput);
+    if (hookInput?.hook_event_name === "beforeSubmitPrompt") markPrompt(convo); // the person spoke — collision denials may lift
     let live = false;
     try { live = readFileSync(sessionFile + ".convo", "utf8").trim() === convo && Date.now() - statSync(sessionFile).mtimeMs < 12 * 3600_000; } catch { /* none */ }
     if (live && session_id) {

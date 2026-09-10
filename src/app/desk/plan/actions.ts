@@ -19,6 +19,14 @@ const back = (route: string) => `${site()}/open?to=${encodeURIComponent(route)}`
 export type BillingResult = { url: string } | { error: string };
 
 export async function startCheckout(planId: PlanId): Promise<BillingResult> {
+  try {
+    return await startCheckoutInner(planId);
+  } catch (e) {
+    console.error("billing.startCheckout", e);
+    return { error: `Stripe error: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+async function startCheckoutInner(planId: PlanId): Promise<BillingResult> {
   const me = await requireRoleOrRedirect("admin", "/desk/team");
   if (!stripeConfigured()) return { error: "Billing is not configured on this deployment." };
   const ids = await stripeIds();
@@ -45,6 +53,14 @@ export async function startCheckout(planId: PlanId): Promise<BillingResult> {
 }
 
 export async function openPortal(): Promise<BillingResult> {
+  try {
+    return await openPortalInner();
+  } catch (e) {
+    console.error("billing.openPortal", e);
+    return { error: `Stripe error: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+async function openPortalInner(): Promise<BillingResult> {
   const me = await requireRoleOrRedirect("admin", "/desk/team");
   if (!stripeConfigured()) return { error: "Billing is not configured on this deployment." };
   const { data: org } = await supabaseAdmin().from("orgs").select("name, stripe_customer_id").eq("id", me.orgId).single();
@@ -55,6 +71,14 @@ export async function openPortal(): Promise<BillingResult> {
 
 /** Switch an existing subscription between Base and Scale (prorated). */
 export async function changePlan(planId: PlanId): Promise<{ ok: true } | { error: string }> {
+  try {
+    return await changePlanInner(planId);
+  } catch (e) {
+    console.error("billing.changePlan", e);
+    return { error: `Stripe error: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+async function changePlanInner(planId: PlanId): Promise<{ ok: true } | { error: string }> {
   const me = await requireRoleOrRedirect("admin", "/desk/team");
   if (!stripeConfigured()) return { error: "Billing is not configured on this deployment." };
   const ids = await stripeIds();

@@ -20,7 +20,14 @@ export function BillingButtons({ plan, hasSubscription, canManage }: { plan: Pla
   const run = (fn: () => Promise<BillingResult | { ok: true } | { error: string }>) =>
     start(async () => {
       setNote(null);
-      const r = await fn();
+      let r: BillingResult | { ok: true } | { error: string };
+      try {
+        r = await fn();
+      } catch (e) {
+        // A thrown server-action error must never take the whole page down.
+        setNote(`Billing request failed: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
       if ("error" in r) setNote(r.error);
       else if ("url" in r) { setNote("Opening Stripe in your browser…"); openOutside(r.url); }
       else setNote("Plan updated.");

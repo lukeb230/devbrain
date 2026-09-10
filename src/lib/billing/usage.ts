@@ -20,6 +20,7 @@ export interface BillingSnapshot {
   entitled: boolean;
   /** Overage spend reached the limit (the AI layer is paused for the period). */
   overageExhausted: boolean;
+  hasSubscription: boolean;
 }
 
 function periodOf(row: { period_start: string | null; period_end: string | null }): { start: Date; end: Date } {
@@ -34,7 +35,7 @@ export async function loadBilling(orgId: string): Promise<BillingSnapshot | null
   const admin = supabaseAdmin();
   const { data: org } = await admin
     .from("orgs")
-    .select("plan, billing_status, trial_ends_at, period_start, period_end, overage_limit_cents")
+    .select("plan, billing_status, trial_ends_at, period_start, period_end, overage_limit_cents, stripe_subscription_id")
     .eq("id", orgId)
     .maybeSingle();
   if (!org) return null;
@@ -61,6 +62,7 @@ export async function loadBilling(orgId: string): Promise<BillingSnapshot | null
     overageCents,
     entitled: isEntitled(org.billing_status, { trialEndsAt: org.trial_ends_at, periodEnd: org.period_end }),
     overageExhausted: limit !== null && (limit <= 0 || overageCents + plan.extraActionCents > limit),
+    hasSubscription: !!org.stripe_subscription_id,
   };
 }
 

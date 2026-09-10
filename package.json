@@ -20,7 +20,8 @@
     "marked": "^14.1.4",
     "next": "^15.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "stripe": "^22.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { dollars } from "@/lib/billing/plans";
 import { loadBilling } from "@/lib/billing/usage";
+import { BillingButtons } from "../plan/billing-buttons";
 import { redirect } from "next/navigation";
 import { leaveOrg } from "@/app/settings/members/actions";
 import { deleteOrg, renameOrg, setOverageLimit } from "@/app/settings/org/actions";
@@ -94,6 +95,7 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
                         ? "Overage limit reached — reviews, journals and digests pause until the period ends. Raise the limit below or upgrade the plan. Presence, collisions, tasks and handoffs keep running."
                         : "A seat is anyone — or any spawned session — with a session this period. Actions are reviews, journals, digests, standups and matching; past the daily allowance they run as overage until the limit."}
                   </p>
+                  {billing.status !== "comped" && <BillingButtons plan={billing.plan.id} hasSubscription={billing.hasSubscription} canManage={isAdmin} />}
                   {isAdmin && billing.overageLimitCents !== null && (
                     <form action={setOverageLimit} className="mt-3 border-t border-line pt-3">
                       <DeskNext />

@@ -115,10 +115,11 @@ export function Eyebrow({ children, tone = "faint", className = "" }: { children
   return <div className={`font-mono text-[10px] uppercase tracking-[.1em] ${t} ${className}`}>{children}</div>;
 }
 
-export function Button({ children, tone = "primary", size = "md", type = "submit", title, name, value, formAction, form, disabled, className = "" }: { children: ReactNode; tone?: "primary" | "ghost" | "danger"; size?: "md" | "sm" | "lg"; type?: "submit" | "button"; title?: string; name?: string; value?: string; formAction?: (fd: FormData) => void | Promise<void>; form?: string; disabled?: boolean; className?: string }) {
+export function Button({ children, tone = "primary", size = "md", type, title, name, value, formAction, form, disabled, onClick, className = "" }: { children: ReactNode; tone?: "primary" | "ghost" | "danger"; size?: "md" | "sm" | "lg"; type?: "submit" | "button"; title?: string; name?: string; value?: string; formAction?: (fd: FormData) => void | Promise<void>; form?: string; disabled?: boolean; onClick?: () => void; className?: string }) {
+  type = type ?? (onClick ? "button" : "submit");
   const t = { primary: "bg-accent2 text-white font-semibold hover:brightness-110", ghost: "border border-line2 bg-row text-txt font-medium hover:border-line3", danger: "border border-[var(--wg-stop-line)] bg-row text-stop font-medium hover:bg-[var(--wg-stop-bg)]" }[tone];
   const s = { md: "px-3.5 py-2 text-[12.5px]", sm: "px-[11px] py-1.5 font-display text-[11.5px] font-semibold", lg: "px-4 py-[9px] text-[12.5px]" }[size];
-  return <button type={type} title={title} name={name} value={value} formAction={formAction} form={form} disabled={disabled} className={`whitespace-nowrap rounded-lg ${s} ${t} disabled:opacity-50 ${className}`}>{children}</button>;
+  return <button type={type} title={title} name={name} value={value} formAction={formAction} form={form} disabled={disabled} onClick={onClick} className={`whitespace-nowrap rounded-lg ${s} ${t} disabled:opacity-50 ${className}`}>{children}</button>;
 }
 
 /** The row-level verb — 12px/600 coral (design: <a style="font-size:12px;font-weight:600">). */

@@ -1045,5 +1045,19 @@ export async function POST(request: Request) {
   await admin.from("system_state").upsert({ key: "last_tick", value: did, updated_at: new Date().toISOString() });
   await admin.from("system_state").upsert({ key: "tick:served", value: served, updated_at: new Date().toISOString() });
 
+  // ---- 1.10 Billing: report overage to Stripe, at most once an hour ------
+  if (!off.has("billing")) try {
+    const { data: st } = await admin.from("system_state").select("value").eq("key", "billing:reported").maybeSingle();
+    const last = (st?.value as { at?: string } | null)?.at;
+    if (!last || Date.now() - new Date(last).getTime() > 3600_000) {
+      const { reportUsage } = await import("@/lib/billing/report");
+      const r = await reportUsage();
+      await admin.from("system_state").upsert({ key: "billing:reported", value: { at: new Date().toISOString(), ...r } });
+      if (r.actions || r.seats) did.billing = r;
+    }
+  } catch (err) {
+    did.billing_error = String(err).slice(0, 300);
+  }
+
   return NextResponse.json({ ok: true, ...did });
 }

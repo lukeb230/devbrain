@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { footprintsCollide } from "@/lib/lanes";
 import { alert } from "@/lib/alerts";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { changedFiles, prChangedFiles, prMergeableState, verifyWebhook } from "@/lib/github";
@@ -243,15 +244,31 @@ export async function POST(request: Request) {
           const trailerIds = [
             ...String(pr.body ?? "").matchAll(/DevBrain-Task:\s*([0-9a-f-]{36})/gi),
           ].map((m) => m[1].toLowerCase());
+          // A handoff only proves its task landed when the branch is that
+          // task's work: the handoff author had started the task, and (when
+          // the task has a footprint) the PR touched it. Otherwise a "blocked,
+          // not started" handoff left from an unrelated branch would close the
+          // wrong task the moment that branch merged (seen in the sandbox:
+          // a README PR closed a brain-docs task).
           const { data: branchHandoffs } = await admin
             .from("handoffs")
-            .select("task_id")
+            .select("task_id, dev_label")
             .eq("repo_id", repo.id)
             .eq("branch", pr.head.ref)
             .not("task_id", "is", null);
-          const taskIds = [
-            ...new Set([...trailerIds, ...(branchHandoffs ?? []).map((h) => String(h.task_id))]),
-          ];
+          const handoffTaskIds = [...new Set((branchHandoffs ?? []).map((h) => String(h.task_id)))];
+          const { data: handoffTasks } = handoffTaskIds.length
+            ? await admin.from("tasks").select("id, started_by, footprint").in("id", handoffTaskIds).eq("status", "open")
+            : { data: [] as { id: string; started_by: string | null; footprint: string[] | null }[] };
+          const provenByHandoff = (handoffTasks ?? [])
+            .filter((t) => {
+              const byStarter = (branchHandoffs ?? []).some((h) => String(h.task_id) === String(t.id) && h.dev_label && h.dev_label === t.started_by);
+              const fp = (t.footprint as string[] | null) ?? [];
+              const touched = fp.length === 0 || footprintsCollide(fp, files);
+              return byStarter && touched;
+            })
+            .map((t) => String(t.id));
+          const taskIds = [...new Set([...trailerIds, ...provenByHandoff])];
 
           let closed = 0;
           if (taskIds.length > 0) {

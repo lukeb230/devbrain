@@ -27,6 +27,7 @@ export const DESK_SECTIONS: { group: string; items: { slug: string; label: strin
       { slug: "members", label: "Members" },
       { slug: "tokens", label: "Tokens & sessions" },
       { slug: "team", label: "Team settings" },
+      { slug: "plan", label: "Plan" },
       { slug: "reminders", label: "Reminders" },
     ],
   },

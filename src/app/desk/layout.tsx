@@ -7,6 +7,9 @@ import { deskScope } from "@/lib/desk/scope";
 import { Jump } from "./jump";
 import { DeskNav } from "./nav";
 import { ThemeFollow } from "./theme-follow";
+import { loadBilling } from "@/lib/billing/usage";
+import { wallReason } from "@/lib/billing/wall";
+import { PlanWall } from "./plan/page";
 
 // ============================================================================
 // /desk — the app's full window (option B: menu-bar panel + this Desk in one
@@ -42,6 +45,11 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const scope = await deskScope(undefined, (repos ?? []).map((r) => r.id));
   const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="dark"||t==="system")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
 
+  // Subscription before access: a team without an entitled subscription sees
+  // only the plan wall, on every route, until Checkout completes.
+  const billing = await loadBilling(org.orgId);
+  const walled = billing ? wallReason({ status: billing.status, hasSubscription: billing.hasSubscription, trialEndsAt: billing.trialEndsAt, periodEnd: billing.periodEnd }) !== null : false;
+
   const initial = (org.login.trim()[0] ?? "?").toUpperCase();
   const appSlug = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
   return (
@@ -72,7 +80,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
               <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>
             </span>
           </div>
-          <div className="flex min-h-0 flex-1">{children}</div>
+          <div className="flex min-h-0 flex-1">{walled && billing ? <PlanWall billing={billing} isAdmin={hasRole(org.role, "admin")} /> : children}</div>
         </div>
       </div>
     </div>

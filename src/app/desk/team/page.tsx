@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { dollars } from "@/lib/billing/plans";
 import { loadBilling } from "@/lib/billing/usage";
-import { BillingButtons } from "../plan/billing-buttons";
+import { Counter, STATUS_LABEL } from "../plan/counters";
 import { redirect } from "next/navigation";
 import { leaveOrg } from "@/app/settings/members/actions";
-import { deleteOrg, renameOrg, setOverageLimit } from "@/app/settings/org/actions";
+import { deleteOrg, renameOrg } from "@/app/settings/org/actions";
 import { dismissAlert, sendTestAlert } from "@/app/settings/org/alert-actions";
 import { operatorOrgId } from "@/lib/alerts";
 import { teamHints } from "@/lib/desk/team-hints";
@@ -23,21 +22,6 @@ const APP_SLUG = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
 // ============================================================================
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<string, string> = { trialing: "trial", active: "active", past_due: "payment failed", canceled: "canceled", comped: "complimentary" };
-function Counter({ label, value, of, hint, tone }: { label: string; value: number | string; of: number | string; hint: string; tone?: "stop" }) {
-  const over = typeof value === "number" && typeof of === "number" && value > of;
-  return (
-    <div className="border-t border-line py-2.5 first:border-t-0 first:pt-0">
-      <div className="flex items-baseline gap-2">
-        <span className="font-mono text-[10.5px] uppercase tracking-[.08em] text-faint">{label}</span>
-        <span className={`ml-auto font-display text-[24px] font-medium leading-none ${tone === "stop" || over ? "text-stop" : "text-txt"}`}>{value}</span>
-        <span className="text-[12px] text-muted">of {of}</span>
-      </div>
-      <div className="mt-0.5 text-right text-[11px] text-muted">{hint}</div>
-    </div>
-  );
-}
 
 export default async function DeskTeam({ searchParams }: { searchParams: Promise<{ error?: string; linked?: string }> }) {
   const sp = await searchParams;
@@ -80,35 +64,14 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
             </Section>
 
             <section className="mt-7 rounded-xl border border-line bg-row px-5 py-[18px]">
-              <div className="flex items-baseline"><h3 className="m-0 font-display text-[18px] font-medium text-txt">Plan &amp; usage</h3><span className="ml-auto font-mono text-[10.5px] text-faint">{billing ? `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}` : "—"}</span></div>
+              <div className="flex items-baseline"><h3 className="m-0 font-display text-[18px] font-medium text-txt">Plan</h3><span className="ml-auto font-mono text-[10.5px] text-faint">{billing ? `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}` : "—"}</span></div>
               {billing && (
-                <>
-                  <div className="mt-3">
-                    <Counter label="seats this month" value={billing.usage.seatsUsed} of={billing.plan.seats} hint={billing.usage.seatsUsed > billing.plan.seats ? `${billing.usage.seatsUsed - billing.plan.seats} extra · ${dollars(billing.plan.extraSeatCents)} each` : "included"} />
-                    <Counter label="actions today" value={billing.usage.actionsToday} of={billing.plan.actionsPerDay} hint={billing.usage.actionsToday >= billing.plan.actionsPerDay ? "past the allowance — overage" : "resets 00:00 UTC"} />
-                    <Counter label="overage this period" value={dollars(billing.overageCents)} of={billing.overageLimitCents === null ? "no limit" : dollars(billing.overageLimitCents)} hint={`${billing.usage.overageActions} actions · ${dollars(billing.plan.extraActionCents)} each`} tone={billing.overageExhausted ? "stop" : undefined} />
-                  </div>
-                  <p className="mt-3 text-[12.5px] leading-[1.6] text-muted">
-                    {!billing.entitled
-                      ? "This team's plan has lapsed: reviews, journals and digests are off and new tokens can't be minted. Presence, collisions, tasks and handoffs keep working."
-                      : billing.overageExhausted
-                        ? "Overage limit reached — reviews, journals and digests pause until the period ends. Raise the limit below or upgrade the plan. Presence, collisions, tasks and handoffs keep running."
-                        : "A seat is anyone — or any spawned session — with a session this period. Actions are reviews, journals, digests, standups and matching; past the daily allowance they run as overage until the limit."}
-                  </p>
-                  {billing.status !== "comped" && <BillingButtons plan={billing.plan.id} hasSubscription={billing.hasSubscription} canManage={isAdmin} />}
-                  {isAdmin && billing.overageLimitCents !== null && (
-                    <form action={setOverageLimit} className="mt-3 border-t border-line pt-3">
-                      <DeskNext />
-                      <div className="font-mono text-[10.5px] uppercase tracking-[.08em] text-faint">Overage limit · USD per period</div>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <Field name="limit" defaultValue={String(billing.overageLimitCents / 100)} mono className="w-24" />
-                        <Button tone="ghost">Save</Button>
-                        <span className="text-[11px] text-muted">0 pauses at the daily allowance</span>
-                      </div>
-                    </form>
-                  )}
-                </>
+                <div className="mt-3">
+                  <Counter label="seats this period" value={billing.usage.seatsUsed} of={billing.plan.seats} hint={billing.usage.seatsUsed > billing.plan.seats ? `${billing.usage.seatsUsed - billing.plan.seats} extra` : "included"} />
+                  <Counter label="actions today" value={billing.usage.actionsToday} of={billing.plan.actionsPerDay} hint={billing.usage.actionsToday >= billing.plan.actionsPerDay ? "past the allowance — overage" : "resets 00:00 UTC"} />
+                </div>
               )}
+              <p className="mt-3 text-[12.5px] leading-[1.6] text-muted">Invoice estimate, upgrades, billing details and the overage limit live on <Link href="/desk/plan" className="text-accent hover:underline">Plan</Link>.</p>
             </section>
 
             <Section title="Leave this team">

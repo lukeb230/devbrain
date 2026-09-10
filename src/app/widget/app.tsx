@@ -44,6 +44,8 @@ export interface WidgetData {
   teamName: string;
   teams: { id: string; name: string }[];          // owner/admin of the active org — gates rule toggles + reminders mapping
   notice: string | null;      // ?error= code after a refused action (see Notice)
+  /** Subscription before access: when set, the panel shows only this. */
+  billingWall: { title: string; body: string } | null;
   activity: ActivityRow[];
   brain: { notes: NotePayload[]; nodes: GNode[]; edges: GEdge[]; repoId: string; repoName: string } | null;
   lastRepo: { id: string; name: string } | null;
@@ -573,7 +575,14 @@ export function WidgetApp({ data }: { data: WidgetData }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        {tab === "Home" && (
+        {data.billingWall && (
+          <div className="mt-3 rounded-xl border border-coralline bg-coralink px-4 py-3.5">
+            <div className="font-display text-[15px] font-medium text-txt">{data.billingWall.title}</div>
+            <p className="mt-1 text-[12.5px] leading-[1.55] text-body">{data.billingWall.body}</p>
+            <a href="/desk/plan" onClick={(e) => openDesk(e, "/desk/plan", "/desk/plan")} className={"mt-3 inline-block " + ACT}>Open the Console to pick a plan →</a>
+          </div>
+        )}
+        {!data.billingWall && tab === "Home" && (
           <>
             <Pulse
               activity={data.activity}
@@ -685,7 +694,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           </>
         )}
 
-        {tab === "Tasks" && (() => {
+        {!data.billingWall && tab === "Tasks" && (() => {
           const now = open.filter((t) => isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
           const queue = open.filter((t) => isMe(t.assigned_to) && !isMe(t.started_by)).sort((a, b) => a.priority - b.priority);
           const unassigned = open.filter((t) => !t.assigned_to && !t.started_by && !t.maybe_done_pr).sort((a, b) => a.priority - b.priority || a.created_at.localeCompare(b.created_at));
@@ -760,7 +769,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
           );
         })()}
 
-        {tab === "PRs" && (() => {
+        {!data.billingWall && tab === "PRs" && (() => {
           const order = data.mergePlan?.order.map((o) => o.number) ?? [];
           const sorted = [...data.prs].sort((x, y) => {
             const ix = order.indexOf(x.number), iy = order.indexOf(y.number);

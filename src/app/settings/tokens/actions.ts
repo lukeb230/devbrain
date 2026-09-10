@@ -23,6 +23,11 @@ export async function createToken(formData: FormData): Promise<void> {
   if (!member) redirect("/welcome"); // no team yet — nothing to attach a token to
   const label =
     String(formData.get("label") || "").trim().slice(0, 60) || "my-machine";
+  // Subscription before access: no new machines for a walled team.
+  const { loadBilling } = await import("@/lib/billing/usage");
+  const { wallReason } = await import("@/lib/billing/wall");
+  const b = await loadBilling(member.orgId);
+  if (b && wallReason({ status: b.status, hasSubscription: b.hasSubscription, trialEndsAt: b.trialEndsAt, periodEnd: b.periodEnd })) redirect("/desk/plan");
 
   const token = "dbk_" + randomBytes(24).toString("hex");
   const admin = supabaseAdmin();

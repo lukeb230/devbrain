@@ -68,5 +68,32 @@ export async function reportUsage(now = new Date()): Promise<ReportSummary> {
     await admin.from("orgs").update({ seats_reported_period_end: o.period_end }).eq("id", o.id);
     out.seats++;
   }
+  await trialAlerts(now);
   return out;
+}
+
+/** One alert per team when a paid trial ends within two days (the wall
+ *  itself handles the day it ends). Keyed by trial end so it fires once. */
+export async function trialAlerts(now = new Date()): Promise<void> {
+  const admin = supabaseAdmin();
+  const soon = new Date(now.getTime() + 2 * 86_400_000).toISOString();
+  const { data: orgs } = await admin
+    .from("orgs")
+    .select("id, trial_ends_at")
+    .eq("billing_status", "trialing")
+    .not("stripe_subscription_id", "is", null)
+    .not("trial_ends_at", "is", null)
+    .lte("trial_ends_at", soon)
+    .gt("trial_ends_at", now.toISOString());
+  const { alert } = await import("@/lib/alerts");
+  for (const o of orgs ?? []) {
+    const ends = new Date(o.trial_ends_at as string);
+    await alert({
+      scope: { orgId: o.id },
+      key: `billing.trial_ending.${(o.trial_ends_at as string).slice(0, 10)}`,
+      severity: "warn",
+      title: `Trial ends ${ends.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      detail: "The card on file is charged when the trial ends and the plan continues without interruption. Change or cancel under Console → Plan.",
+    });
+  }
 }

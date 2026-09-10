@@ -63,15 +63,16 @@ export function Reading({ children, className = "" }: { children: ReactNode; cla
 }
 
 /** The Team group's list pane: a sub-nav with one mono hint per item. */
-export function TeamPane({ current, hints = {} }: { current: "rules" | "members" | "tokens" | "team" | "reminders" | "mac"; hints?: Partial<Record<"rules" | "members" | "tokens" | "team" | "reminders" | "mac", { text: ReactNode; tone?: "muted" | "wait" | "go" }>> }) {
-  const items: { key: "rules" | "members" | "tokens" | "team" | "reminders" | "mac"; label: string; href: string }[] = [
+export function TeamPane({ current, hints = {} }: { current: "rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac"; hints?: Partial<Record<"rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac", { text: ReactNode; tone?: "muted" | "wait" | "go" }>> }) {
+  const items: { key: "rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac"; label: string; href: string }[] = [
     { key: "rules", label: "Rules", href: "/desk/rules" },
     { key: "members", label: "Members", href: "/desk/members" },
     { key: "tokens", label: "Tokens & sessions", href: "/desk/tokens" },
     { key: "team", label: "Team settings", href: "/desk/team" },
+    { key: "plan", label: "Plan", href: "/desk/plan" },
     { key: "reminders", label: "Reminders", href: "/desk/reminders" },
   ];
-  const row = (it: { key: "rules" | "members" | "tokens" | "team" | "reminders" | "mac"; label: string; href: string }) => {
+  const row = (it: { key: "rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac"; label: string; href: string }) => {
     const h = hints[it.key];
     const tone = h?.tone === "wait" ? "text-wait" : h?.tone === "go" ? "text-go" : "text-muted";
     return (

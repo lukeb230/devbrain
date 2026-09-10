@@ -291,6 +291,13 @@ export async function loadTeamSnapshot(opts: {
     teamName: org.orgName,
     teams: org.orgs.map((o) => ({ id: o.id, name: o.name })),
     notice: notice ?? null,
+    billingWall: await (async () => {
+      const { loadBilling } = await import("@/lib/billing/usage");
+      const { WALL_COPY, wallReason } = await import("@/lib/billing/wall");
+      const b = await loadBilling(org.orgId);
+      const r = b ? wallReason({ status: b.status, hasSubscription: b.hasSubscription, trialEndsAt: b.trialEndsAt, periodEnd: b.periodEnd }) : null;
+      return r ? WALL_COPY[r] : null;
+    })(),
     scopeAll,
     digest: (() => {
       // Digests are per-repo. Scoped → that repo's; All repos → the newest,

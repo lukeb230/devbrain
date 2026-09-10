@@ -33,3 +33,14 @@ export async function deleteOrg(formData: FormData): Promise<void> {
   clearDevbrainCookies(await cookies(), [{ name: COOKIE.org, path: "/" }, { name: COOKIE.lastRepo, path: "/" }]);
   redirect("/welcome");
 }
+
+/** Monthly overage spend limit for the AI layer (admins). 0 = pause at the
+ *  daily allowance instead of running overage. Comped teams have no limit. */
+export async function setOverageLimit(formData: FormData): Promise<void> {
+  const me = await requireRoleOrRedirect("admin", "/desk/team");
+  const dollars = Number(String(formData.get("limit") || "").replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(dollars) || dollars < 0 || dollars > 10000) return;
+  await supabaseAdmin().from("orgs").update({ overage_limit_cents: Math.round(dollars * 100) }).eq("id", me.orgId);
+  revalidatePath("/desk/team");
+  redirect(returnTo(formData, "/desk/team"));
+}

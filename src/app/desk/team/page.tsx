@@ -27,10 +27,13 @@ const STATUS_LABEL: Record<string, string> = { trialing: "trial", active: "activ
 function Counter({ label, value, of, hint, tone }: { label: string; value: number | string; of: number | string; hint: string; tone?: "stop" }) {
   const over = typeof value === "number" && typeof of === "number" && value > of;
   return (
-    <div className="flex items-baseline gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0">
-      <div className="w-[118px] flex-shrink-0 font-mono text-[10.5px] uppercase leading-[1.35] tracking-[.08em] text-faint">{label}</div>
-      <div className="flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap"><span className={`font-display text-[24px] font-medium leading-none ${tone === "stop" || over ? "text-stop" : "text-txt"}`}>{value}</span><span className="text-[12px] text-muted">of {of}</span></div>
-      <div className="text-right text-[11px] leading-[1.35] text-muted">{hint}</div>
+    <div className="border-t border-line py-2.5 first:border-t-0 first:pt-0">
+      <div className="flex items-baseline gap-2">
+        <span className="font-mono text-[10.5px] uppercase tracking-[.08em] text-faint">{label}</span>
+        <span className={`ml-auto font-display text-[24px] font-medium leading-none ${tone === "stop" || over ? "text-stop" : "text-txt"}`}>{value}</span>
+        <span className="text-[12px] text-muted">of {of}</span>
+      </div>
+      <div className="mt-0.5 text-right text-[11px] text-muted">{hint}</div>
     </div>
   );
 }
@@ -92,12 +95,14 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
                         : "A seat is anyone — or any spawned session — with a session this period. Actions are reviews, journals, digests, standups and matching; past the daily allowance they run as overage until the limit."}
                   </p>
                   {isAdmin && billing.overageLimitCents !== null && (
-                    <form action={setOverageLimit} className="mt-3 flex items-center gap-2">
+                    <form action={setOverageLimit} className="mt-3 border-t border-line pt-3">
                       <DeskNext />
-                      <span className="text-[12.5px] text-muted">Overage limit</span>
-                      <Field name="limit" defaultValue={String(billing.overageLimitCents / 100)} mono className="w-24" />
-                      <span className="text-[12.5px] text-muted">USD / period · 0 pauses at the allowance</span>
-                      <Button tone="ghost">Save</Button>
+                      <div className="font-mono text-[10.5px] uppercase tracking-[.08em] text-faint">Overage limit · USD per period</div>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Field name="limit" defaultValue={String(billing.overageLimitCents / 100)} mono className="w-24" />
+                        <Button tone="ghost">Save</Button>
+                        <span className="text-[11px] text-muted">0 pauses at the daily allowance</span>
+                      </div>
                     </form>
                   )}
                 </>

@@ -27,10 +27,10 @@ const STATUS_LABEL: Record<string, string> = { trialing: "trial", active: "activ
 function Counter({ label, value, of, hint, tone }: { label: string; value: number | string; of: number | string; hint: string; tone?: "stop" }) {
   const over = typeof value === "number" && typeof of === "number" && value > of;
   return (
-    <div className="rounded-lg border border-line bg-pane px-3 py-2.5">
-      <div className="font-mono text-[10.5px] uppercase tracking-[.08em] text-faint">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1.5"><span className={`font-display text-[26px] font-medium leading-none ${tone === "stop" || over ? "text-stop" : "text-txt"}`}>{value}</span><span className="text-[12px] text-muted">of {of}</span></div>
-      <div className="mt-1 text-[11px] text-muted">{hint}</div>
+    <div className="flex items-baseline gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0">
+      <div className="w-[118px] flex-shrink-0 font-mono text-[10.5px] uppercase leading-[1.35] tracking-[.08em] text-faint">{label}</div>
+      <div className="flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap"><span className={`font-display text-[24px] font-medium leading-none ${tone === "stop" || over ? "text-stop" : "text-txt"}`}>{value}</span><span className="text-[12px] text-muted">of {of}</span></div>
+      <div className="text-right text-[11px] leading-[1.35] text-muted">{hint}</div>
     </div>
   );
 }
@@ -79,7 +79,7 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
               <div className="flex items-baseline"><h3 className="m-0 font-display text-[18px] font-medium text-txt">Plan &amp; usage</h3><span className="ml-auto font-mono text-[10.5px] text-faint">{billing ? `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}` : "—"}</span></div>
               {billing && (
                 <>
-                  <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="mt-3">
                     <Counter label="seats this month" value={billing.usage.seatsUsed} of={billing.plan.seats} hint={billing.usage.seatsUsed > billing.plan.seats ? `${billing.usage.seatsUsed - billing.plan.seats} extra · ${dollars(billing.plan.extraSeatCents)} each` : "included"} />
                     <Counter label="actions today" value={billing.usage.actionsToday} of={billing.plan.actionsPerDay} hint={billing.usage.actionsToday >= billing.plan.actionsPerDay ? "past the allowance — overage" : "resets 00:00 UTC"} />
                     <Counter label="overage this period" value={dollars(billing.overageCents)} of={billing.overageLimitCents === null ? "no limit" : dollars(billing.overageLimitCents)} hint={`${billing.usage.overageActions} actions · ${dollars(billing.plan.extraActionCents)} each`} tone={billing.overageExhausted ? "stop" : undefined} />

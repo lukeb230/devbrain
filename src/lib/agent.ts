@@ -48,9 +48,11 @@ async function reserve(orgId: string | undefined): Promise<void> {
     return;
   }
   const { supabaseAdmin } = await import("@/lib/supabase/server");
+  // 'allow' | 'overage' | 'paused' (0037_billing.sql). Overage is counted for
+  // the invoice inside the function; only 'paused' stops the unit.
   const { data, error } = await supabaseAdmin().rpc("ai_reserve", { p_org: orgId });
   if (error) throw new Error(`ai_reserve: ${error.message}`);
-  if (data !== true) {
+  if (data !== "allow" && data !== "overage") {
     const { alert } = await import("@/lib/alerts");
     const today = new Date().toISOString().slice(0, 10);
     // Distinguish "this team spent its budget" (team notice) from "the whole
@@ -65,7 +67,7 @@ async function reserve(orgId: string | undefined): Promise<void> {
         throw new AiCapExceeded(orgId);
       }
     }
-    await alert({ scope: { orgId }, key: `ai.cap.${today}`, severity: "warn", title: "AI budget for today is spent", detail: "Reviews, journals and digests pause until 00:00 UTC. Presence, collisions and merge lights keep running. Raise the cap on Settings → Team if this happens often." });
+    await alert({ scope: { orgId }, key: `ai.cap.${today}`, severity: "warn", title: "AI layer paused for this team", detail: "Reviews, journals and digests are paused: today's allowance and this month's overage limit are used up, or the plan has lapsed. Presence, collisions, tasks and handoffs keep running. Raise the overage limit or upgrade the plan under Console → Team." });
     throw new AiCapExceeded(orgId);
   }
 }

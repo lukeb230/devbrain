@@ -3,11 +3,10 @@ import { setOverageLimit } from "@/app/settings/org/actions";
 import { PLANS, dollars, estimateInvoice, scaleSavingsCents } from "@/lib/billing/plans";
 import { loadBilling, type BillingSnapshot } from "@/lib/billing/usage";
 import { WALL_COPY, wallReason } from "@/lib/billing/wall";
-import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg, hasRole } from "@/lib/org";
-import { DeskNext } from "../desk-next";
-import { Reading, TeamPane } from "../panes";
-import { Button, Field, Section } from "../ui";
+import { DeskNext } from "../../desk-next";
+import { Reading } from "../../panes";
+import { Button, Field, Section } from "../../ui";
 import { BillingButtons } from "./billing-buttons";
 import { Counter, STATUS_LABEL } from "./counters";
 
@@ -27,7 +26,7 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const me = await currentOrg();
   if (!me) redirect("/?from=desk");
-  const [billing, hints] = await Promise.all([loadBilling(me.orgId), teamHints(me.orgId, me.userId, null)]);
+  const billing = await loadBilling(me.orgId);
   if (!billing) redirect("/desk/team");
   const isAdmin = hasRole(me.role, "admin");
   const trialDays = billing.status === "trialing" ? daysLeft(billing.trialEndsAt) : null;
@@ -36,7 +35,6 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <TeamPane current="plan" hints={hints} />
       <Reading>
         <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Plan</h1>
         <p className="mt-2 text-[13px] text-muted">

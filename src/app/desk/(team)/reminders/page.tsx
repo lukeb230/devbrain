@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { mapList, unmapList } from "@/app/settings/reminders/actions";
-import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg, hasRole } from "@/lib/org";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
-import { DeskNext } from "../desk-next";
-import { Reading, TeamPane } from "../panes";
-import { ACTION, ACTION_STOP, Empty, Section, Select } from "../ui";
+import { DeskNext } from "../../desk-next";
+import { Reading } from "../../panes";
+import { ACTION, ACTION_STOP, Empty, Section, Select } from "../../ui";
 import { MapConfirm } from "./map-confirm";
 
 // ============================================================================
@@ -36,11 +35,10 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
   if (!org) redirect("/welcome");
   const isAdmin = hasRole(org.role, "admin");
 
-  const [{ data: sources }, { data: sightings }, { data: repos }, hints] = await Promise.all([
+  const [{ data: sources }, { data: sightings }, { data: repos }] = await Promise.all([
     supabase.from("reminder_sources").select("id, list_name, created_by, created_at, repo_id, linked_repos(full_name)").order("list_name"),
     supabase.from("reminder_sightings").select("list_name, seen_by, item_count, last_seen").order("list_name"),
-    supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("full_name"),
-    teamHints(org.orgId, user.id, null),
+    supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("full_name")
   ]);
   const mapped = new Set((sources ?? []).map((s) => s.list_name.toLowerCase()));
   const unmapped = (sightings ?? []).filter((s) => !mapped.has(s.list_name.toLowerCase()));
@@ -48,7 +46,6 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <TeamPane current="reminders" hints={hints} />
       <Reading>
         <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Reminders</h1>
         <p className="mt-2 max-w-[620px] text-[13px] leading-[1.6] text-muted">Add a reminder on your phone — or “Hey Siri, add … to my Team Inbox list” — and it becomes a task on that repo&apos;s board within a few minutes. Checking it off completes the task.</p>

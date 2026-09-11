@@ -9,7 +9,7 @@ import { DeskNav } from "./nav";
 import { ThemeFollow } from "./theme-follow";
 import { loadBilling } from "@/lib/billing/usage";
 import { wallReason } from "@/lib/billing/wall";
-import { PlanWall } from "./plan/page";
+import { PlanWall } from "./(team)/plan/page";
 
 // ============================================================================
 // /desk — the app's full window (option B: menu-bar panel + this Desk in one

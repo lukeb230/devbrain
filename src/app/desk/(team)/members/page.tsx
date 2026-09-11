@@ -1,13 +1,12 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createInvite, removeMember, revokeInvite, setRole } from "@/app/settings/members/actions";
-import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { Copy } from "../copy";
-import { DeskNext } from "../desk-next";
-import { Reading, TeamPane } from "../panes";
-import { ACTION_MUTED, ACTION_STOP, Avatar, Button, Empty, Pill, Section, Select } from "../ui";
+import { Copy } from "../../copy";
+import { DeskNext } from "../../desk-next";
+import { Reading } from "../../panes";
+import { ACTION_MUTED, ACTION_STOP, Avatar, Button, Empty, Pill, Section, Select } from "../../ui";
 
 // ============================================================================
 // Desk · Members (Dusk) — people rows (36px avatar, role pill or role select
@@ -36,11 +35,10 @@ export default async function DeskMembers({ searchParams }: { searchParams: Prom
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
 
   const admin = supabaseAdmin();
-  const [{ data: members }, { data: invites }, { data: sessions }, hints] = await Promise.all([
+  const [{ data: members }, { data: invites }, { data: sessions }] = await Promise.all([
     admin.from("org_members").select("user_id, role, github_login, created_at").eq("org_id", me.orgId).order("created_at"),
     admin.from("org_invites").select("id, code, role, created_by, max_uses, uses, expires_at").eq("org_id", me.orgId).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }),
-    admin.from("sessions").select("dev_label, last_seen").eq("org_id", me.orgId).order("last_seen", { ascending: false }).limit(200),
-    teamHints(me.orgId, me.userId, null),
+    admin.from("sessions").select("dev_label, last_seen").eq("org_id", me.orgId).order("last_seen", { ascending: false }).limit(200)
   ]);
   const lastSeen = new Map<string, string>();
   for (const s of sessions ?? []) {
@@ -51,7 +49,6 @@ export default async function DeskMembers({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <TeamPane current="members" hints={hints} />
       <Reading>
         <div className="flex items-end gap-4">
           <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Members <span className="ml-2 font-mono text-[12px] font-normal text-faint">{me.orgName} · {members?.length ?? 0} {members?.length === 1 ? "person" : "people"}</span></h1>

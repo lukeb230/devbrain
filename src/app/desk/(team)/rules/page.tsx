@@ -2,17 +2,16 @@ import { redirect } from "next/navigation";
 import { toggleRule } from "@/app/dashboard/[repoId]/rules/actions";
 import { deleteRepo, unlinkRepo } from "@/app/dashboard/[repoId]/unlink-actions";
 import { deskScope } from "@/lib/desk/scope";
-import { teamHints } from "@/lib/desk/team-hints";
 import { installationWritePerms } from "@/lib/github-writer";
 import { currentOrg, hasRole } from "@/lib/org";
 import { FEATURE_CATALOG, RULES_CATALOG, WRITER_CATALOG, type RuleDef } from "@/lib/rules-catalog";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { writeGranted } from "@/lib/writer-gates";
-import { DeskNext } from "../desk-next";
-import { ExternalLink } from "../external-link";
-import { Reading, TeamPane } from "../panes";
-import { RepoChooser } from "../repo-chooser";
-import { Button, Field, Section, Switch } from "../ui";
+import { DeskNext } from "../../desk-next";
+import { ExternalLink } from "../../external-link";
+import { Reading } from "../../panes";
+import { RepoChooser } from "../../repo-chooser";
+import { Button, Field, Section, Switch } from "../../ui";
 
 // ============================================================================
 // Desk · Rules (Dusk) — per repo: team rules (default on), features
@@ -65,16 +64,14 @@ export default async function DeskRules({ searchParams }: { searchParams: Promis
   if (!scope.repoId) {
     return (
       <>
-        <TeamPane current="rules" hints={await teamHints(org.orgId, user.id, null)} />
         <RepoChooser repos={repos ?? []} route="/desk/rules" what="rules" title="Rules" />
       </>
     );
   }
   const repo = (repos ?? []).find((r) => r.id === scope.repoId)!;
-  const [{ data: rows }, perms, hints] = await Promise.all([
+  const [{ data: rows }, perms] = await Promise.all([
     supabase.from("policies").select("rule, enabled").eq("repo_id", repo.id),
-    repo.installation_id ? installationWritePerms(repo.installation_id) : Promise.resolve(null),
-    teamHints(org.orgId, user.id, repo.full_name),
+    repo.installation_id ? installationWritePerms(repo.installation_id) : Promise.resolve(null)
   ]);
   const state = new Map((rows ?? []).map((r) => [r.rule, r.enabled]));
   const writeReady = writeGranted(perms);
@@ -82,7 +79,6 @@ export default async function DeskRules({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <TeamPane current="rules" hints={hints} />
       <Reading>
         <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Rules <span className="ml-2 font-mono text-[12px] font-normal text-faint">{repo.full_name} · served to every Claude via the plugin{!isAdmin ? " · admins change these" : ""}</span></h1>
 

@@ -25,12 +25,11 @@ export const DESK_SECTIONS: { group: string; items: { slug: string; label: strin
     ],
   },
   {
-    group: "Team",
-    items: [{ slug: "team", label: "Team", also: ["rules", "members", "tokens", "plan", "reminders"] }],
-  },
-  {
-    group: "This Mac",
-    items: [{ slug: "mac", label: "This Mac" }],
+    group: "Settings",
+    items: [
+      { slug: "team", label: "Team", also: ["rules", "members", "tokens", "plan", "reminders"] },
+      { slug: "mac", label: "This Mac" },
+    ],
   },
 ];
 

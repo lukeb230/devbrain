@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { PlanId } from "@/lib/billing/plans";
-import { Button } from "../ui";
+import { Button } from "../../ui";
 import { changePlan, openPortal, startCheckout, type BillingResult } from "./actions";
 
 // Stripe pages open outside the app window: through the shell's

@@ -1,5 +1,5 @@
 "use client";
-import { ConfirmButton } from "../confirm-button";
+import { ConfirmButton } from "../../confirm-button";
 
 // The describer has to live in a client module: a server component can't
 // hand a function to a client component (that crashed the page once).

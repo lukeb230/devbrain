@@ -61,30 +61,3 @@ export function PaneSearch({ placeholder, name, defaultValue, action, className 
 export function Reading({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <main className={`min-w-0 flex-1 overflow-y-auto px-10 pb-12 pt-8 ${className}`}>{children}</main>;
 }
-
-/** The Team group's list pane: a sub-nav with one mono hint per item. */
-export function TeamPane({ current, hints = {} }: { current: "rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac"; hints?: Partial<Record<"rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac", { text: ReactNode; tone?: "muted" | "wait" | "go" }>> }) {
-  const items: { key: "rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac"; label: string; href: string }[] = [
-    { key: "rules", label: "Rules", href: "/desk/rules" },
-    { key: "members", label: "Members", href: "/desk/members" },
-    { key: "tokens", label: "Tokens & sessions", href: "/desk/tokens" },
-    { key: "team", label: "Team settings", href: "/desk/team" },
-    { key: "plan", label: "Plan", href: "/desk/plan" },
-    { key: "reminders", label: "Reminders", href: "/desk/reminders" },
-  ];
-  const row = (it: { key: "rules" | "members" | "tokens" | "team" | "plan" | "reminders" | "mac"; label: string; href: string }) => {
-    const h = hints[it.key];
-    const tone = h?.tone === "wait" ? "text-wait" : h?.tone === "go" ? "text-go" : "text-muted";
-    return (
-      <Link key={it.key} href={it.href} className={`mx-2 flex items-center justify-between rounded-lg px-2.5 py-[9px] text-[13px] text-txt ${current === it.key ? "bg-row2 font-medium" : "hover:bg-row"}`}>
-        {it.label}
-        {h && <span className={`font-mono text-[10.5px] ${tone}`}>{h.text}</span>}
-      </Link>
-    );
-  };
-  return (
-    <ListPane title="Team">
-      {items.map(row)}
-    </ListPane>
-  );
-}

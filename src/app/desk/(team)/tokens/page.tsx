@@ -2,13 +2,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createToken, revokeToken } from "@/app/settings/tokens/actions";
 import { COOKIE } from "@/lib/cookies";
-import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg } from "@/lib/org";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
-import { Copy } from "../copy";
-import { DeskNext } from "../desk-next";
-import { Reading, TeamPane } from "../panes";
-import { ACTION_MUTED, ACTION_STOP, Button, Dot, Empty, Field } from "../ui";
+import { Copy } from "../../copy";
+import { DeskNext } from "../../desk-next";
+import { Reading } from "../../panes";
+import { ACTION_MUTED, ACTION_STOP, Button, Dot, Empty, Field } from "../../ui";
 
 // ============================================================================
 // Desk · Tokens & sessions (Dusk) — the shown-once token card, label + New
@@ -36,9 +35,8 @@ export default async function DeskTokens() {
   const org = await currentOrg();
   if (!org) redirect("/welcome");
 
-  const [{ data: tokens }, hints] = await Promise.all([
-    supabase.from("dev_tokens").select("id, label, created_at, revoked_at, last_used_at, parent_token_id").order("created_at", { ascending: false }),
-    teamHints(org.orgId, user.id, null),
+  const [{ data: tokens }] = await Promise.all([
+    supabase.from("dev_tokens").select("id, label, created_at, revoked_at, last_used_at, parent_token_id").order("created_at", { ascending: false })
   ]);
   const live = (tokens ?? []).filter((t) => !t.revoked_at);
   const roots = live.filter((t) => !t.parent_token_id);
@@ -50,7 +48,6 @@ export default async function DeskTokens() {
 
   return (
     <>
-      <TeamPane current="tokens" hints={hints} />
       <Reading>
         <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Tokens &amp; sessions</h1>
         <p className="mt-2 max-w-[600px] text-[13px] leading-[1.6] text-muted">A token is a teammate. One per machine; the Mac app minted its own on first run. Spawned sessions are child tokens of yours.</p>

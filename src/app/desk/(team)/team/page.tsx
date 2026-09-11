@@ -6,12 +6,11 @@ import { leaveOrg } from "@/app/settings/members/actions";
 import { deleteOrg, renameOrg } from "@/app/settings/org/actions";
 import { dismissAlert, sendTestAlert } from "@/app/settings/org/alert-actions";
 import { operatorOrgId } from "@/lib/alerts";
-import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { DeskNext } from "../desk-next";
-import { Reading, TeamPane } from "../panes";
-import { ACTION_MUTED, Button, Dot, Empty, Field, LinkButton, Section } from "../ui";
+import { DeskNext } from "../../desk-next";
+import { Reading } from "../../panes";
+import { ACTION_MUTED, Button, Dot, Empty, Field, LinkButton, Section } from "../../ui";
 
 const APP_SLUG = process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain";
 
@@ -30,21 +29,19 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
   const isOwner = hasRole(me.role, "owner");
   const isAdmin = hasRole(me.role, "admin");
   const admin = supabaseAdmin();
-  const [{ count: repoCount }, { count: memberCount }, { count: ownerCount }, { data: orgRow }, billing, { data: recentAlerts }, operator, hints] = await Promise.all([
+  const [{ count: repoCount }, { count: memberCount }, { count: ownerCount }, { data: orgRow }, billing, { data: recentAlerts }, operator] = await Promise.all([
     admin.from("linked_repos").select("id", { count: "exact", head: true }).eq("org_id", me.orgId).is("unlinked_at", null),
     admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId),
     admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId).eq("role", "owner"),
     admin.from("orgs").select("ai_daily_cap, plan").eq("id", me.orgId).single(),
     loadBilling(me.orgId),
     admin.from("alert_log").select("id, severity, title, count, last_seen, resolved_at").eq("org_id", me.orgId).order("last_seen", { ascending: false }).limit(20),
-    operatorOrgId(),
-    teamHints(me.orgId, me.userId, null),
+    operatorOrgId()
   ]);
   const soleOwner = isOwner && (ownerCount ?? 0) <= 1;
 
   return (
     <>
-      <TeamPane current="team" hints={hints} />
       <Reading>
         <div className="flex items-end gap-4">
           <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Team settings</h1>

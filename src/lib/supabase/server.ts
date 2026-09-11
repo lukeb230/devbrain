@@ -39,10 +39,27 @@ export function supabaseAdmin() {
   );
 }
 
-/** The signed-in user, once per request. Layout, org lookup and page all
- *  need it; without this each one paid its own auth round trip. */
-export const currentUser = cache(async () => {
+/** The signed-in user, once per request, verified WITHOUT a network call.
+ *
+ *  getClaims() checks the access token's ES256 signature locally against the
+ *  project's cached JWKS (this project uses asymmetric signing keys), so the
+ *  Console no longer pays a round trip to Supabase Auth on every navigation —
+ *  it was the first of four sequential waves before anything could render.
+ *  Falls back to getUser() if the token cannot be verified locally. */
+export const currentUser = cache(async (): Promise<AuthedUser | null> => {
   const supabase = await supabaseServer();
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    const c = data?.claims as { sub?: string; email?: string; user_metadata?: Record<string, unknown> } | undefined;
+    if (!error && c?.sub) return { id: c.sub, email: c.email ?? null, user_metadata: c.user_metadata ?? {} };
+  } catch { /* fall through to the auth server */ }
   const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return user ? { id: user.id, email: user.email ?? null, user_metadata: (user.user_metadata ?? {}) as Record<string, unknown> } : null;
 });
+
+/** What every caller of currentUser() actually reads. */
+export interface AuthedUser {
+  id: string;
+  email: string | null;
+  user_metadata: Record<string, unknown>;
+}

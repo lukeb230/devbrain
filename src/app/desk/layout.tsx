@@ -4,6 +4,7 @@ import { currentOrg, hasRole } from "@/lib/org";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
+import { teamRepos } from "@/lib/desk/repos";
 import { Jump } from "./jump";
 import { DeskNav } from "./nav";
 import { ThemeFollow } from "./theme-follow";
@@ -31,14 +32,11 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const org = await currentOrg();
   if (!org) redirect("/welcome");
 
-  const [{ data: repos }, billing] = await Promise.all([
-    supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
-    loadBilling(org.orgId),
-  ]);
+  const [repos, billing] = await Promise.all([teamRepos(org.orgId), loadBilling(org.orgId)]);
 
   // The effective scope (URL, else the remembered repo) — so the switcher
   // shows what the pages actually use.
-  const scope = await deskScope(undefined, (repos ?? []).map((r) => r.id));
+  const scope = await deskScope(undefined, repos.map((r) => r.id));
   const early = `try{var t=localStorage.getItem("devbrain_theme");if(t==="dark"||t==="system")document.documentElement.dataset.wgTheme=t;}catch(e){}`;
 
   // Subscription before access: a team without an entitled subscription sees
@@ -61,7 +59,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
           orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))}
           orgId={org.orgId}
           switchOrg={switchOrg}
-          repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))}
+          repos={repos.map((r) => ({ id: r.id, name: r.full_name }))}
           remembered={scope.repoId}
           appSlug={appSlug}
           canLink={hasRole(org.role, "admin")}
@@ -69,7 +67,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Toolbar over the panes: jump-to-anything and who you are. */}
           <div className="flex h-11 flex-shrink-0 items-center gap-4 border-b border-line bg-pane px-4">
-            <Jump orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))} orgId={org.orgId} switchOrg={switchOrg} repos={(repos ?? []).map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
+            <Jump orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))} orgId={org.orgId} switchOrg={switchOrg} repos={repos.map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
             <span className="ml-auto flex items-center gap-2">
               <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accent">{initial}</span>
               <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>

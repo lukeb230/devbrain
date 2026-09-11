@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { assignTask, braindumpTasks, completeTask, confirmMaybeDone, createTask, deleteTask, dismissMaybeDone, reopenTask, startTask, togglePin, updateTask } from "@/app/dashboard/[repoId]/tasks/actions";
 import { deskScope, withScope } from "@/lib/desk/scope";
+import { teamRepos } from "@/lib/desk/repos";
 import { pickSuggestedNext, type SuggestedNext } from "@/lib/lanes";
 import { teamMembers } from "@/lib/members";
 import { currentOrg } from "@/lib/org";
@@ -54,8 +55,7 @@ export default async function DeskBoard({ searchParams }: { searchParams: Promis
   const org = await currentOrg();
   if (!org) redirect("/welcome");
 
-  const { data: repoRows } = await supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at");
-  const repos = repoRows ?? [];
+  const repos = await teamRepos(org.orgId);
   const scope = await deskScope(sp, repos.map((r) => r.id));
   if (repos.length === 0) return <RepoChooser repos={[]} route="/desk/board" what="board" title="Board" />;
   const scopedRepo = scope.repoId ? repos.find((r) => r.id === scope.repoId) ?? null : null;

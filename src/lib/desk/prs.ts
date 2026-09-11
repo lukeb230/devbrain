@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { teamRepos } from "./repos";
 import { computeMergePlan, type MergePlan } from "@/lib/merge-order";
 import { computeLights, type Light } from "@/lib/traffic";
 
@@ -44,10 +45,9 @@ export interface RepoPrs {
 
 export async function loadPrs(supabase: SupabaseClient, orgId: string, repoId: string | null): Promise<RepoPrs[]> {
   const since = new Date(Date.now() - 72 * 3600_000).toISOString();
-  let repoQ = supabase.from("linked_repos").select("id, full_name, default_branch").eq("org_id", orgId).is("unlinked_at", null).order("created_at");
-  if (repoId) repoQ = repoQ.eq("id", repoId);
-  const { data: repos } = await repoQ;
-  const ids = (repos ?? []).map((r) => r.id);
+  const all = await teamRepos(orgId);
+  const repos = repoId ? all.filter((r) => r.id === repoId) : all;
+  const ids = repos.map((r) => r.id);
   if (ids.length === 0) return [];
 
   const [{ data: prs }, { data: merged }, { data: reviews }, { data: solo }] = await Promise.all([
@@ -83,7 +83,7 @@ export async function loadPrs(supabase: SupabaseClient, orgId: string, repoId: s
       repo_id: repo.id,
       repo: short,
       full_name: repo.full_name,
-      default_branch: repo.default_branch,
+      default_branch: repo.default_branch ?? "main",
       plan,
       prs: rows.map((p) => {
         const files = new Set((p.changed_files as string[]) ?? []);
@@ -95,7 +95,7 @@ export async function loadPrs(supabase: SupabaseClient, orgId: string, repoId: s
           repo_id: p.repo_id,
           repo: short,
           full_name: repo.full_name,
-          default_branch: repo.default_branch,
+          default_branch: repo.default_branch ?? "main",
           number: p.number,
           title: p.title,
           author: p.author,

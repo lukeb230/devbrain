@@ -4,7 +4,8 @@ import { FEATURE_CATALOG, RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-cata
 import { computeLights } from "@/lib/traffic";
 import { hasRole, type OrgContext } from "@/lib/org";
 import { openAlerts, operatorOrgId } from "@/lib/alerts";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AuthedUser } from "@/lib/supabase/server";
 import type { WidgetData } from "@/app/widget/app";
 
 // ============================================================================
@@ -17,7 +18,7 @@ import type { WidgetData } from "@/app/widget/app";
 
 export async function loadTeamSnapshot(opts: {
   supabase: SupabaseClient;
-  user: User;
+  user: AuthedUser;
   org: OrgContext;
   lastRepoId: string | null;
   notice?: string | null;

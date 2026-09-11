@@ -81,6 +81,7 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
               <Link
                 key={it.slug}
                 href={`/desk${it.slug ? `/${it.slug}` : ""}`}
+                onMouseEnter={() => router.prefetch(`/desk${it.slug ? `/${it.slug}` : ""}`)}
                 className={
                   "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] " +
                   (on ? "border-coralline bg-coralink font-semibold text-txt" : "border-transparent text-muted hover:bg-row2 hover:text-txt")

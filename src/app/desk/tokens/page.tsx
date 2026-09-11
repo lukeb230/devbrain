@@ -4,7 +4,7 @@ import { createToken, revokeToken } from "@/app/settings/tokens/actions";
 import { COOKIE } from "@/lib/cookies";
 import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { Copy } from "../copy";
 import { DeskNext } from "../desk-next";
 import { Reading, TeamPane } from "../panes";
@@ -31,9 +31,7 @@ function timeAgo(iso: string | null) {
 
 export default async function DeskTokens() {
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
@@ -37,3 +38,11 @@ export function supabaseAdmin() {
     { auth: { persistSession: false } },
   );
 }
+
+/** The signed-in user, once per request. Layout, org lookup and page all
+ *  need it; without this each one paid its own auth round trip. */
+export const currentUser = cache(async () => {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+});

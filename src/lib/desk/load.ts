@@ -26,7 +26,16 @@ export async function loadTeamSnapshot(opts: {
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
-  const members = await teamMembers(org.orgId);
+  const [members, billingWall] = await Promise.all([
+    teamMembers(org.orgId),
+    (async () => {
+      const { loadBilling } = await import("@/lib/billing/usage");
+      const { WALL_COPY, wallReason } = await import("@/lib/billing/wall");
+      const b = await loadBilling(org.orgId);
+      const r = b ? wallReason({ status: b.status, hasSubscription: b.hasSubscription, trialEndsAt: b.trialEndsAt, periodEnd: b.periodEnd }) : null;
+      return r ? WALL_COPY[r] : null;
+    })(),
+  ]);
   const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
     await Promise.all([
       supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
@@ -291,13 +300,7 @@ export async function loadTeamSnapshot(opts: {
     teamName: org.orgName,
     teams: org.orgs.map((o) => ({ id: o.id, name: o.name })),
     notice: notice ?? null,
-    billingWall: await (async () => {
-      const { loadBilling } = await import("@/lib/billing/usage");
-      const { WALL_COPY, wallReason } = await import("@/lib/billing/wall");
-      const b = await loadBilling(org.orgId);
-      const r = b ? wallReason({ status: b.status, hasSubscription: b.hasSubscription, trialEndsAt: b.trialEndsAt, periodEnd: b.periodEnd }) : null;
-      return r ? WALL_COPY[r] : null;
-    })(),
+    billingWall,
     scopeAll,
     digest: (() => {
       // Digests are per-repo. Scoped → that repo's; All repos → the newest,

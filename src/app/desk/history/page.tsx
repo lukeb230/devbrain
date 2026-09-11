@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { revertFromHistory } from "@/app/dashboard/[repoId]/history/actions";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { canRevert } from "@/lib/writer-gates";
 import { DeskNext } from "../desk-next";
 import { ListPane, ListRow, PaneEyebrow, Reading } from "../panes";
@@ -33,9 +33,7 @@ function ago(iso: string) {
 export default async function DeskHistory({ searchParams }: { searchParams: Promise<{ repo?: string; sha?: string; error?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

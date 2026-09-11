@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { mapList, unmapList } from "@/app/settings/reminders/actions";
 import { teamHints } from "@/lib/desk/team-hints";
 import { currentOrg, hasRole } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { DeskNext } from "../desk-next";
 import { Reading, TeamPane } from "../panes";
 import { ACTION, ACTION_STOP, Empty, Section, Select } from "../ui";
@@ -30,9 +30,7 @@ function ago(iso: string) {
 export default async function DeskReminders({ searchParams }: { searchParams: Promise<{ error?: string; list?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

@@ -2,7 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE, ORG_COOKIE_OPTS } from "@/lib/cookies";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin, supabaseServer , currentUser } from "@/lib/supabase/server";
 
 // ============================================================================
 // Active org. A user may belong to several orgs; the `devbrain_org` cookie
@@ -28,10 +28,7 @@ export type OrgContext = {
 };
 
 export const currentOrg = cache(async (): Promise<OrgContext | null> => {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) return null;
   const { data: rows } = await supabaseAdmin()
     .from("org_members")

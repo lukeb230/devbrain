@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { Reading } from "../panes";
 import { RepoChooser } from "../repo-chooser";
 import { Empty, H1 } from "../ui";
@@ -18,9 +18,7 @@ export const maxDuration = 60; // extraction calls Claude
 export default async function DeskSpecs({ searchParams }: { searchParams: Promise<{ repo?: string; error?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { loadPrs } from "@/lib/desk/prs";
 import { deskScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { PrDetail } from "../detail";
 import { PrPane } from "../pane";
 
@@ -17,9 +17,7 @@ export default async function DeskPrDetail({ params, searchParams }: { params: P
   const n = Number(number);
   if (!Number.isFinite(n)) notFound();
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

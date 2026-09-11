@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { WidgetApp } from "./app";
 import { loadTeamSnapshot } from "@/lib/desk/load";
 
@@ -15,9 +15,7 @@ export const maxDuration = 60; // braindump splitter calls Claude from a server 
 export default async function WidgetPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error: notice } = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=widget");
   const org = await currentOrg();
   if (!org) redirect("/welcome?from=widget");

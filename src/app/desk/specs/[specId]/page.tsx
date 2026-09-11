@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { SpecDetail, SpecPane, type ItemRow, type SpecRow } from "../shared";
 
 // Desk · Spec detail (Dusk): the same list pane with this spec selected, and
@@ -13,9 +13,7 @@ export default async function DeskSpecDetail({ params, searchParams }: { params:
   const { specId } = await params;
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { formatHit, type MemoryHit } from "@/lib/memory";
 import { currentOrg } from "@/lib/org";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { ListPane, Reading } from "../panes";
 import { Empty, Section } from "../ui";
 
@@ -44,9 +44,7 @@ const FILTERS: { key: string; label: string; kinds: Item["kind"][] }[] = [
 export default async function DeskFeed({ searchParams }: { searchParams: Promise<{ repo?: string; q?: string; kind?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

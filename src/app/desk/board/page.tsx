@@ -5,7 +5,7 @@ import { deskScope, withScope } from "@/lib/desk/scope";
 import { pickSuggestedNext, type SuggestedNext } from "@/lib/lanes";
 import { teamMembers } from "@/lib/members";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { DeskNext } from "../desk-next";
 import { ListPane, ListRow, PaneEyebrow, Reading } from "../panes";
 import { RepoChooser } from "../repo-chooser";
@@ -49,9 +49,7 @@ const byBoard = (a: Task, b: Task) => Number(Boolean(b.pinned)) - Number(Boolean
 export default async function DeskBoard({ searchParams }: { searchParams: Promise<{ repo?: string; task?: string; who?: string; error?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

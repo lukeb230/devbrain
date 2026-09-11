@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { loadPrs } from "@/lib/desk/prs";
 import { deskScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { Reading } from "../panes";
 import Link from "next/link";
 import { Empty, H1, Light, Pill, Section } from "../ui";
@@ -20,9 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function DeskPrs({ searchParams }: { searchParams: Promise<{ repo?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

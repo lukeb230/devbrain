@@ -6,7 +6,7 @@ import { teamHints } from "@/lib/desk/team-hints";
 import { installationWritePerms } from "@/lib/github-writer";
 import { currentOrg, hasRole } from "@/lib/org";
 import { FEATURE_CATALOG, RULES_CATALOG, WRITER_CATALOG, type RuleDef } from "@/lib/rules-catalog";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { writeGranted } from "@/lib/writer-gates";
 import { DeskNext } from "../desk-next";
 import { ExternalLink } from "../external-link";
@@ -54,9 +54,7 @@ function RuleRow({ c, on, usable, title, fullName, repoId }: { c: RuleDef; on: b
 export default async function DeskRules({ searchParams }: { searchParams: Promise<{ repo?: string; error?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

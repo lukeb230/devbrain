@@ -4,7 +4,7 @@ import { operatorOrgId } from "@/lib/alerts";
 import { teamHints } from "@/lib/desk/team-hints";
 import { installationWritePerms } from "@/lib/github-writer";
 import { currentOrg, hasRole } from "@/lib/org";
-import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { writeGranted } from "@/lib/writer-gates";
 import { DeskNext } from "../desk-next";
 import { IpcProbe } from "../ipc-probe";
@@ -23,9 +23,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DeskMac() {
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

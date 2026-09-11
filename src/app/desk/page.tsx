@@ -8,7 +8,7 @@ import { loadTeamSnapshot } from "@/lib/desk/load";
 import { buildNeeds } from "@/lib/desk/needs-you";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { Pulse } from "@/app/widget/pulse";
 import { DeskNext } from "./desk-next";
 import { ExternalLink } from "./external-link";
@@ -39,9 +39,7 @@ const EDGE = { stop: "border-l-stop", wait: "border-l-wait", go: "border-l-go" }
 export default async function DeskHome({ searchParams }: { searchParams: Promise<{ repo?: string; error?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

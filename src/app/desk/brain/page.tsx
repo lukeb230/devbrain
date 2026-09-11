@@ -6,7 +6,7 @@ import { cachedBrainDocs } from "@/lib/brain-cache";
 import { staleBrain } from "@/lib/brain-stale";
 import { deskScope, withScope } from "@/lib/desk/scope";
 import { currentOrg } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { ListPane, Reading } from "../panes";
 import { RepoChooser } from "../repo-chooser";
 import { Card, Empty, H1 } from "../ui";
@@ -28,9 +28,7 @@ function esc(s: string) {
 export default async function DeskBrain({ searchParams }: { searchParams: Promise<{ repo?: string; branch?: string; note?: string }> }) {
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");

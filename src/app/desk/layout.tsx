@@ -1,7 +1,7 @@
 import { FONT_VARS } from "@/app/fonts";
 import { redirect } from "next/navigation";
 import { currentOrg, hasRole } from "@/lib/org";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
 import { Jump } from "./jump";
@@ -26,19 +26,15 @@ export const dynamic = "force-dynamic";
 
 export default async function DeskLayout({ children }: { children: React.ReactNode }) {
   const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
   if (!org) redirect("/welcome");
 
-  const { data: repos } = await supabase
-    .from("linked_repos")
-    .select("id, full_name")
-    .eq("org_id", org.orgId)
-    .is("unlinked_at", null)
-    .order("created_at");
+  const [{ data: repos }, billing] = await Promise.all([
+    supabase.from("linked_repos").select("id, full_name").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
+    loadBilling(org.orgId),
+  ]);
 
   // The effective scope (URL, else the remembered repo) — so the switcher
   // shows what the pages actually use.
@@ -47,7 +43,6 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
 
   // Subscription before access: a team without an entitled subscription sees
   // only the plan wall, on every route, until Checkout completes.
-  const billing = await loadBilling(org.orgId);
   const walled = billing ? wallReason({ status: billing.status, hasSubscription: billing.hasSubscription, trialEndsAt: billing.trialEndsAt, periodEnd: billing.periodEnd }) !== null : false;
 
   const initial = (org.login.trim()[0] ?? "?").toUpperCase();

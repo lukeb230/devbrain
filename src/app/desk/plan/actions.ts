@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { requireRoleOrRedirect } from "@/lib/org";
-import { PLANS, TRIAL_DAYS, type PlanId } from "@/lib/billing/plans";
-import { LOOKUP, customerFor, lineItemsFor, planFromLookupKey, stripe, stripeConfigured, stripeIds } from "@/lib/billing/stripe";
+import { PLANS, type PlanId } from "@/lib/billing/plans";
+import { createCheckout } from "@/lib/billing/checkout";
+import { LOOKUP, planFromLookupKey, stripe, stripeConfigured, stripeIds } from "@/lib/billing/stripe";
 import { patchFromSubscription } from "@/lib/billing/sync";
 
 // ============================================================================
@@ -28,28 +29,7 @@ export async function startCheckout(planId: PlanId): Promise<BillingResult> {
 }
 async function startCheckoutInner(planId: PlanId): Promise<BillingResult> {
   const me = await requireRoleOrRedirect("admin", "/desk/team");
-  if (!stripeConfigured()) return { error: "Billing is not configured on this deployment." };
-  const ids = await stripeIds();
-  if (!ids) return { error: "Billing products are not set up yet." };
-  if (!(planId in PLANS)) return { error: "Unknown plan." };
-  const admin = supabaseAdmin();
-  const { data: org } = await admin.from("orgs").select("name, billing_status, stripe_subscription_id").eq("id", me.orgId).single();
-  if (!org) return { error: "Team not found." };
-  if (org.stripe_subscription_id) return { error: "This team already has a subscription — use Manage billing." };
-  const customer = await customerFor(me.orgId, { name: org.name });
-  const firstTime = org.billing_status === "trialing"; // never subscribed → trial; a canceled team pays from day one
-  const session = await stripe().checkout.sessions.create({
-    mode: "subscription",
-    customer,
-    client_reference_id: me.orgId,
-    line_items: lineItemsFor(ids, planId),
-    payment_method_collection: "always",
-    allow_promotion_codes: true,
-    subscription_data: { metadata: { org_id: me.orgId }, ...(firstTime ? { trial_period_days: TRIAL_DAYS } : {}) },
-    success_url: back("/desk/plan?checkout=success"),
-    cancel_url: back("/desk/plan?checkout=canceled"),
-  });
-  return session.url ? { url: session.url } : { error: "Stripe did not return a Checkout URL." };
+  return createCheckout(me.orgId, planId, { success: back("/desk/plan?checkout=success"), cancel: back("/desk/plan?checkout=canceled") });
 }
 
 export async function openPortal(): Promise<BillingResult> {

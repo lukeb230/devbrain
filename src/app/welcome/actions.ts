@@ -60,7 +60,9 @@ export async function createTeam(formData: FormData): Promise<void> {
   jar.set(COOKIE.org, org.id, ORG_COOKIE_OPTS);
   const cookieNext = jar.get(COOKIE.next)?.value ?? "";
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }, ...(cookieNext ? [{ name: COOKIE.next, path: "/" }] : [])]);
-  redirect(formNext || safeNext(cookieNext, "/open?created=1"));
+  // Subscription before download: the browser flow goes to the plan step; the
+  // panel flow lands back in the panel, whose wall card opens the Console.
+  redirect(inPanel ? "/widget" : "/welcome/plan");
 }
 
 export async function useInvite(formData: FormData): Promise<void> {

@@ -51,6 +51,7 @@ export default async function LandingPage({
               <span className="max-w-[260px] text-[12px] leading-[1.5] text-muted">Create or join a team, link a repo, install the Mac app — that&apos;s the whole setup.</span>
             </div>
             <footer className="mt-14 flex gap-4 text-[12px] text-faint">
+              <Link href="/pricing" className="hover:text-txt">Pricing</Link>
               <Link href="/privacy" className="hover:text-txt">Privacy</Link>
               <Link href="/terms" className="hover:text-txt">Terms</Link>
             </footer>

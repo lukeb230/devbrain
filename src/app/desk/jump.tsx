@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { DESK_SECTIONS } from "./sections";
+import { DESK_PAGES } from "./sections";
 
 // ============================================================================
 // ⌘K — jump to anything (Dusk). The toolbar field opens a palette: type to
@@ -77,9 +77,9 @@ export function Jump({ orgs, orgId, switchOrg, repos, remembered }: {
     const query = q.trim().toLowerCase();
     const out: (Hit & { s: number })[] = [];
     const add = (h: Hit, text: string) => { const s = score(query, text); if (s > 0) out.push({ ...h, s }); };
-    for (const g of DESK_SECTIONS) for (const it of g.items) {
+    for (const it of DESK_PAGES) {
       const path = `/desk${it.slug ? `/${it.slug}` : ""}${rq}`;
-      add({ key: `p:${it.slug}`, group: "Pages", label: it.label, hint: g.group, current: pathname === `/desk${it.slug ? `/${it.slug}` : ""}`, go: () => go(path) }, `${it.label} ${g.group}`);
+      add({ key: `p:${it.slug}`, group: "Pages", label: it.label, hint: it.group, current: pathname === `/desk${it.slug ? `/${it.slug}` : ""}`, go: () => go(path) }, `${it.label} ${it.group}`);
     }
     for (const t of index?.tasks ?? []) add({ key: `t:${t.id}`, group: "Tasks", label: t.title, hint: `P${t.priority}${t.who ? ` · ${t.who}` : ""}${repo === "all" ? ` · ${t.repo}` : ""}`, go: () => go(`/desk/board?repo=${t.repo_id}&task=${t.id}`) }, t.title);
     for (const p of index?.prs ?? []) add({ key: `pr:${p.repo_id}:${p.number}`, group: "Pull requests", label: `#${p.number} ${p.title}`, hint: `${p.author ?? ""}${repo === "all" ? ` · ${p.repo}` : ""}`, go: () => go(`/desk/prs/${p.number}?repo=${p.repo_id}`) }, `#${p.number} ${p.title}`);

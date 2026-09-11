@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { sendTestAlert } from "@/app/settings/org/alert-actions";
 import { operatorOrgId } from "@/lib/alerts";
-import { teamHints } from "@/lib/desk/team-hints";
 import { installationWritePerms } from "@/lib/github-writer";
 import { currentOrg, hasRole } from "@/lib/org";
 import { currentUser, supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { writeGranted } from "@/lib/writer-gates";
 import { DeskNext } from "../desk-next";
 import { IpcProbe } from "../ipc-probe";
-import { Reading, TeamPane } from "../panes";
+import { Reading } from "../panes";
 import { Dot } from "../ui";
 import { AppSettings, NotificationSettings } from "./mac-settings";
 
@@ -29,15 +28,14 @@ export default async function DeskMac() {
   if (!org) redirect("/welcome");
   const admin = supabaseAdmin();
 
-  const [{ data: tick }, { data: repos }, { data: jpol }, { data: tokens }, { count: opsOpen }, { count: teamOpen }, operator, hints] = await Promise.all([
+  const [{ data: tick }, { data: repos }, { data: jpol }, { data: tokens }, { count: opsOpen }, { count: teamOpen }, operator] = await Promise.all([
     admin.from("system_state").select("value, updated_at").eq("key", "last_tick").maybeSingle(),
     admin.from("linked_repos").select("id, full_name, installation_id").eq("org_id", org.orgId).is("unlinked_at", null),
     admin.from("policies").select("repo_id, enabled").eq("org_id", org.orgId).eq("rule", "journals"),
     supabase.from("dev_tokens").select("id, label, last_used_at").is("revoked_at", null),
     admin.from("alert_log").select("id", { count: "exact", head: true }).is("org_id", null).is("resolved_at", null),
     admin.from("alert_log").select("id", { count: "exact", head: true }).eq("org_id", org.orgId).is("resolved_at", null),
-    operatorOrgId(),
-    teamHints(org.orgId, user.id, null),
+    operatorOrgId()
   ]);
   const at = tick?.updated_at ? new Date(tick.updated_at) : null;
   const age = at ? Math.round((Date.now() - at.getTime()) / 1000) : null;
@@ -61,8 +59,7 @@ export default async function DeskMac() {
 
   return (
     <>
-      <TeamPane current="mac" hints={hints} />
-      <Reading>
+      <Reading className="mx-auto max-w-[980px]">
         <div className="mb-6">
           <h1 className="font-display text-[30px] font-bold leading-none tracking-[-.03em] text-txt">This Mac</h1>
           <p className="mt-2 text-[13px] text-muted">Preferences for this machine · anything set here is live in the panel immediately</p>

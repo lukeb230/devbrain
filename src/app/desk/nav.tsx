@@ -76,7 +76,7 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
         <div key={g.group}>
           <div className="px-2.5 pb-1 pt-2.5 font-mono text-[9px] uppercase tracking-[.12em] text-faint">{g.group}</div>
           {g.items.map((it) => {
-            const on = active === it.slug;
+            const on = active === it.slug || (it.also ?? []).includes(active);
             return (
               <Link
                 key={it.slug}

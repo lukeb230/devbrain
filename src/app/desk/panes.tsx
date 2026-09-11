@@ -83,10 +83,8 @@ export function TeamPane({ current, hints = {} }: { current: "rules" | "members"
     );
   };
   return (
-    <ListPane title="Team & this Mac">
+    <ListPane title="Team">
       {items.map(row)}
-      <div className="mx-4 my-2.5 border-t border-line" />
-      {row({ key: "mac", label: "This Mac", href: "/desk/mac" })}
     </ListPane>
   );
 }

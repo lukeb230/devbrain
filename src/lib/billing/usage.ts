@@ -4,6 +4,7 @@
 // shared by Team settings, the Plan page and the cap banner.
 // ============================================================================
 
+import { cache } from "react";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { PLANS, isEntitled, planOf, type Plan, type UsageSummary } from "./plans";
 
@@ -31,7 +32,8 @@ function periodOf(row: { period_start: string | null; period_end: string | null 
   return { start, end };
 }
 
-export async function loadBilling(orgId: string): Promise<BillingSnapshot | null> {
+/** Request-cached: the Console layout, the page and the panel loader all ask. */
+export const loadBilling = cache(async (orgId: string): Promise<BillingSnapshot | null> => {
   const admin = supabaseAdmin();
   const { data: org } = await admin
     .from("orgs")
@@ -64,6 +66,6 @@ export async function loadBilling(orgId: string): Promise<BillingSnapshot | null
     overageExhausted: limit !== null && (limit <= 0 || overageCents + plan.extraActionCents > limit),
     hasSubscription: !!org.stripe_subscription_id,
   };
-}
+});
 
 export { PLANS };

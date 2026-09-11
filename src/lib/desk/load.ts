@@ -1,4 +1,5 @@
 import { teamMembers } from "@/lib/members";
+import { teamRepos } from "@/lib/desk/repos";
 import { computeMergePlan } from "@/lib/merge-order";
 import { FEATURE_CATALOG, RULES_CATALOG, WRITER_CATALOG } from "@/lib/rules-catalog";
 import { computeLights } from "@/lib/traffic";
@@ -27,19 +28,18 @@ export async function loadTeamSnapshot(opts: {
   const activeSince = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const daySince = new Date(Date.now() - 24 * 3600_000).toISOString();
 
-  const [members, billingWall] = await Promise.all([
-    teamMembers(org.orgId),
-    (async () => {
-      const { loadBilling } = await import("@/lib/billing/usage");
-      const { WALL_COPY, wallReason } = await import("@/lib/billing/wall");
-      const b = await loadBilling(org.orgId);
-      const r = b ? wallReason({ status: b.status, hasSubscription: b.hasSubscription, trialEndsAt: b.trialEndsAt, periodEnd: b.periodEnd }) : null;
-      return r ? WALL_COPY[r] : null;
-    })(),
-  ]);
-  const [{ data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
+  // ONE wave: members, the billing wall and every list below go out together.
+  const [members, billingWall, { data: repos }, { data: sessions }, { data: prs }, { data: branches }, { data: tasks }, { data: feed }, { data: activity }, { data: handoffs }, { data: journals }] =
     await Promise.all([
-      supabase.from("linked_repos").select("id, full_name, default_branch, installation_id").eq("org_id", org.orgId).is("unlinked_at", null).order("created_at"),
+      teamMembers(org.orgId),
+      (async () => {
+        const { loadBilling } = await import("@/lib/billing/usage");
+        const { WALL_COPY, wallReason } = await import("@/lib/billing/wall");
+        const b = await loadBilling(org.orgId);
+        const r = b ? wallReason({ status: b.status, hasSubscription: b.hasSubscription, trialEndsAt: b.trialEndsAt, periodEnd: b.periodEnd }) : null;
+        return r ? WALL_COPY[r] : null;
+      })(),
+      teamRepos(org.orgId).then((data) => ({ data })),
       supabase.from("sessions").select("id, repo_id, dev_label, summary, last_seen, started_at, agent_kind").is("ended_at", null).gte("last_seen", activeSince).order("last_seen", { ascending: false }),
       supabase.from("prs").select("repo_id, number, title, author, head_sha, review_state, draft, mergeable_state, changed_files, html_url").eq("state", "open").order("updated_at", { ascending: false }).limit(10),
       supabase.from("branches").select("repo_id, name, changed_files, last_push_at").is("merged_at", null),

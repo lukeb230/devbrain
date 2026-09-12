@@ -5,12 +5,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/presence.mjs session_start",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/node.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/presence.mjs\" session_start",
             "timeout": 12
           },
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/auto-update.mjs",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/node.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/auto-update.mjs\"",
             "timeout": 5
           }
         ]
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/presence.mjs session_end",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/node.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/presence.mjs\" session_end",
             "timeout": 8
           }
         ]
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/presence.mjs activity",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/node.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/presence.mjs\" activity",
             "timeout": 8
           }
         ]
@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/check-collision.mjs",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/node.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/check-collision.mjs\"",
             "timeout": 10
           }
         ]
@@ -56,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/live-context.mjs",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/node.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/live-context.mjs\"",
             "timeout": 8
           }
         ]

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { detectHost, editedFile, hostLabel, isEditTool, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
 
@@ -45,5 +46,25 @@ describe("payload normalization", () => {
     expect(relative("/elsewhere/a.ts", "/r")).toBe("/elsewhere/a.ts");
     expect(sessionKey({ conversation_id: "c1" })).toBe("c1");
     expect(sessionKey({ session_id: "s1", conversation_id: "c1" })).toBe("s1");
+  });
+});
+
+describe("the plugin never assumes Node is on PATH", () => {
+  it("routes every hook and the MCP server through node.sh", () => {
+    const hooks = JSON.parse(readFileSync(new URL("../hooks.json", import.meta.url), "utf8")) as {
+      hooks: Record<string, { hooks: { command: string }[] }[]>;
+    };
+    const commands = Object.values(hooks.hooks).flatMap((g) => g.flatMap((x) => x.hooks.map((h) => h.command)));
+    expect(commands.length).toBeGreaterThan(4);
+    for (const c of commands) {
+      expect(c).toContain("hooks/node.sh");
+      // A Mac with no Node installed is the normal case for a customer.
+      expect(c).not.toMatch(/^node /);
+    }
+    const manifest = JSON.parse(readFileSync(new URL("../../.claude-plugin/plugin.json", import.meta.url), "utf8")) as {
+      mcpServers: Record<string, { command: string; args: string[] }>;
+    };
+    expect(manifest.mcpServers.devbrain.command).toBe("sh");
+    expect(manifest.mcpServers.devbrain.args[0]).toContain("node.sh");
   });
 });

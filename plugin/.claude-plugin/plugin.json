@@ -1,14 +1,15 @@
 {
   "name": "devbrain",
   "description": "Connects this Claude to the team's DevBrain: live team context, collision checks, presence, and the shared second brain.",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "author": {
     "name": "DevBrain"
   },
   "mcpServers": {
     "devbrain": {
-      "command": "node",
+      "command": "sh",
       "args": [
+        "${CLAUDE_PLUGIN_ROOT}/hooks/node.sh",
         "${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs"
       ]
     }

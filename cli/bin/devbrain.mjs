@@ -41,7 +41,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
-import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "./lib.mjs";
+import { compareVersions, httpHint, normalizeStep, reexecArgs, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "./lib.mjs";
 import { HOST_NAMES, mergeAgentsMd, mergeCodexConfig, mergeCodexHooks, mergeCursorHooks, mergeCursorMcp, stripCodexConfig, stripCodexHooks, stripCursorHooks, stripMcpJson } from "./hosts.mjs";
 
 // The repo everything is installed from. When the repo goes private this is
@@ -618,12 +618,17 @@ async function updateAll({ skipSource = false } = {}) {
     // summary (and DEVBRAIN_SUMMARY line) on our inherited stdout.
     const runningFromSrc = SELF.startsWith(SRC_DIR + "/");
     if (runningFromSrc && results.source.ok && /updated|cloned|installed/.test(results.source.msg) && !process.env.DEVBRAIN_REEXEC) {
-      const passthru = [...flags].filter((f) => f !== "--no-source");
-      const r = spawnSync(process.execPath, [SELF, "update", "--no-source", ...passthru], {
-        stdio: "inherit", env: { ...process.env, DEVBRAIN_REEXEC: "1" },
-      });
+      // Hand off to the CLI we just installed so the rest of this run uses
+      // current code. Release the lock FIRST: the child takes its own, and
+      // would otherwise see ours — held by a parent that is alive, waiting
+      // on it — and skip every remaining step. That is why a first run used
+      // to stop after "source installed", and why an update after a push
+      // needed running twice.
       log(`  source    ${results.source.msg}`);
       rmSync(lock, { force: true });
+      const r = spawnSync(process.execPath, [SELF, ...reexecArgs(process.argv.slice(2))], {
+        stdio: "inherit", env: { ...process.env, DEVBRAIN_REEXEC: "1" },
+      });
       process.exit(QUIET ? 0 : r.status ?? 0);
     }
   }
@@ -702,7 +707,7 @@ if (cmd === "bootstrap") {
   if (cfg.reminders === undefined) cfg.reminders = true;
   saveConfig(cfg);
   let out;
-  try { out = await updateAll(); }
+  try { out = await updateAll({ skipSource: flags.has("--no-source") }); }
   catch (e) {
     if (JSON_OUT) console.log("DEVBRAIN_SUMMARY " + JSON.stringify({ ok: false, failed: ["bootstrap"], steps: { bootstrap: { ok: false, code: "exception", msg: String(e.message || e) } } }));
     console.error(`bootstrap: ${e.message || e}`);

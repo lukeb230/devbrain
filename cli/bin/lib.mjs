@@ -75,3 +75,16 @@ export function nextCloneName(repoFull, existing) {
   }
   throw new Error("no free clone name");
 }
+
+/** Arguments for the hand-off to a freshly installed CLI.
+ *
+ *  When `update`/`bootstrap` replaces its own source it re-runs itself so the
+ *  rest of the work uses current code. The child must repeat the SAME command
+ *  (bootstrap keeps its --server/--token and its 0/2/1 exit code, which the
+ *  app parses) with --no-source added exactly once. The old version dropped
+ *  every flag's value and always ran "update", so a first run reported
+ *  success having installed nothing but the source. */
+export function reexecArgs(argv) {
+  const args = argv.filter((a) => a !== "--no-source");
+  return [...args, "--no-source"];
+}

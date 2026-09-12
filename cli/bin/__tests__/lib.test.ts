@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareVersions, httpHint, normalizeStep, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "../lib.mjs";
+import { compareVersions, httpHint, normalizeStep, reexecArgs, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "../lib.mjs";
 
 describe("compareVersions", () => {
   it("compares numerically per component", () => {
@@ -60,5 +60,18 @@ describe("nextCloneName", () => {
   it("starts at -2 and fills gaps", () => {
     expect(nextCloneName("lukeb230/faketeam-desk", [])).toBe("faketeam-desk-2");
     expect(nextCloneName("lukeb230/faketeam-desk", ["faketeam-desk-2", "faketeam-desk-4"])).toBe("faketeam-desk-3");
+  });
+});
+
+describe("reexecArgs", () => {
+  it("repeats the same command with --no-source added once", () => {
+    expect(reexecArgs(["update"])).toEqual(["update", "--no-source"]);
+    expect(reexecArgs(["update", "--no-source"])).toEqual(["update", "--no-source"]);
+    expect(reexecArgs(["update", "--force", "--no-source"])).toEqual(["update", "--force", "--no-source"]);
+  });
+  it("keeps bootstrap's flag VALUES — the old code dropped them and ran update", () => {
+    expect(reexecArgs(["bootstrap", "--server", "https://x", "--token", "dbk_1", "--reminders", "off", "--json"])).toEqual([
+      "bootstrap", "--server", "https://x", "--token", "dbk_1", "--reminders", "off", "--json", "--no-source",
+    ]);
   });
 });

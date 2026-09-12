@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 import { installationWritePerms } from "@/lib/github-writer";
 import { operatorOrgId } from "@/lib/alerts";
 import { writeGranted } from "@/lib/writer-gates";
@@ -16,8 +16,8 @@ import { writeGranted } from "@/lib/writer-gates";
 const TICK_STALE_S = 10 * 60;
 
 export async function GET(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
 
   const admin = supabaseAdmin();
   const { data } = await admin.from("system_state").select("value, updated_at").eq("key", "last_tick").maybeSingle();

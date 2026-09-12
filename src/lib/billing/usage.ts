@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { cache } from "react";
+import { loadBeta } from "@/lib/beta";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { PLANS, isEntitled, planOf, type Plan, type UsageSummary } from "./plans";
 
@@ -22,6 +23,8 @@ export interface BillingSnapshot {
   /** Overage spend reached the limit (the AI layer is paused for the period). */
   overageExhausted: boolean;
   hasSubscription: boolean;
+  /** The free beta is on and this team is covered by it. */
+  betaFree: boolean;
 }
 
 function periodOf(row: { period_start: string | null; period_end: string | null }): { start: Date; end: Date } {
@@ -50,21 +53,29 @@ export const loadBilling = cache(async (orgId: string): Promise<BillingSnapshot 
     admin.from("ai_usage").select("overage").eq("org_id", orgId).gte("day", start.toISOString().slice(0, 10)).lt("day", end.toISOString().slice(0, 10)),
   ]);
   const overageActions = (periodRows ?? []).reduce((a, r) => a + (r.overage ?? 0), 0);
-  const comped = org.billing_status === "comped";
+  // The free beta covers every team that never subscribed — including ones
+  // created before the switch was thrown, which are still "trialing" in the
+  // database. A team with a live Stripe subscription is left alone: Stripe is
+  // the authority on what someone is actually paying for.
+  const beta = await loadBeta();
+  const betaFree = beta.free && !org.stripe_subscription_id && org.billing_status !== "active";
+  const status = betaFree ? "comped" : org.billing_status;
+  const comped = status === "comped";
   const limit = comped ? null : (org.overage_limit_cents ?? plan.overageLimitCents);
   const overageCents = overageActions * plan.extraActionCents;
   return {
     plan,
-    status: org.billing_status,
+    status,
     trialEndsAt: org.trial_ends_at,
     periodStart: start.toISOString(),
     periodEnd: end.toISOString(),
     overageLimitCents: limit,
     usage: { seatsUsed: Number(seats ?? 0), actionsToday: todayRow?.calls ?? 0, overageActions },
     overageCents,
-    entitled: isEntitled(org.billing_status, { trialEndsAt: org.trial_ends_at, periodEnd: org.period_end }),
+    entitled: isEntitled(status, { trialEndsAt: org.trial_ends_at, periodEnd: org.period_end }),
     overageExhausted: limit !== null && (limit <= 0 || overageCents + plan.extraActionCents > limit),
     hasSubscription: !!org.stripe_subscription_id,
+    betaFree,
   };
 });
 

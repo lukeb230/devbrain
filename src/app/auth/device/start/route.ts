@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
+import { publicLimit } from "@/lib/api-guard";
+import { clientIp } from "@/lib/client-ip";
 import { COOKIE, NEXT_COOKIE_OPTS } from "@/lib/cookies";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
@@ -20,6 +22,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const channel = SCHEME[url.searchParams.get("channel") ?? ""] ? (url.searchParams.get("channel") as string) : "stable";
   const self = `/auth/device/start?channel=${channel}`;
+  // This route mints a one-time token and writes a row; bound it per IP even
+  // though it also needs a session.
+  if (publicLimit(clientIp(request), "device_start")) {
+    return NextResponse.redirect(`${url.origin}/?from=widget&device_error=${encodeURIComponent("too many attempts — wait a minute")}`);
+  }
 
   const supabase = await supabaseServer();
   const {

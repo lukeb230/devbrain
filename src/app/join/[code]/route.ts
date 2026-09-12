@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { COOKIE, ORG_COOKIE_OPTS, clearDevbrainCookies, readCookieHeader } from "@/lib/cookies";
 import { safeNext } from "@/lib/panel-routes";
+import { publicLimit } from "@/lib/api-guard";
+import { FULL_MESSAGE, hasRoom, loadBeta, platformCounts } from "@/lib/beta";
 import { joinLimiter } from "@/lib/ratelimit";
 import { clientIp } from "@/lib/client-ip";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
@@ -18,7 +20,10 @@ import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const url = new URL(request.url);
-  if (!joinLimiter.take(clientIp(request))) {
+  const ip = clientIp(request);
+  // Two ceilings: this instance's own (free, instant) and the platform-wide
+  // one (shared by every instance, so a spread-out flood still trips).
+  if (!joinLimiter.take(ip) || publicLimit(ip, "join")) {
     return NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent("Too many attempts — wait a minute and try again.")}`);
   }
   const explicitNext = safeNext(url.searchParams.get("next"), "");
@@ -48,6 +53,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "member");
   const { data: existing } = await admin.from("org_members").select("org_id").eq("org_id", inv.org_id).eq("user_id", user.id).maybeSingle();
   if (!existing) {
+    // The people cap counts distinct people, so it only bites when someone
+    // new to DevBrain arrives — a member of one team joining a second is free.
+    const beta = await loadBeta(true);
+    if (beta.maxMembers !== null) {
+      const { count: already } = await admin.from("org_members").select("org_id", { count: "exact", head: true }).eq("user_id", user.id);
+      if (!already && !hasRoom(beta, await platformCounts(), "member")) return fail(FULL_MESSAGE);
+    }
     const { error } = await admin.from("org_members").insert({ org_id: inv.org_id, user_id: user.id, role: inv.role, github_login: login });
     if (error) return fail("Could not join the team. Try the link again.");
     await admin.from("org_invites").update({ uses: inv.uses + 1 }).eq("id", inv.id);

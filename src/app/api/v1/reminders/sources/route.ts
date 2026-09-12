@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // ============================================================================
 // Reminders sources for collectors — GET /api/v1/reminders/sources
@@ -9,14 +9,10 @@ import { resolveDevToken } from "@/lib/token";
 // (or `devbrain reminders add|remove`, which POST/DELETE here).
 // ============================================================================
 
-async function org(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  return auth;
-}
 
 export async function GET(request: Request) {
-  const auth = await org(request);
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   const admin = supabaseAdmin();
   const { data } = await admin
     .from("reminder_sources")
@@ -36,8 +32,8 @@ export async function GET(request: Request) {
 
 /** Body: { list, repo } — map a list to a repo (replaces an existing mapping for that list). */
 export async function POST(request: Request) {
-  const auth = await org(request);
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   const body = await request.json().catch(() => null);
   const list = String(body?.list ?? "").trim().slice(0, 120);
   const repoName = String(body?.repo ?? "").trim();
@@ -60,8 +56,8 @@ export async function POST(request: Request) {
 
 /** Body: { list } — remove a mapping. */
 export async function DELETE(request: Request) {
-  const auth = await org(request);
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   const body = await request.json().catch(() => null);
   const list = String(body?.list ?? "").trim();
   if (!list) return NextResponse.json({ error: "list required" }, { status: 400 });

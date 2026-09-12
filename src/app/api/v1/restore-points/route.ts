@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // POST /api/v1/restore-points — called from deploy.sh (curl) or CI.
 // Body: { repo, tag?, sha, bundle_hash?, migration_version?, lambda_versions?,
 //         db_snapshot_id?, environment?, notes? }
 export async function POST(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
 
   const body = await request.json().catch(() => null);
   if (!body?.repo || !body?.sha) {

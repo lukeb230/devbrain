@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
+import { publicLimit } from "@/lib/api-guard";
 import { deviceLimiter } from "@/lib/ratelimit";
 import { clientIp } from "@/lib/client-ip";
 
@@ -16,7 +17,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
   const fail = (why: string) => NextResponse.redirect(`${url.origin}/?from=widget&device_error=${encodeURIComponent(why)}`);
-  if (!deviceLimiter.take(clientIp(request))) return fail("too many attempts — wait a minute");
+  const ip = clientIp(request);
+  if (!deviceLimiter.take(ip) || publicLimit(ip, "device")) return fail("too many attempts — wait a minute");
   if (!token.startsWith("dbd_")) return fail("bad token");
 
   const admin = supabaseAdmin();

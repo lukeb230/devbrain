@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // POST /api/v1/broadcasts — a Claude (or dev) sends a live heads-up to every
 // teammate and their Claudes. Lands on the dashboard feed and in every active
 // session's next delta injection.
 // Body: { repo: "owner/name", text: "About to change the Store API signature" }
 export async function POST(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
 
   const body = await request.json().catch(() => null);
   const text = String(body?.text || "").trim().slice(0, 300);

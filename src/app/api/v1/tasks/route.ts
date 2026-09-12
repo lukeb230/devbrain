@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 import { pickSuggestedNext } from "@/lib/lanes";
 
 // ============================================================================
@@ -25,8 +25,8 @@ async function repoFor(auth: { org_id: string }, repoFull: string) {
 }
 
 export async function GET(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   const url = new URL(request.url);
   const repoFull = url.searchParams.get("repo") ?? "";
   const repo = await repoFor(auth, repoFull);
@@ -45,8 +45,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   const body = await request.json().catch(() => null);
   if (!body?.repo) return NextResponse.json({ error: "repo required" }, { status: 400 });
   const repo = await repoFor(auth, String(body.repo));

@@ -41,7 +41,7 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
           {billing.plan.name} · {STATUS_LABEL[billing.status] ?? billing.status}
           {trialDays !== null && billing.trialEndsAt && ` · trial ends ${fmtDate(billing.trialEndsAt)} (${trialDays} day${trialDays === 1 ? "" : "s"})`}
           {billing.status === "active" && ` · renews ${fmtDate(billing.periodEnd)}`}
-          {billing.status === "comped" && " · no invoice for this team"}
+          {billing.betaFree ? " · free during the beta" : billing.status === "comped" ? " · no invoice for this team" : ""}
         </p>
         {sp.checkout === "success" && <p className="mt-4 rounded-[10px] border border-[var(--wg-go-line)] bg-[var(--wg-go-bg)] px-3.5 py-2.5 text-[13px] text-go">Subscription started. Stripe will email the receipt; the trial converts automatically when it ends.</p>}
         {sp.checkout === "canceled" && <p className="mt-4 rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3.5 py-2.5 text-[13px] text-wait">Checkout was closed before finishing — nothing was started.</p>}
@@ -52,8 +52,8 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
               <div className="flex items-baseline"><h3 className="m-0 font-display text-[18px] font-medium text-txt">Usage this period</h3><span className="ml-auto font-mono text-[10.5px] text-faint">{fmtDate(billing.periodStart)} – {fmtDate(billing.periodEnd)}</span></div>
               <div className="mt-3">
                 <Counter label="seats" value={billing.usage.seatsUsed} of={billing.plan.seats} hint={est.extraSeats > 0 ? `${est.extraSeats} extra · ${dollars(billing.plan.extraSeatCents)} each` : "included"} />
-                <Counter label="actions today" value={billing.usage.actionsToday} of={billing.plan.actionsPerDay} hint={billing.usage.actionsToday >= billing.plan.actionsPerDay ? "past the allowance — overage" : "resets 00:00 UTC"} />
-                <Counter label="overage" value={dollars(billing.overageCents)} of={billing.overageLimitCents === null ? "no limit" : dollars(billing.overageLimitCents)} hint={`${billing.usage.overageActions} actions · ${dollars(billing.plan.extraActionCents)} each`} tone={billing.overageExhausted ? "stop" : undefined} />
+                <Counter label="actions today" value={billing.usage.actionsToday} of={billing.plan.actionsPerDay} hint={billing.usage.actionsToday >= billing.plan.actionsPerDay ? (billing.betaFree ? "allowance used — resumes 00:00 UTC" : "past the allowance — overage") : "resets 00:00 UTC"} />
+                {!billing.betaFree && <Counter label="overage" value={dollars(billing.overageCents)} of={billing.overageLimitCents === null ? "no limit" : dollars(billing.overageLimitCents)} hint={`${billing.usage.overageActions} actions · ${dollars(billing.plan.extraActionCents)} each`} tone={billing.overageExhausted ? "stop" : undefined} />}
               </div>
               {billing.overageExhausted && <p className="mt-3 text-[12.5px] leading-[1.6] text-stop">Overage limit reached — reviews, journals and digests pause until the period ends. Raise the limit or upgrade.</p>}
               {isAdmin && billing.overageLimitCents !== null && (
@@ -70,7 +70,9 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
             </section>
 
             <Section title="Your invoice, if the period closed now">
-              {billing.status === "comped" ? (
+              {billing.betaFree ? (
+                <p className="mt-2 text-[12.5px] leading-[1.6] text-muted">Nothing — DevBrain is free while the beta runs. Your team keeps {billing.plan.actionsPerDay} AI actions a day and unlimited seats, repos and teammates. You&apos;ll hear from us before that changes, and nothing starts charging on its own.</p>
+              ) : billing.status === "comped" ? (
                 <p className="mt-2 text-[12.5px] text-muted">Complimentary — nothing is billed.</p>
               ) : (
                 <div className="mt-2.5 text-[13px]">
@@ -85,7 +87,7 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
           </div>
 
           <div>
-            <Section className="" title="Plans" hint="per team · 7-day trial">
+            <Section className="" title="Plans" hint={billing.betaFree ? "after the beta" : "per team · 7-day trial"}>
               <div className="mt-2.5 grid gap-3">
                 {(["base", "scale"] as const).map((id) => {
                   const p = PLANS[id];
@@ -103,6 +105,7 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
                 })}
               </div>
               {billing.status !== "comped" && <BillingButtons plan={billing.plan.id} hasSubscription={billing.hasSubscription} canManage={isAdmin} />}
+              {billing.betaFree && <p className="mt-3 text-[12.5px] leading-[1.6] text-muted">These are the plans DevBrain will charge for when the beta ends. Nothing to do now — there is no card on file and no trial counting down.</p>}
               <p className="mt-3 text-[11.5px] leading-[1.6] text-faint">A seat is any identity with a session in the period — a person on Claude Code or Cursor, or a spawned agent session. Extra seats and actions are metered on the same invoice; nothing is blocked mid-month.</p>
             </Section>
           </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { formatHit, type MemoryHit } from "@/lib/memory";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // ============================================================================
 // Team memory search — GET /api/v1/memory/search?repo=&q=&limit=
@@ -12,8 +12,8 @@ import { resolveDevToken } from "@/lib/token";
 // ============================================================================
 
 export async function GET(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
 
   const url = new URL(request.url);
   const repoName = url.searchParams.get("repo");

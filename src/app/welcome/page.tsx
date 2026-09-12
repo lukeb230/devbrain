@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { signupBlock } from "@/lib/beta";
 import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { BrowserShell } from "../browser-shell";
@@ -19,6 +20,8 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
   const { invite_error, from } = await searchParams;
   const inPanel = from === "widget";
   const ctx = await currentOrg();
+  // Say the beta is full here rather than after someone types a team name.
+  const full = await signupBlock("team");
   const m = (user.user_metadata ?? {}) as Record<string, unknown>;
   const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "there");
   const input = "min-w-0 flex-1 rounded-lg border border-line2 bg-ink px-3 py-[9px] text-[13px] text-txt placeholder:text-faint focus:border-accent focus:outline-none";
@@ -34,12 +37,18 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
 
         <section className="mt-6 rounded-xl border border-line bg-row p-4">
           <div className="font-display text-[17px] font-medium text-txt">Create a team</div>
-          <p className="mb-2.5 mt-1 text-[12.5px] text-muted">You&apos;ll be its owner. Link repos and invite people next.</p>
-          <form action={createTeam} className={row}>
-            {inPanel && <input type="hidden" name="next" value="/widget" />}
-            <input name="name" required maxLength={60} placeholder="Team name" className={input} />
-            <button className="whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-[9px] text-[12.5px] font-semibold text-white">Create team</button>
-          </form>
+          {full ? (
+            <p className="mt-1 text-[12.5px] leading-[1.6] text-muted">{full} An invite link from someone already on DevBrain still works.</p>
+          ) : (
+            <>
+              <p className="mb-2.5 mt-1 text-[12.5px] text-muted">You&apos;ll be its owner. Link repos and invite people next.</p>
+              <form action={createTeam} className={row}>
+                {inPanel && <input type="hidden" name="next" value="/widget" />}
+                <input name="name" required maxLength={60} placeholder="Team name" className={input} />
+                <button className="whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-[9px] text-[12.5px] font-semibold text-white">Create team</button>
+              </form>
+            </>
+          )}
         </section>
 
         <section className="mt-3 rounded-xl border border-line bg-row p-4">

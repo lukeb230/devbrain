@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { buildDigest } from "@/lib/digest";
 import type { MemoryHit } from "@/lib/memory";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // ============================================================================
 // Context digest — injected into Claude Code sessions at SessionStart.
@@ -14,8 +14,8 @@ import { resolveDevToken } from "@/lib/token";
 const ACTIVE_WINDOW_MIN = 15;
 
 export async function GET(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
 
   const params = new URL(request.url).searchParams;
   const repoName = params.get("repo");

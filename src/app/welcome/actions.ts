@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { loadBeta, signupBlock } from "@/lib/beta";
 import { COOKIE, ORG_COOKIE_OPTS, clearDevbrainCookies } from "@/lib/cookies";
 import { safeNext } from "@/lib/panel-routes";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
@@ -45,11 +46,27 @@ export async function createTeam(formData: FormData): Promise<void> {
     }
   }
 
+  // Capacity gate: the beta has a ceiling on teams and on people, because
+  // every team costs AI budget out of one shared platform allowance. Checked
+  // here, at the only place a new team can appear.
+  const full = await signupBlock("team");
+  if (full) redirect(`/welcome?invite_error=${encodeURIComponent(full)}${inPanel ? "&from=widget" : ""}`);
+
+  // Free beta: teams created while it runs are comped and stay comped when it
+  // ends, until they are deliberately converted. orgs.beta marks the cohort.
+  const beta = await loadBeta();
+
   const base = slugify(name);
   let org: { id: string } | null = null;
   for (let attempt = 0; attempt < 3 && !org; attempt++) {
     const slug = attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
-    const { data } = await admin.from("orgs").insert({ name, slug }).select("id").single();
+    const { data } = await admin
+      .from("orgs")
+      // overage_limit_cents 0: free, but not unlimited — a beta team gets the
+      // plan's daily AI allowance and then pauses until tomorrow.
+      .insert({ name, slug, ...(beta.free ? { beta: true, billing_status: "comped", overage_limit_cents: 0 } : {}) })
+      .select("id")
+      .single();
     org = data;
   }
   if (!org) redirect(`/welcome?invite_error=${encodeURIComponent("Could not create the team. Try again.")}${inPanel ? "&from=widget" : ""}`);
@@ -62,7 +79,8 @@ export async function createTeam(formData: FormData): Promise<void> {
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }, ...(cookieNext ? [{ name: COOKIE.next, path: "/" }] : [])]);
   // Subscription before download: the browser flow goes to the plan step; the
   // panel flow lands back in the panel, whose wall card opens the Console.
-  redirect(inPanel ? "/widget" : "/welcome/plan");
+  // During the free beta there is nothing to pay, so skip straight to the app.
+  redirect(inPanel ? "/widget" : beta.free ? "/open?created=1" : "/welcome/plan");
 }
 
 export async function useInvite(formData: FormData): Promise<void> {

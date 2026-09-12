@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 import { ingestLimiter } from "@/lib/ratelimit";
 
 // ============================================================================
@@ -28,8 +28,8 @@ async function ownSession(admin: ReturnType<typeof supabaseAdmin>, id: unknown, 
 const cap = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : null);
 
 export async function POST(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   if (!ingestLimiter.take(`${auth.org_id}:${auth.label}`)) {
     return NextResponse.json({ error: "rate limited — a hook is posting far faster than a session edits" }, { status: 429 });
   }

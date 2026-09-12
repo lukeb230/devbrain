@@ -1059,5 +1059,13 @@ export async function POST(request: Request) {
     did.billing_error = String(err).slice(0, 300);
   }
 
+  // ---- 1.11 Housekeeping: drop yesterday's rate-limit windows -----------
+  // Fixed-window counters accumulate one row per bucket per window. Nothing
+  // reads a closed window, so sweeping keeps the table a working set.
+  try {
+    const { data: swept } = await admin.rpc("rate_sweep");
+    if (swept) did.rate_swept = swept;
+  } catch {}
+
   return NextResponse.json({ ok: true, ...did });
 }

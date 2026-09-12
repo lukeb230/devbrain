@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PlanPicker } from "@/app/billing/plan-picker";
+import { loadBeta } from "@/lib/beta";
 import { PLANS, dollars } from "@/lib/billing/plans";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -17,6 +18,7 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   const org = user ? await currentOrg() : null;
+  const beta = await loadBeta();
   const rows: [string, string, string][] = [
     ["Price", `${dollars(PLANS.base.priceCents)} / month`, `${dollars(PLANS.scale.priceCents)} / month`],
     ["Seats included", String(PLANS.base.seats), String(PLANS.scale.seats)],
@@ -32,6 +34,11 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
         <div className="font-mono text-[10.5px] uppercase tracking-[.14em] text-accent">Pricing</div>
         <h1 className="mt-2 font-display text-[34px] font-medium tracking-[-.02em] text-txt">Per team, not per seat</h1>
         <p className="mt-2 max-w-[58ch] text-[14px] leading-[1.6] text-muted">One price for the whole team, a bucket of seats that counts people and their agents the same, and metered extras on the same invoice. Nothing is blocked mid-month.</p>
+        {beta.free && (
+          <p className="mt-5 rounded-[10px] border border-[var(--wg-go-line)] bg-[var(--wg-go-bg)] px-3.5 py-2.5 text-[13px] leading-[1.6] text-go">
+            DevBrain is free while the beta runs. No card, no trial clock — teams that join now keep {PLANS.base.actionsPerDay} AI actions a day and hear from us before anything changes. The prices below are what it will cost afterwards.
+          </p>
+        )}
 
         <div className="mt-8 overflow-x-auto rounded-xl border border-line bg-row">
           <table className="w-full text-[13.5px]">
@@ -45,7 +52,13 @@ export default async function Pricing({ searchParams }: { searchParams: Promise<
         </div>
 
         <div className="mt-8">
-          {org ? (
+          {beta.free ? (
+            org ? (
+              <p className="text-[13.5px] text-muted">{org.orgName} is on the free beta — there is nothing to pay and nothing to set up. <Link href="/desk/plan" className="text-accent hover:underline">See the team&apos;s usage</Link>.</p>
+            ) : (
+              <p className="text-[13.5px] text-muted"><Link href="/" className="text-accent hover:underline">Sign in with GitHub</Link> to create a team. Free while the beta runs.</p>
+            )
+          ) : org ? (
             <PlanPicker back="/pricing" canBuy={hasRole(org.role, "admin")} error={sp.billing_error} />
           ) : (
             <p className="text-[13.5px] text-muted"><Link href="/" className="text-accent hover:underline">Sign in with GitHub</Link> to create a team and start the trial.</p>

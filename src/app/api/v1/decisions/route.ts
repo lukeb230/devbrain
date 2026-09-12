@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // POST /api/v1/decisions — Claudes (via MCP) log team-visible decisions.
 // Body: { repo: "owner/name", text: "We chose X over Y because Z" }
 export async function POST(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
 
   const body = await request.json().catch(() => null);
   const text = String(body?.text || "").trim().slice(0, 500);

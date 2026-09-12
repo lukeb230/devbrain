@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { resolveDevToken } from "@/lib/token";
 
 // ============================================================================
 // Session handoffs (Bearer <dev token>).
@@ -11,8 +11,8 @@ import { resolveDevToken } from "@/lib/token";
 // ============================================================================
 
 export async function POST(request: Request) {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await apiAuth(request);
+  if ("denied" in auth) return auth.denied;
   const body = await request.json().catch(() => null);
   if (!body?.repo) return NextResponse.json({ error: "repo required" }, { status: 400 });
 

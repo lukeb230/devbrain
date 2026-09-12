@@ -17,7 +17,8 @@ export default function Privacy() {
         DevBrain coordinates coding-agent sessions across a team. To do that it stores
         <em> metadata about your work</em> — who is active, which files were touched, task and PR
         records, and short redacted session summaries. It does <strong>not</strong> store your source
-        code, and it never writes anything back to your GitHub repositories.
+        code. By default it does not write to your GitHub repositories; a team admin can turn on
+        three specific writes per repo, described below.
       </Section>
 
       <Section title="What we store">
@@ -38,13 +39,29 @@ export default function Privacy() {
         To generate PR reviews and journal summaries, DevBrain sends the relevant material — a PR
         <em> diff</em>, or a redacted session excerpt — to {LEGAL.aiProvider} for processing. That content
         is <strong>not retained by DevBrain</strong> beyond the resulting review or summary, and the diff
-        itself is never stored in our database — only the verdict and summary are kept. Your GitHub
-        access is scoped by the DevBrain GitHub App&apos;s permissions, which are read-oriented.
+        itself is never stored in our database — only the verdict and summary are kept.
+      </Section>
+
+      <Section title="Writing to your repositories">
+        DevBrain reads repository metadata through its GitHub App. Writing is <strong>off by
+        default</strong> and is enabled per repository by a team admin, one rule at a time. There are
+        exactly three, and no other code path in DevBrain writes to GitHub:
+        <ul className="ml-5 mt-2 list-disc space-y-1.5">
+          <li><strong>Update a pull-request branch</strong> — bring an open PR up to date with its base.</li>
+          <li><strong>Merge a pull request</strong> — only one that already carries the approval your
+          repository&apos;s own branch protection requires.</li>
+          <li><strong>Open a revert pull request</strong> — a new branch and PR you then review.</li>
+        </ul>
+        <p className="mt-2">
+          Nothing pushes to a default branch, nothing commits outside a pull request, and every write
+          is recorded as an auditable event your team can see in the Feed.
+        </p>
       </Section>
 
       <Section title="What we never do">
         <ul className="ml-5 list-disc space-y-1.5">
-          <li>Store your source code, or post anything to your GitHub repositories.</li>
+          <li>Store your source code.</li>
+          <li>Push to a default branch, or commit outside a pull request.</li>
           <li>Store API keys or tokens in readable form — dev tokens are kept only as hashes.</li>
           <li>Share your data with other teams. Every record is scoped to one team.</li>
         </ul>

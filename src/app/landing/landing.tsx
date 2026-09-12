@@ -2,7 +2,7 @@ import Link from "next/link";
 import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
 import { SignInButton } from "../sign-in-button";
-import { ConsoleWindow, Dot, PanelWindow } from "./app-shots";
+import { ConsoleWindow, Dot, SessionCard } from "./app-shots";
 import { IncentiveModal } from "./incentive-modal";
 import { GUARD, Terminal } from "./terminal";
 import { TryIt } from "./try-it";
@@ -71,7 +71,7 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
 
         <div className="mt-7 flex flex-wrap items-center gap-4">
           {full ? <EmailForm source="beta_full" className="w-full max-w-[430px]" /> : <SignInButton next={signInNext} />}
-          <span className="text-[13px] text-muted">Read-only GitHub sign-in · no card · nothing installed yet</span>
+          <span className="text-[13px] text-muted">GitHub sign-in only — no repository access at this step · no card</span>
         </div>
 
         {beta.free && spotsLeft !== null && !full && (
@@ -84,7 +84,7 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
 
         <div className="mt-12 hidden sm:mt-14 lg:block">
           <ConsoleWindow />
-          <p className="mt-3 font-mono text-[12px] text-muted">The Console · synthetic team data</p>
+          <p className="mt-3 font-mono text-[12px] text-muted">The Console’s Home page · synthetic team data</p>
         </div>
       </Section>
 
@@ -93,10 +93,10 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
         <H2>Your agents are working blind.</H2>
         <Lede>Two sessions, one file. Neither one knows about the other, and you find out at the merge.</Lede>
         <div className="mt-8 flex flex-wrap gap-5">
-          <PanelWindow tone="go" name="Nova" host="Claude Code" rows={[["writing", "src/api/auth.ts"], ["branch", "feat/login"]]} />
-          <PanelWindow tone="go" name="Kai" host="Cursor" rows={[["writing", "src/api/auth.ts"], ["branch", "refactor/session-guard"]]} />
+          <SessionCard tone="go" name="Nova" host="Claude Code" rows={[["writing", "src/api/auth.ts"], ["branch", "feat/login"]]} />
+          <SessionCard tone="go" name="Kai" host="Cursor" rows={[["writing", "src/api/auth.ts"], ["branch", "refactor/session-guard"]]} />
         </div>
-        <p className="mt-6 flex items-center gap-2.5 text-[14px] text-muted"><Dot tone="stop" />Forty minutes of work, done twice.</p>
+        <p className="mt-6 flex items-center gap-2.5 text-[14px] text-muted"><Dot tone="stop" />The same work, done twice.</p>
       </Section>
 
       {/* ---- 2. the fix --------------------------------------------------- */}
@@ -173,7 +173,7 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
               </Lede>
               <div className="mt-7"><SignInButton next={signInNext} /></div>
               <p className="mt-3 text-[13px] text-muted">
-                Read-only GitHub sign-in · nothing installed yet{beta.free ? " · free while the beta runs" : ""}.
+                GitHub sign-in only — no repository access at this step{beta.free ? " · free while the beta runs" : ""}.
               </p>
               <div className="mt-9 border-t border-line pt-6">
                 <p className="text-[13.5px] text-muted">Not ready today? Leave an address.</p>

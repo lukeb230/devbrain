@@ -3,7 +3,7 @@ import Link from "next/link";
 import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
 import { PLANS, TRIAL_DAYS, dollars } from "@/lib/billing/plans";
-import { ConsoleWindow, Dot, PanelWindow, PrWindow } from "@/app/landing/app-shots";
+import { ConsoleWindow, Dot, SessionCard, PrWindow } from "@/app/landing/app-shots";
 import { BRIEF, GUARD, Terminal } from "@/app/landing/terminal";
 import { TryIt } from "@/app/landing/try-it";
 import { BrowserShell } from "../browser-shell";
@@ -78,14 +78,14 @@ export default async function HowItWorks() {
         <Section className="pt-20 sm:pt-24">
           <H2>Your agents start reporting, without being asked.</H2>
           <Lede>
-            One command installs it. After that, every session announces itself to the team — which
+            Two commands in Claude Code — add the marketplace, install the plugin. After that, every session announces itself to the team — which
             repo, which branch, which files it is touching — and lets go when it ends. Nobody types a
             status. A session you spawned yourself counts the same as a teammate, because to everyone
             else on the team the difference does not matter.
           </Lede>
           <div className="mt-8 flex flex-wrap gap-5">
-            <PanelWindow tone="wait" name="Kai" host="Cursor" rows={[["holding", "src/api/**"], ["branch", "refactor/session-guard"], ["since", "24 minutes ago"]]} />
-            <PanelWindow tone="go" name="Rio" host="Codex" rows={[["writing", "tests/auth.spec.ts"], ["branch", "chore/coverage"], ["since", "8 minutes ago"]]} />
+            <SessionCard tone="wait" name="Kai" host="Cursor" rows={[["holding", "src/api/**"], ["branch", "refactor/session-guard"], ["since", "24 minutes ago"]]} />
+            <SessionCard tone="go" name="Rio" host="Codex" rows={[["writing", "tests/auth.spec.ts"], ["branch", "chore/coverage"], ["since", "8 minutes ago"]]} />
           </div>
         </Section>
 
@@ -166,7 +166,7 @@ export default async function HowItWorks() {
               { q: "Does it see my source code?", a: <>No. It stores metadata — who is active, which files were touched, pull-request records and redacted session summaries. Not file contents. The <Link href="/privacy" className="text-accenttext hover:underline">privacy page</Link> lists every field it keeps.</> },
               { q: "Do we all have to use the same agent?", a: <>No. Claude Code, Cursor and Codex report the same way and see each other. A team can be split across all three.</> },
               { q: "What about sessions I spawn myself?", a: <>They are teammates too, with their own presence and claims — which is where most collisions come from in the first place.</> },
-              { q: "Does it write to my repositories?", a: <>Its GitHub access is read-oriented and it does not push code. It reads pull-request metadata through a GitHub App you install per repo.</> },
+              { q: "Does it write to my repositories?", a: <>Not by default. An admin can enable three specific writes per repo — update a PR branch, merge a PR that already has the approval your branch protection requires, and open a revert PR. Nothing pushes to a default branch, and every write is auditable. The <Link href="/privacy" className="text-accenttext hover:underline">privacy page</Link> lists them.</> },
               { q: "Do I need the Mac app?", a: <>The coordination runs in a CLI and an agent plugin. The Console and the live panel are a Mac app today; other platforms are not built yet.</> },
               { q: "What does it cost?", a: <>{beta.free ? <>Nothing while the beta runs — no card, no trial counting down. Afterwards {dollars(PLANS.base.priceCents)} or {dollars(PLANS.scale.priceCents)} a month for the whole team, not per seat.</> : <>{dollars(PLANS.base.priceCents)} or {dollars(PLANS.scale.priceCents)} a month for the whole team, not per seat, with a {TRIAL_DAYS}-day trial.</>} <Link href="/pricing" className="text-accenttext hover:underline">See the plans</Link>.</> },
             ].map((f) => (

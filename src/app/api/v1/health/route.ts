@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { installationWritePerms } from "@/lib/github-writer";
 import { operatorOrgId } from "@/lib/alerts";
 import { writeGranted } from "@/lib/writer-gates";
-import { apiKey } from "@/lib/agent";
+import { anthropicHeaders, apiKey, workspaceId } from "@/lib/agent";
 
 // ============================================================================
 // Health — GET /api/v1/health · Auth: Bearer <dev token>.
@@ -22,8 +22,8 @@ function keyFingerprint() {
   const names = ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY", "claude_api_key"] as const;
   const from = names.find((n) => process.env[n]) ?? null;
   const k = apiKey();
-  if (!k) return { from: null, masked: null, length: 0 };
-  return { from, masked: `${k.slice(0, 15)}…${k.slice(-4)}`, length: k.length };
+  if (!k) return { from: null, masked: null, length: 0, workspace_id_set: Boolean(workspaceId()) };
+  return { from, masked: `${k.slice(0, 15)}…${k.slice(-4)}`, length: k.length, workspace_id_set: Boolean(workspaceId()) };
 }
 
 /** One cheap live call, so the provider's current verdict is in the payload
@@ -35,7 +35,7 @@ async function probeProvider(): Promise<{ status: number | null; ok: boolean; er
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": k, "anthropic-version": "2023-06-01" },
+      headers: anthropicHeaders(k),
       body: JSON.stringify({ model: process.env.DEVBRAIN_AGENT_MODEL || "claude-sonnet-4-5", max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
     });
     if (res.ok) return { status: res.status, ok: true, error: null };

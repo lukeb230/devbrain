@@ -28,6 +28,29 @@ export function agentConfigured(): boolean {
   return Boolean(apiKey());
 }
 
+/** Which workspace to bill, for an ORGANISATION-level key.
+ *  A workspace-scoped key carries its own workspace and needs none of this;
+ *  an org-level key is refused outright without it:
+ *    "This API key is not scoped to a workspace, so this request must include
+ *     the anthropic-workspace-id header with the ID of the workspace to use."
+ *  Optional by design — set it only when the key is org-level. */
+export function workspaceId(): string {
+  return (process.env.ANTHROPIC_WORKSPACE_ID || "").trim();
+}
+
+/** The headers every call shares. One builder so the three call sites — two
+ *  here, one in the health probe — cannot drift apart. */
+export function anthropicHeaders(key = apiKey(), workspace = workspaceId()): Record<string, string> {
+  const h: Record<string, string> = {
+    "content-type": "application/json",
+    "x-api-key": key,
+    "anthropic-version": "2023-06-01",
+  };
+  // Only when set: an empty header is worse than an absent one.
+  if (workspace) h["anthropic-workspace-id"] = workspace;
+  return h;
+}
+
 export function agentModel(): string {
   return process.env.DEVBRAIN_AGENT_MODEL || "claude-sonnet-4-5";
 }
@@ -161,11 +184,7 @@ export async function askClaude(
   try {
     res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey(),
-        "anthropic-version": "2023-06-01",
-      },
+      headers: anthropicHeaders(),
       body: JSON.stringify({
         model: agentModel(),
         max_tokens: maxTokens,
@@ -212,11 +231,7 @@ export async function askClaudeBlocks(
   try {
     res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey(),
-        "anthropic-version": "2023-06-01",
-      },
+      headers: anthropicHeaders(),
       body: JSON.stringify({
         model: agentModel(),
         max_tokens: maxTokens,

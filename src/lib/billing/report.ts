@@ -69,7 +69,39 @@ export async function reportUsage(now = new Date()): Promise<ReportSummary> {
     out.seats++;
   }
   await trialAlerts(now);
+  await betaEndingAlerts(now);
   return out;
+}
+
+/** One notice per team as the announced end of the free beta approaches, from
+ *  a week out. A beta that ends without warning turns every team's Console
+ *  into a wall they did not see coming — which is how you lose the people who
+ *  turned up first. Keyed by the date so it fires once. */
+export async function betaEndingAlerts(now = new Date()): Promise<void> {
+  const { loadBeta } = await import("@/lib/beta");
+  const beta = await loadBeta(true);
+  if (!beta.free || !beta.endsAt) return;
+  const ends = new Date(beta.endsAt);
+  const days = Math.ceil((ends.getTime() - now.getTime()) / 86_400_000);
+  if (days > 7 || days < 0) return;
+
+  const admin = supabaseAdmin();
+  const { data: orgs } = await admin
+    .from("orgs")
+    .select("id")
+    .eq("beta", true)
+    .is("stripe_subscription_id", null);
+  const { alert } = await import("@/lib/alerts");
+  const { TRIAL_DAYS } = await import("./plans");
+  for (const o of orgs ?? []) {
+    await alert({
+      scope: { orgId: o.id },
+      key: `billing.beta_ending.${beta.endsAt.slice(0, 10)}`,
+      severity: "info",
+      title: `The free beta ends ${ends.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      detail: `Nothing changes today and nothing is charged automatically — there is no card on file. When the beta ends your team gets a ${TRIAL_DAYS}-day trial to decide. Everything you have built is kept either way. Console → Plan has the details.`,
+    });
+  }
 }
 
 /** One alert per team when a paid trial ends within two days (the wall

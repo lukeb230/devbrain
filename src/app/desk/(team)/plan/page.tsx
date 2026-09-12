@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { setOverageLimit } from "@/app/settings/org/actions";
-import { PLANS, dollars, estimateInvoice, scaleSavingsCents } from "@/lib/billing/plans";
+import { PLANS, TRIAL_DAYS, dollars, estimateInvoice, scaleSavingsCents } from "@/lib/billing/plans";
 import { loadBilling, type BillingSnapshot } from "@/lib/billing/usage";
 import { WALL_COPY, wallReason } from "@/lib/billing/wall";
 import { currentOrg, hasRole } from "@/lib/org";
@@ -38,7 +38,7 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
       <Reading>
         <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Plan</h1>
         <p className="mt-2 text-[13px] text-muted">
-          {billing.betaFree ? `Free beta · ${billing.plan.actionsPerDay} AI actions a day, no card, no trial clock` : `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}`}
+          {billing.betaFree ? `Free beta · ${billing.plan.actionsPerDay} AI actions a day, no card${billing.betaEndsAt ? ` · ends ${fmtDate(billing.betaEndsAt)}` : ", no trial clock"}` : `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}`}
           {trialDays !== null && billing.trialEndsAt && ` · trial ends ${fmtDate(billing.trialEndsAt)} (${trialDays} day${trialDays === 1 ? "" : "s"})`}
           {billing.status === "active" && ` · renews ${fmtDate(billing.periodEnd)}`}
           {!billing.betaFree && billing.status === "comped" && " · no invoice for this team"}
@@ -71,7 +71,12 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
 
             <Section title="Your invoice, if the period closed now">
               {billing.betaFree ? (
-                <p className="mt-2 text-[12.5px] leading-[1.6] text-muted">Nothing — DevBrain is free while the beta runs. Your team keeps {billing.plan.actionsPerDay} AI actions a day and unlimited seats, repos and teammates. You&apos;ll hear from us before that changes, and nothing starts charging on its own.</p>
+                <p className="mt-2 text-[12.5px] leading-[1.6] text-muted">
+                  Nothing — DevBrain is free while the beta runs. Your team keeps {billing.plan.actionsPerDay} AI actions a day and unlimited seats, repos and teammates.
+                  {billing.betaEndsAt
+                    ? ` The beta ends ${fmtDate(billing.betaEndsAt)}; your team then gets a ${TRIAL_DAYS}-day trial to decide, and nothing is charged without you entering a card.`
+                    : " You'll hear from us before that changes, and nothing starts charging on its own."}
+                </p>
               ) : billing.status === "comped" ? (
                 <p className="mt-2 text-[12.5px] text-muted">Complimentary — nothing is billed.</p>
               ) : (

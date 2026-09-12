@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { cache } from "react";
-import { loadBeta } from "@/lib/beta";
+import { coversTeam, loadBeta } from "@/lib/beta";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { PLANS, isEntitled, planOf, type Plan, type UsageSummary } from "./plans";
 
@@ -25,6 +25,8 @@ export interface BillingSnapshot {
   hasSubscription: boolean;
   /** The free beta is on and this team is covered by it. */
   betaFree: boolean;
+  /** When the free beta has been announced to end, if it has been. */
+  betaEndsAt: string | null;
 }
 
 function periodOf(row: { period_start: string | null; period_end: string | null }): { start: Date; end: Date } {
@@ -58,7 +60,7 @@ export const loadBilling = cache(async (orgId: string): Promise<BillingSnapshot 
   // database. A team with a live Stripe subscription is left alone: Stripe is
   // the authority on what someone is actually paying for.
   const beta = await loadBeta();
-  const betaFree = beta.free && !org.stripe_subscription_id && org.billing_status !== "active";
+  const betaFree = coversTeam(beta, { status: org.billing_status, hasSubscription: !!org.stripe_subscription_id });
   const status = betaFree ? "comped" : org.billing_status;
   const comped = status === "comped";
   const limit = comped ? null : (org.overage_limit_cents ?? plan.overageLimitCents);
@@ -76,6 +78,7 @@ export const loadBilling = cache(async (orgId: string): Promise<BillingSnapshot 
     overageExhausted: limit !== null && (limit <= 0 || overageCents + plan.extraActionCents > limit),
     hasSubscription: !!org.stripe_subscription_id,
     betaFree,
+    betaEndsAt: betaFree ? beta.endsAt : null,
   };
 });
 

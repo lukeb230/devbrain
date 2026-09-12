@@ -1,4 +1,4 @@
-import { loadBeta } from "@/lib/beta";
+import { coversTeam, loadBeta } from "@/lib/beta";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // The one-word hints on the Team group's list pane (Dusk): repo for Rules,
@@ -24,7 +24,7 @@ export async function teamHints(orgId: string, userId: string, repoName: string 
   const trialDays = orgRow?.billing_status === "trialing" && orgRow.trial_ends_at ? Math.max(0, Math.ceil((new Date(orgRow.trial_ends_at).getTime() - Date.now()) / 86_400_000)) : null;
   // Mirrors loadBilling: while the beta is free, a team that never subscribed
   // reads as free, whatever the row says.
-  const betaFree = (await loadBeta()).free && !orgRow?.stripe_subscription_id && orgRow?.billing_status !== "active";
+  const betaFree = coversTeam(await loadBeta(), { status: orgRow?.billing_status ?? "", hasSubscription: !!orgRow?.stripe_subscription_id });
   const planText = betaFree ? "free beta" : orgRow?.billing_status === "comped" ? "comped" : orgRow?.billing_status === "trialing" ? (trialDays === null ? "trial" : `trial · ${trialDays}d`) : orgRow?.billing_status === "past_due" ? "payment failed" : orgRow?.billing_status === "canceled" ? "canceled" : orgRow?.plan === "scale" ? "Scale" : "Base";
   return {
     plan: { text: planText, tone: betaFree ? "muted" : orgRow?.billing_status === "past_due" || orgRow?.billing_status === "canceled" || (trialDays !== null && trialDays <= 2) ? "wait" : "muted" },

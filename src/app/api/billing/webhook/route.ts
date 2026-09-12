@@ -32,6 +32,14 @@ async function syncSubscription(sub: Stripe.Subscription, orgHint?: string | nul
   const admin = supabaseAdmin();
   await admin.from("orgs").update(patch).eq("id", orgId);
   if (patch.plan) await admin.from("orgs").update({ ai_daily_cap: PLANS[patch.plan].actionsPerDay }).eq("id", orgId);
+  // A beta team carries overage_limit_cents = 0 — the leash that keeps a free
+  // team to its daily allowance. It is the beta's, not the customer's (the
+  // limit form is hidden while a team is comped, so nobody chose it). Once
+  // they are paying, drop it, or they would buy a plan and still be paused at
+  // the allowance they had for free.
+  if (patch.stripe_subscription_id) {
+    await admin.from("orgs").update({ overage_limit_cents: null }).eq("id", orgId).eq("beta", true).eq("overage_limit_cents", 0);
+  }
   return orgId;
 }
 

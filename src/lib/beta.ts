@@ -24,9 +24,11 @@ export interface BetaState {
   free: boolean;
   maxTeams: number | null;
   maxMembers: number | null;
+  /** Announced end of the free beta, so teams are told before it happens. */
+  endsAt: string | null;
 }
 
-export const BETA_OFF: BetaState = { free: false, maxTeams: null, maxMembers: null };
+export const BETA_OFF: BetaState = { free: false, maxTeams: null, maxMembers: null, endsAt: null };
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
 
@@ -39,9 +41,19 @@ export async function loadBeta(fresh = false): Promise<BetaState> {
   if (!fresh && cached && Date.now() - cached.at < 30_000) return cached.value;
   const { data } = await supabaseAdmin().from("system_state").select("value").eq("key", "beta").maybeSingle();
   const v = (data?.value ?? {}) as Record<string, unknown>;
-  const value: BetaState = { free: v.free === true, maxTeams: num(v.max_teams), maxMembers: num(v.max_members) };
+  const endsAt = typeof v.ends_at === "string" && !Number.isNaN(Date.parse(v.ends_at)) ? v.ends_at : null;
+  const value: BetaState = { free: v.free === true, maxTeams: num(v.max_teams), maxMembers: num(v.max_members), endsAt };
   cached = { at: Date.now(), value };
   return value;
+}
+
+/** Does the free beta cover this team? The rule in one place, because three
+ *  surfaces ask it and they must agree: a team that never subscribed is free
+ *  (including one created before the switch, still "trialing" in the
+ *  database), and a team with a live Stripe subscription is left alone —
+ *  Stripe is the authority on what someone is actually paying for. */
+export function coversTeam(beta: BetaState, team: { status: string; hasSubscription: boolean }): boolean {
+  return beta.free && !team.hasSubscription && team.status !== "active";
 }
 
 export interface PlatformCounts {

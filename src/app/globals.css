@@ -44,8 +44,11 @@
   /* Dusk — light by default (2026-09-08); dark is an explicit choice, or "system" when macOS is dark. */
   --wg-ink: #f4f1ea; --wg-row: #fbfaf6; --wg-pane: #f8f6f0; --wg-row2: #ebe6da; --wg-line: #e3ded2; --wg-line2: #d6d0c2; --wg-line3: #c8c2b4;
   --wg-txt: #1d1b17; --wg-body: #3a3630; --wg-prose: #2a2722; --wg-muted: #6b675e; --wg-faint: #9b968a;
-  --wg-go: #1d9a55; --wg-wait: #a86b12; --wg-stop: #d1353a;
-  --wg-accent: #c9554c; --wg-accent-strong: #d9645b; --wg-on-accent: #ffffff;
+  --wg-go: #1d9a55; --wg-wait: #a86b12; --wg-stop: #bc2a2f;
+  --wg-accent: #c9554c; --wg-accent-strong: #c14b43; --wg-on-accent: #ffffff;
+  /* Accent as TEXT. #c9554c is 3.81:1 on the ground and fails AA; this is 4.83:1.
+     --wg-accent stays the identity colour for borders, dots and the mark. */
+  --wg-accent-text: #b4453d;
   --wg-coral-ink: #fbe8e5; --wg-coral-line: #f0b8b2; --wg-coral-deep: #fdf1ef;
   --wg-code: #3a3630; --wg-code-bg: #1d1b17; --wg-code-fg: #f4f1ea; --wg-violet: #4f46e5; --wg-violet-line: #d6d0f2; --wg-violet-bg: #e8e4f8;
   --wg-go-bg: #e6f6ec; --wg-go-line: #a9dfc0; --wg-wait-bg: #fcf1dc; --wg-wait-line: #edcf92; --wg-stop-bg: #fde8e8; --wg-stop-line: #f3b3b5;
@@ -57,7 +60,8 @@
   --wg-ink: #131218; --wg-row: #18171e; --wg-pane: #15141a; --wg-row2: #262129; --wg-line: #26242e; --wg-line2: #322f3b; --wg-line3: #3d3947;
   --wg-txt: #efe9df; --wg-body: #d9d3c8; --wg-prose: #e4dfd5; --wg-muted: #8e8a99; --wg-faint: #5f5b6b;
   --wg-go: #5ad18e; --wg-wait: #f0b652; --wg-stop: #ff5a5f;
-  --wg-accent: #ec8b82; --wg-accent-strong: #d9645b; --wg-on-accent: #ffffff;
+  --wg-accent: #ec8b82; --wg-accent-strong: #c14b43; --wg-on-accent: #ffffff;
+  --wg-accent-text: #ec8b82;   /* 7.6:1 on the dark ground; no separate value needed */
   --wg-coral-ink: #3a1f22; --wg-coral-line: #5a2e31; --wg-coral-deep: #2a1a1d;
   --wg-code: #c9cdda; --wg-code-bg: #0b0a0e; --wg-code-fg: #d9d3c8; --wg-violet: #b9a8ff; --wg-violet-line: #3a3352; --wg-violet-bg: #2a2340;
   --wg-go-bg: #17301f; --wg-go-line: #2a4a38; --wg-wait-bg: #3a2c12; --wg-wait-line: #5a4320; --wg-stop-bg: #3d1c1e; --wg-stop-line: #5a2a2d;
@@ -142,5 +146,5 @@ html[data-wg-theme="dark"] .wg { @apply wg-dark; }
 }
 /* Brain tab inside the panel: graph strokes and search dropdown on the ground */
 .wg .wg-brain-search input { width: 100%; }
-.wg svg line { stroke: var(--wg-graph-line); }
+.wg svg line:not([stroke]) { stroke: var(--wg-graph-line); }
 .wg svg text { fill: var(--wg-muted); }

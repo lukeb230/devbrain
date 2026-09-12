@@ -1,68 +1,74 @@
 // ============================================================================
-// The hero diagram: three agents, one shared picture.
+// The hero figure: an edit being stopped.
 //
-// Not a screenshot and not pretending to be one — a diagram of the thing the
-// page claims. Lines are SVG so they sit behind; the nodes are HTML so labels
-// render in the real faces and take the theme tokens.
+// This replaced a hub-and-spoke diagram. Hub-and-spoke draws CONNECTION —
+// three things orbiting a logo — and it is the default dev-infra hero picture,
+// used by everyone, decided by nothing. This product's claim is INTERRUPTION,
+// which needs the one thing that diagram had no way to show: a before and an
+// after, with something stopped in between.
 //
-// The amber node is the point: Kai is holding a lane, which is why Nova's edit
-// into it is the one that stops.
-//
-// Positions are the CENTRE of each node in percent, and the SVG uses the same
-// percentage space (viewBox 0 0 100 100 + preserveAspectRatio="none") so a
-// line drawn to a node's coordinates actually lands on the node.
+// So this reads top to bottom as a sequence: Kai holds a lane, Nova's write
+// heads into it, DevBrain stops it. The amber and the stop-red are the app's
+// own status vocabulary, and every state is labelled in words as well as
+// colour — the previous version encoded the whole point in a 6px dot with no
+// legend, which is invisible to a deuteranope and unexplained to everyone.
 // ============================================================================
 
-const HUB = { x: 50, y: 50 };
+function Dot({ tone }: { tone: "go" | "wait" | "stop" }) {
+  const bg = tone === "go" ? "bg-go" : tone === "wait" ? "bg-wait" : "bg-stop";
+  return <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${bg}`} />;
+}
 
-const NODES = [
-  { x: 24, y: 15, name: "Nova", host: "Claude Code", line: "editing api/auth.ts", tone: "bg-go" },
-  { x: 75, y: 13, name: "Kai", host: "Cursor", line: "claimed src/ui/**", tone: "bg-wait" },
-  { x: 40, y: 86, name: "Rio", host: "Codex", line: "writing tests", tone: "bg-go" },
-] as const;
+function Row({ tone, name, host, children }: { tone: "go" | "wait" | "stop"; name: string; host: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line bg-row px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,.06)]">
+      <div className="flex items-center gap-1.5">
+        <Dot tone={tone} />
+        <span className="font-display text-[12.5px] font-medium text-txt">{name}</span>
+        <span className="ml-auto font-mono text-[9px] uppercase tracking-[.08em] text-muted">{host}</span>
+      </div>
+      <div className="mt-1 font-mono text-[10.5px] leading-[1.5] text-muted">{children}</div>
+    </div>
+  );
+}
 
 export function Constellation() {
   return (
-    <div className="relative mx-auto aspect-[5/4] w-full max-w-[440px] overflow-hidden" aria-hidden="true">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
-        {NODES.map((n) => (
-          <line
-            key={n.name}
-            x1={n.x}
-            y1={n.y}
-            x2={HUB.x}
-            y2={HUB.y}
-            stroke="var(--wg-accent)"
-            strokeWidth="0.45"
-            strokeDasharray="2 2"
-            opacity="0.75"
-          />
-        ))}
-      </svg>
+    <figure className="mx-auto w-full max-w-[420px]">
+      <div className="grid gap-2">
+        <Row tone="wait" name="Kai" host="Cursor">
+          holding <span className="text-txt">src/api/**</span> — refactoring the session guard
+        </Row>
 
-      {/* the hub */}
-      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-2xl border border-coralline bg-coralink px-5 py-4 shadow-[0_10px_30px_var(--wg-glow)]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brain.png" width={38} height={31} alt="" />
-        <div className="font-display text-[13px] font-semibold tracking-[-.01em] text-txt">DevBrain</div>
-        <div className="whitespace-nowrap font-mono text-[9px] uppercase tracking-[.1em] text-accent">one shared picture</div>
+        <div className="flex items-center gap-2 pl-4" aria-hidden="true">
+          <span className="h-5 w-px bg-line2" />
+          <span className="font-mono text-[9.5px] uppercase tracking-[.1em] text-muted">meanwhile</span>
+        </div>
+
+        <Row tone="go" name="Nova" host="Claude Code">
+          about to write <span className="text-txt">src/api/auth.ts</span>
+        </Row>
+
+        {/* The interruption. This is the whole figure. */}
+        <div className="relative rounded-xl border border-[var(--wg-stop-line)] bg-[var(--wg-stop-bg)] px-3.5 py-3">
+          <div className="flex items-center gap-1.5">
+            <Dot tone="stop" />
+            <span className="font-display text-[12.5px] font-medium text-stop">Stopped</span>
+            <span className="ml-auto flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[.08em] text-muted">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brain.png" width={16} height={13} alt="" />
+              DevBrain
+            </span>
+          </div>
+          <div className="mt-1 text-[11.5px] leading-[1.5] text-body">
+            That file is in Kai&apos;s lane. Coordinate first, or approve it deliberately.
+          </div>
+        </div>
       </div>
 
-      {/* the agents */}
-      {NODES.map((n) => (
-        <div
-          key={n.name}
-          className="absolute w-[44%] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-line bg-row px-3 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,.07)]"
-          style={{ left: `${n.x}%`, top: `${n.y}%` }}
-        >
-          <div className="flex items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${n.tone}`} />
-            <span className="font-display text-[12.5px] font-medium text-txt">{n.name}</span>
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-[.08em] text-faint">{n.host}</span>
-          </div>
-          <div className="mt-1 font-mono text-[10px] text-muted">{n.line}</div>
-        </div>
-      ))}
-    </div>
+      <figcaption className="mt-3 font-mono text-[9.5px] uppercase tracking-[.1em] text-muted">
+        Before the write, not after the merge
+      </figcaption>
+    </figure>
   );
 }

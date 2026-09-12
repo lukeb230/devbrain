@@ -15,7 +15,7 @@ const config: Config = {
         ink: "var(--wg-ink)", row: "var(--wg-row)", pane: "var(--wg-pane)", row2: "var(--wg-row2)", line: "var(--wg-line)", line2: "var(--wg-line2)", line3: "var(--wg-line3)",
         txt: "var(--wg-txt)", body: "var(--wg-body)", prose: "var(--wg-prose)", muted: "var(--wg-muted)", faint: "var(--wg-faint)",
         go: "var(--wg-go)", wait: "var(--wg-wait)", stop: "var(--wg-stop)",
-        accent: "var(--wg-accent)", accent2: "var(--wg-accent-strong)", coralink: "var(--wg-coral-ink)", coralline: "var(--wg-coral-line)",
+        accent: "var(--wg-accent)", accenttext: "var(--wg-accent-text)", accent2: "var(--wg-accent-strong)", coralink: "var(--wg-coral-ink)", coralline: "var(--wg-coral-line)",
         violet: "var(--wg-violet)", violetbg: "var(--wg-violet-bg)", codebg: "var(--wg-code-bg)", codefg: "var(--wg-code-fg)",
         brand: {
           50: "#fdf1ef",

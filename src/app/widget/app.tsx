@@ -151,7 +151,8 @@ async function rerunBootstrap(): Promise<BootstrapResult> {
   return (await core.invoke("bootstrap", { server: window.location.origin, token: null, remindersList: null, remindersRepo: null })) as BootstrapResult;
 }
 
-function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; repos: WidgetData["repos"]; canAdmin: boolean; onDone: () => void }) {
+function SetupScreen({ state, repos, canAdmin, teams, teamId, onDone }: { state: SetupState; repos: WidgetData["repos"]; canAdmin: boolean; teams: WidgetData["teams"]; teamId: string; onDone: () => void }) {
+  const [org, setOrg] = useState(teamId);
   const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
   const [syncReminders, setSyncReminders] = useState(true);
   const [list, setList] = useState("");
@@ -179,7 +180,7 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
         say("Using the token already on this Mac.");
       } else {
         say("Creating a token for this Mac…");
-        const minted = await mintDeviceToken(label);
+        const minted = await mintDeviceToken(label, org);
         if ("error" in minted) throw new Error(minted.error);
         say(`Token "${minted.label}" created.`);
         token = minted.token;
@@ -243,6 +244,17 @@ function SetupScreen({ state, repos, canAdmin, onDone }: { state: SetupState; re
             Bundled Node isn&apos;t runnable ({state.node}). This build may be incomplete — re-download the latest release, or tell your team admin.
           </div>
         )}
+        <label className="block text-xs">
+          <span className="mb-1 block font-medium text-slate-700">Team this Mac joins</span>
+          {teams.length > 1 ? (
+            <select value={org} onChange={(e) => setOrg(e.target.value)} disabled={busy}
+              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs focus:border-brand-500 focus:outline-none">
+              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          ) : (
+            <span className="block rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">{teams[0]?.name ?? "your team"}</span>
+          )}
+        </label>
         <label className="block text-xs">
           <span className="mb-1 block font-medium text-slate-700">Name for this Mac (shows on the team board)</span>
           <input value={label} onChange={(e) => setLabel(e.target.value)} disabled={busy}
@@ -434,7 +446,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   if (setup && !setup.configured) {
     let skipped = false;
     try { skipped = sessionStorage.getItem("devbrain_skip_setup") === "1"; } catch { /* private mode */ }
-    if (!skipped) return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} onDone={() => window.location.reload()} />;
+    if (!skipped) return <SetupScreen state={setup} repos={data.repos} canAdmin={data.canAdmin} teams={data.teams} teamId={data.teamId} onDone={() => window.location.reload()} />;
   }
 
   const isMe = (name: string | null | undefined) => Boolean(data.self && name && name.toLowerCase() === data.self.toLowerCase());

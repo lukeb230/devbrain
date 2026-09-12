@@ -152,19 +152,6 @@ export function PanelWindow({ tone, name, host, rows }: { tone: Tone; name: stri
   );
 }
 
-/** An agent's terminal. */
-export function TerminalWindow({ title, children, caption }: { title: string; children: React.ReactNode; caption?: string }) {
-  return (
-    <div>
-      <figure className="lp-win bg-codebg">
-        <TitleBar title={title} dark />
-        <pre className="overflow-x-auto whitespace-pre-wrap px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]">{children}</pre>
-      </figure>
-      {caption && <figcaption className="mt-3 font-mono text-[12px] text-muted">{caption}</figcaption>}
-    </div>
-  );
-}
-
 /** Pull requests with traffic lights and computed merge order. */
 export function PrWindow() {
   return (

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { loadBeta, platformCounts } from "@/lib/beta";
+import { LEGAL } from "@/lib/legal";
 import { SignInButton } from "../sign-in-button";
-import { ConsoleWindow, Dot, PanelWindow, TerminalWindow } from "./app-shots";
+import { ConsoleWindow, Dot, PanelWindow } from "./app-shots";
+import { IncentiveModal } from "./incentive-modal";
+import { COLLISION, Terminal } from "./terminal";
+import { TryIt } from "./try-it";
 import { EmailForm } from "./email-form";
 
 // ============================================================================
@@ -99,17 +103,19 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
       <Section className="pt-20 sm:pt-24">
         <H2>DevBrain stops the second one.</H2>
         <Lede>Before your agent writes to a file, it already knows whether a teammate is holding it.</Lede>
-        <div className="mt-8">
-          <TerminalWindow title="nova — claude code — northwind/api" caption="The warning your agent prints, word for word">
-{`› Edit src/api/auth.ts
+        <Terminal
+          className="mt-8"
+          title="nova — claude code — northwind/api"
+          lines={COLLISION}
+          caption="The warning your agent prints, word for word"
+        />
 
-⏺ DevBrain: src/api/auth.ts is being worked on right now by
-  Kai (claimed: refactoring the session guard). Editing it anyway
-  risks a collision — coordinate first, or approve to proceed
-  deliberately.
-
-? Proceed anyway?   ❯ No, coordinate first    Yes, I know`}
-          </TerminalWindow>
+        <div className="mt-14">
+          <h3 className="font-display text-[19px] font-medium tracking-[-.02em] text-txt">Try it yourself.</h3>
+          <p className="mt-2 max-w-[52ch] text-[14px] leading-[1.6] text-muted">
+            Two of these files are being worked on right now. Pick any one and watch what your agent does.
+          </p>
+          <div className="mt-6"><TryIt /></div>
         </div>
       </Section>
 
@@ -168,14 +174,19 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
       </Section>
 
       <Section className="pt-14">
-        <footer className="flex flex-wrap items-center gap-5 border-t border-line2 pt-6 text-[13px] text-muted">
-          <span>DevBrain</span>
-          <Link href="/how-it-works" className="-my-2 py-2 hover:text-txt">How it works</Link>
-          <Link href="/pricing" className="-my-2 py-2 hover:text-txt">Pricing</Link>
-          <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
-          <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
+        <footer className="border-t border-line2 pt-6">
+          <div className="flex flex-wrap items-center gap-5 text-[13px] text-muted">
+            <span>DevBrain</span>
+            <Link href="/how-it-works" className="-my-2 py-2 hover:text-txt">How it works</Link>
+            <Link href="/pricing" className="-my-2 py-2 hover:text-txt">Pricing</Link>
+            <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
+            <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
+          </div>
+          <p className="mt-5 max-w-[86ch] text-[12px] leading-[1.6] text-muted">{LEGAL.trademarks}</p>
         </footer>
       </Section>
+
+      {beta.free && spotsLeft !== null && !full && <IncentiveModal spotsLeft={spotsLeft} maxTeams={beta.maxTeams ?? 0} />}
     </main>
   );
 }

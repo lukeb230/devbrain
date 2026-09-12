@@ -40,7 +40,7 @@ export default async function LandingPage({
 
   if (!inPanel) {
     return (
-      <BrowserShell>
+      <BrowserShell className="wg-dark">
         <Landing nextParam={nextParam} from={from} notice={notice} />
       </BrowserShell>
     );

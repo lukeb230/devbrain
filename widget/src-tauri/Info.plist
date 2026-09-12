@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- What macOS shows in its permission prompts. Tauri merges this file into
+       the bundle's Info.plist. Reminders asks twice — once to control the app
+       (Apple Events), once to read the lists — so both strings say the same
+       thing in the user's terms. -->
+  <key>NSRemindersUsageDescription</key>
+  <string>DevBrain turns items on the Reminders lists your team mapped into tasks on the board, and ticks them off when the task is done.</string>
+  <key>NSRemindersFullAccessUsageDescription</key>
+  <string>DevBrain turns items on the Reminders lists your team mapped into tasks on the board, and ticks them off when the task is done.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>DevBrain reads the Reminders lists your team mapped so their items can become tasks on the board.</string>
+</dict>
+</plist>

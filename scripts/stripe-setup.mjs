@@ -51,10 +51,15 @@ async function product(key, name) {
   if (found) return found;
   return stripe.products.create({ name, metadata: { devbrain_key: key } });
 }
-async function price(lookupKey, params) {
+async function price(lookupKey, params, { rename = false } = {}) {
   const found = (await stripe.prices.list({ lookup_keys: [lookupKey], limit: 1 })).data[0];
-  if (found) return found;
-  return stripe.prices.create({ lookup_key: lookupKey, currency: "usd", ...params });
+  if (found) {
+    // Same price already carries this key. Only replace it when it now belongs
+    // under a different product (Checkout shows the PRODUCT name, so the seat
+    // and action lines need their own) — the new price takes the lookup key.
+    if (!rename || found.product === params.product) return found;
+  }
+  return stripe.prices.create({ lookup_key: lookupKey, currency: "usd", transfer_lookup_key: !!found, ...params });
 }
 
 const seatMeter = await meter(METER_EVENT.seat, "DevBrain extra seats");
@@ -63,10 +68,13 @@ const ids = { mode, prices: {}, meters: { seat: seatMeter.id, action: actionMete
 for (const plan of ["base", "scale"]) {
   const prod = await product(`plan_${plan}`, PLANS[plan].name);
   ids.prices[`${plan}_flat`] = (await price(LOOKUP.flat[plan], { product: prod.id, unit_amount: PLANS[plan].flat, recurring: { interval: "month" } })).id;
-  ids.prices[`${plan}_seat`] = (await price(LOOKUP.seat[plan], { product: prod.id, unit_amount: PLANS[plan].seat, recurring: { interval: "month", usage_type: "metered", meter: seatMeter.id }, nickname: `${PLANS[plan].name} · extra seat` })).id;
+  // Its own product: Stripe Checkout labels each line with the PRODUCT name,
+  // so sharing one made the page read "DevBrain Base" twice.
+  const seatProd = await product(`seat_${plan}`, `${PLANS[plan].name} — extra seat`);
+  ids.prices[`${plan}_seat`] = (await price(LOOKUP.seat[plan], { product: seatProd.id, unit_amount: PLANS[plan].seat, recurring: { interval: "month", usage_type: "metered", meter: seatMeter.id } }, { rename: true })).id;
 }
-const actionProd = await product("actions", "DevBrain extra AI actions");
-ids.prices.action = (await price(LOOKUP.action, { product: actionProd.id, unit_amount: ACTION_CENTS, recurring: { interval: "month", usage_type: "metered", meter: actionMeter.id } })).id;
+const actionProd = await product("actions", "DevBrain — extra AI actions");
+ids.prices.action = (await price(LOOKUP.action, { product: actionProd.id, unit_amount: ACTION_CENTS, recurring: { interval: "month", usage_type: "metered", meter: actionMeter.id } }, { rename: true })).id;
 
 console.log(JSON.stringify(ids, null, 2));
 console.error(`\nStore this as system_state.stripe (${mode} mode).`);

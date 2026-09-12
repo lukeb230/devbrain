@@ -153,7 +153,10 @@ async function rerunBootstrap(): Promise<BootstrapResult> {
 
 function SetupScreen({ state, repos, canAdmin, teams, teamId, onDone }: { state: SetupState; repos: WidgetData["repos"]; canAdmin: boolean; teams: WidgetData["teams"]; teamId: string; onDone: () => void }) {
   const [org, setOrg] = useState(teamId);
-  const [label, setLabel] = useState(state.hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-mac");
+  // The Mac's own name, as its owner wrote it ("Luke's MacBook Pro") — it
+  // shows next to their work on the team board, so it should read like a
+  // person's machine rather than a slug.
+  const [label, setLabel] = useState(state.hostname.trim().slice(0, 60) || "my-mac");
   const [syncReminders, setSyncReminders] = useState(true);
   const [list, setList] = useState("");
   // Default the repo to the one whose name matches the list name, else the
@@ -226,7 +229,7 @@ function SetupScreen({ state, repos, canAdmin, teams, teamId, onDone }: { state:
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         <p className="text-xs leading-relaxed text-slate-600">
           One click installs the CLI, the Claude Code plugin (presence hooks included), the daily updater and — if you want — Reminders sync.
-          macOS will ask for two permissions along the way (Notifications, Reminders). Nothing else to install
+          macOS asks for a permission or two along the way — Notifications, and Reminders if you leave the box below ticked (it asks twice there: once to control the app, once to read the lists). Nothing else to install
           {state.node_ok ? " — Node is bundled with the app." : "."}
         </p>
         {!state.in_applications && (

@@ -38,10 +38,10 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
       <Reading>
         <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Plan</h1>
         <p className="mt-2 text-[13px] text-muted">
-          {billing.plan.name} · {STATUS_LABEL[billing.status] ?? billing.status}
+          {billing.betaFree ? `Free beta · ${billing.plan.actionsPerDay} AI actions a day, no card, no trial clock` : `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}`}
           {trialDays !== null && billing.trialEndsAt && ` · trial ends ${fmtDate(billing.trialEndsAt)} (${trialDays} day${trialDays === 1 ? "" : "s"})`}
           {billing.status === "active" && ` · renews ${fmtDate(billing.periodEnd)}`}
-          {billing.betaFree ? " · free during the beta" : billing.status === "comped" ? " · no invoice for this team" : ""}
+          {!billing.betaFree && billing.status === "comped" && " · no invoice for this team"}
         </p>
         {sp.checkout === "success" && <p className="mt-4 rounded-[10px] border border-[var(--wg-go-line)] bg-[var(--wg-go-bg)] px-3.5 py-2.5 text-[13px] text-go">Subscription started. Stripe will email the receipt; the trial converts automatically when it ends.</p>}
         {sp.checkout === "canceled" && <p className="mt-4 rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3.5 py-2.5 text-[13px] text-wait">Checkout was closed before finishing — nothing was started.</p>}

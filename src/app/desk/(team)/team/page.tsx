@@ -61,7 +61,7 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
             </Section>
 
             <section className="mt-7 rounded-xl border border-line bg-row px-5 py-[18px]">
-              <div className="flex items-baseline"><h3 className="m-0 font-display text-[18px] font-medium text-txt">Plan</h3><span className="ml-auto font-mono text-[10.5px] text-faint">{billing ? `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}` : "—"}</span></div>
+              <div className="flex items-baseline"><h3 className="m-0 font-display text-[18px] font-medium text-txt">Plan</h3><span className="ml-auto font-mono text-[10.5px] text-faint">{billing ? (billing.betaFree ? "free beta" : `${billing.plan.name} · ${STATUS_LABEL[billing.status] ?? billing.status}`) : "—"}</span></div>
               {billing && (
                 <div className="mt-3">
                   <Counter label="seats this period" value={billing.usage.seatsUsed} of={billing.plan.seats} hint={billing.usage.seatsUsed > billing.plan.seats ? `${billing.usage.seatsUsed - billing.plan.seats} extra` : "included"} />

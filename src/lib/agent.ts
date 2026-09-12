@@ -10,6 +10,7 @@
 //     persisted by DevBrain — only the review verdict/summary is stored.
 // ============================================================================
 
+import { AiProviderDown, BREAKER_KEY, breakerActive, breakerMinutes } from "@/lib/ai-breaker";
 import { installationOctokit } from "@/lib/github";
 
 /** Accepts either env name — ANTHROPIC_API_KEY (standard) or CLAUDE_API_KEY /
@@ -42,10 +43,10 @@ export class AiCapExceeded extends Error {
 // Every call is charged to an org via ai_reserve()/ai_record(). Passing no
 // org is allowed only for calls that have no tenant (none today) — it is
 // logged so an unmetered path can't creep in silently.
-async function reserve(orgId: string | undefined): Promise<void> {
+async function reserve(orgId: string | undefined): Promise<"allow" | "overage" | null> {
   if (!orgId) {
     console.warn("askClaude: unmetered call (no org)");
-    return;
+    return null;
   }
   const { supabaseAdmin } = await import("@/lib/supabase/server");
   // 'allow' | 'overage' | 'paused' (0037_billing.sql). Overage is counted for
@@ -70,7 +71,52 @@ async function reserve(orgId: string | undefined): Promise<void> {
     await alert({ scope: { orgId }, key: `ai.cap.${today}`, severity: "warn", title: "AI layer paused for this team", detail: "Reviews, journals and digests are paused: today's allowance and this month's overage limit are used up, or the plan has lapsed. Presence, collisions, tasks and handoffs keep running. Raise the overage limit or upgrade the plan under Console → Team." });
     throw new AiCapExceeded(orgId);
   }
+  return data as "allow" | "overage";
 }
+
+/** Hand the call back. ai_reserve() charges before the request, which is what
+ *  keeps a burst inside the cap — but a provider failure produced nothing, so
+ *  the team must not pay for it. Best effort: a failed refund must never mask
+ *  the original error. */
+async function refund(orgId: string | undefined, charged: "allow" | "overage" | null) {
+  if (!orgId || !charged) return;
+  try {
+    const { supabaseAdmin } = await import("@/lib/supabase/server");
+    await supabaseAdmin().rpc("ai_refund", { p_org: orgId, p_overage: charged === "overage" });
+  } catch {
+    /* the original throw is what matters */
+  }
+}
+
+/** Stop calling a provider that cannot answer. Fails open on any read error. */
+async function breaker(): Promise<{ open: boolean; reason: string }> {
+  try {
+    const { supabaseAdmin } = await import("@/lib/supabase/server");
+    const { data } = await supabaseAdmin().from("system_state").select("value").eq("key", BREAKER_KEY).maybeSingle();
+    return breakerActive(data?.value);
+  } catch {
+    return { open: false, reason: "" };
+  }
+}
+async function tripBreaker(status: number, body: string) {
+  const mins = breakerMinutes(status, body);
+  if (!mins) return;
+  try {
+    const { supabaseAdmin } = await import("@/lib/supabase/server");
+    await supabaseAdmin().from("system_state").upsert({
+      key: BREAKER_KEY,
+      value: { until: new Date(Date.now() + mins * 60_000).toISOString(), reason: `HTTP ${status}`, status },
+      updated_at: new Date().toISOString(),
+    });
+  } catch { /* best effort */ }
+}
+async function clearBreaker() {
+  try {
+    const { supabaseAdmin } = await import("@/lib/supabase/server");
+    await supabaseAdmin().from("system_state").upsert({ key: BREAKER_KEY, value: {}, updated_at: new Date().toISOString() });
+  } catch { /* best effort */ }
+}
+
 async function record(orgId: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined) {
   if (!orgId || !usage) return;
   const { supabaseAdmin } = await import("@/lib/supabase/server");
@@ -81,6 +127,7 @@ async function record(orgId: string | undefined, usage: { input_tokens?: number;
 // the next success.
 async function providerFailed(status: number, detail: string) {
   sawProviderFailure = true;
+  await tripBreaker(status, detail);
   const { alert } = await import("@/lib/alerts");
   const cls = status === 401 || status === 403 ? "auth" : status === 429 ? "ratelimit" : status >= 500 ? "outage" : `http${status}`;
   const title = cls === "auth" ? "Anthropic API key rejected" : cls === "ratelimit" ? "Anthropic rate limit hit" : cls === "outage" ? "Anthropic API errors (5xx)" : `Anthropic HTTP ${status}`;
@@ -90,6 +137,7 @@ let sawProviderFailure = false;
 async function providerOk() {
   if (!sawProviderFailure) return; // cheap path: nothing to close
   sawProviderFailure = false;
+  await clearBreaker();
   const { resolve } = await import("@/lib/alerts");
   for (const k of ["auth", "ratelimit", "outage"]) await resolve("ops", `anthropic.${k}`);
 }
@@ -104,25 +152,36 @@ export async function askClaude(
   /** Org the call is charged to. */
   orgId?: string,
 ): Promise<string> {
-  await reserve(orgId);
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey(),
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: agentModel(),
-      max_tokens: maxTokens,
-      system,
-      messages: prefill
-        ? [{ role: "user", content: user }, { role: "assistant", content: prefill }]
-        : [{ role: "user", content: user }],
-    }),
-  });
+  // Nothing is charged while the provider is known to be down.
+  const br = await breaker();
+  if (br.open) throw new AiProviderDown(br.reason);
+
+  const charged = await reserve(orgId);
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey(),
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: agentModel(),
+        max_tokens: maxTokens,
+        system,
+        messages: prefill
+          ? [{ role: "user", content: user }, { role: "assistant", content: prefill }]
+          : [{ role: "user", content: user }],
+      }),
+    });
+  } catch (err) {
+    await refund(orgId, charged); // network never reached the provider
+    throw err;
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    await refund(orgId, charged);
     await providerFailed(res.status, detail);
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
@@ -145,28 +204,39 @@ export async function askClaudeBlocks(
   maxTokens = 4000,
   orgId?: string,
 ): Promise<string> {
-  await reserve(orgId);
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey(),
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: agentModel(),
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: blocks }],
-    }),
-  });
+  const br = await breaker();
+  if (br.open) throw new AiProviderDown(br.reason);
+
+  const charged = await reserve(orgId);
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey(),
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: agentModel(),
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: blocks }],
+      }),
+    });
+  } catch (err) {
+    await refund(orgId, charged);
+    throw err;
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    await refund(orgId, charged);
     await providerFailed(res.status, detail);
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
   const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
   await record(orgId, data.usage);
+  await providerOk();
   return (data.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")

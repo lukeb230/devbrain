@@ -1036,7 +1036,7 @@ export async function POST(request: Request) {
   // ops failure.
   for (const unit of ["review", "automatch", "spec", "footprint", "zombie", "journal", "index", "digest", "lights", "sync", "journal_backlog", "env"]) {
     const msg = did[`${unit}_error`];
-    if (typeof msg === "string" && !/ai cap reached/.test(msg)) {
+    if (typeof msg === "string" && !/ai cap reached|ai provider unavailable/.test(msg)) {
       await alert({ scope: "ops", key: `tick.${unit}`, title: `Tick unit "${unit}" failing`, detail: msg });
     } else if (!off.has(unit)) {
       await resolve("ops", `tick.${unit}`);

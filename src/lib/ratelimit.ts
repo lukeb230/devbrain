@@ -171,6 +171,13 @@ export function limits(): Limits {
   return cached.value;
 }
 
+/** Is this bucket already known to be over, without counting a hit? Used to
+ *  refuse a caller before doing the work that identifies them. */
+export function durableDenied(bucket: string, windowSec: number): boolean {
+  const s = slots.get(bucket);
+  return !!s && s.denied && s.windowStart === windowStartOf(Date.now(), windowSec);
+}
+
 /** Test seam: forget the cached ceilings and every counted window. */
 export function _resetLimiterState() {
   slots.clear();

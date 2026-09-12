@@ -9,7 +9,8 @@
 // ============================================================================
 
 import { NextResponse } from "next/server";
-import { durableTake, limits } from "@/lib/ratelimit";
+import { clientIp } from "@/lib/client-ip";
+import { durableDenied, durableTake, limits } from "@/lib/ratelimit";
 import { resolveDevToken } from "@/lib/token";
 
 export type ApiAuth = NonNullable<Awaited<ReturnType<typeof resolveDevToken>>>;
@@ -17,7 +18,9 @@ export type ApiAuth = NonNullable<Awaited<ReturnType<typeof resolveDevToken>>>;
 const UNAUTHORIZED = () => NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
 function tooMany(bucket: string, retryAfter: number) {
-  const what = bucket.startsWith("tok:")
+  const what = bucket.startsWith("bad:")
+    ? "too many rejected tokens from this address"
+    : bucket.startsWith("tok:")
     ? "this token is sending too many requests"
     : bucket.startsWith("org:")
       ? "your team is sending too many requests"
@@ -28,9 +31,21 @@ function tooMany(bucket: string, retryAfter: number) {
 /** Resolve the caller and charge the request against every ceiling.
  *  Returns the token's identity, or the response the route must return. */
 export async function apiAuth(request: Request): Promise<ApiAuth | { denied: NextResponse }> {
-  const auth = await resolveDevToken(request.headers.get("authorization"));
-  if (!auth) return { denied: UNAUTHORIZED() };
   const l = limits();
+  // Anyone can send a made-up token, and resolving one costs a database read.
+  // Failures are counted per address, and an address that has burned through
+  // its budget is refused before the read — so a flood of garbage is cheap to
+  // say no to. Success costs nothing here: a whole office behind one address
+  // is normal, and their real ceilings are the token and the team below.
+  const ip = clientIp(request);
+  const bad = `bad:${ip}`;
+  if (durableDenied(bad, 60)) return { denied: tooMany(bad, 60) };
+
+  const auth = await resolveDevToken(request.headers.get("authorization"));
+  if (!auth) {
+    durableTake([{ bucket: bad, limit: l.ip_per_min, window: 60 }]);
+    return { denied: UNAUTHORIZED() };
+  }
   const over = durableTake([
     { bucket: `tok:${auth.token_id}`, limit: l.token_per_min, window: 60 },
     { bucket: `org:${auth.org_id}`, limit: l.org_per_min, window: 60 },

@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-const { makeLimiter, durableTake, _resetLimiterState, DEFAULT_LIMITS, limits } = await import("@/lib/ratelimit");
+const { makeLimiter, durableTake, durableDenied, _resetLimiterState, DEFAULT_LIMITS, limits } = await import("@/lib/ratelimit");
 
 describe("makeLimiter", () => {
   it("allows up to the limit in a window, then refuses", () => {
@@ -92,6 +92,30 @@ describe("durableTake", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("durableDenied", () => {
+  beforeEach(() => {
+    _resetLimiterState();
+    rpc.mockClear();
+    rpc.mockImplementation(async () => ({ data: [] }));
+  });
+
+  it("answers without counting, so a caller can be refused before it is identified", () => {
+    const check = { bucket: "bad:1.2.3.4", limit: 2, window: 60 };
+    expect(durableDenied(check.bucket, 60)).toBe(false);
+    durableTake([check]);
+    durableTake([check]);
+    durableTake([check]);
+    expect(durableDenied(check.bucket, 60)).toBe(true);
+    rpc.mockClear();
+    expect(durableDenied(check.bucket, 60)).toBe(true);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("a bucket that was never counted is not denied", () => {
+    expect(durableDenied("bad:nobody", 60)).toBe(false);
   });
 });
 

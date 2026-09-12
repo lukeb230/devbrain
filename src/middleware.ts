@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, LAST_REPO_COOKIE_OPTS } from "@/lib/cookies";
 import { retiredRedirect } from "@/lib/retire";
+import { browserRedirect } from "@/lib/app-only";
 
 // Refreshes the Supabase auth session cookie on every request so server
 // components always see a valid session. Webhook/API ingest routes are
@@ -43,6 +44,20 @@ export async function middleware(request: NextRequest) {
     response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
     return redirect;
   }
+  // The Console belongs to the app: a browser asking for it gets the
+  // hand-off page instead. Off until installs carry the marker — flip
+  // system_state.app_only.enabled once they do.
+  const gate = browserRedirect(request.nextUrl.pathname, request.headers.get("user-agent"), APP_ONLY);
+  if (gate) {
+    const url = request.nextUrl.clone();
+    const [path, query] = gate.split("?");
+    url.pathname = path;
+    url.search = query ? `?${query}` : "";
+    const redirect = NextResponse.redirect(url, 307);
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  }
+
   // The Desk carries its repo in ?repo=; remember it the same way so the
   // panel and the Desk agree on "the repo you were in".
   if (request.nextUrl.pathname.startsWith("/desk")) {
@@ -51,6 +66,8 @@ export async function middleware(request: NextRequest) {
   }
   return response;
 }
+
+const APP_ONLY = process.env.DEVBRAIN_APP_ONLY === "1";
 
 export const config = {
   matcher: ["/((?!api/github|api/v1|api/agents|_next/static|_next/image|favicon.ico).*)"],

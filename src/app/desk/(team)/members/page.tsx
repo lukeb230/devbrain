@@ -87,6 +87,9 @@ export default async function DeskMembers({ searchParams }: { searchParams: Prom
           <p className="mt-3 text-[12px] leading-[1.6] text-faint">owner manages roles, members and the team itself · admin also mints invites, links repos, edits rules and maps Reminders · member does everything else.</p>
         </section>
 
+        {/* Admins only: a live code is an invitation. A member who can read one
+            could add people to the team without holding the role that allows it. */}
+        {isAdmin && (
         <Section title="Invite links" count={invites?.length ?? 0} hint="expire after 7 days" className="mt-8">
           {isAdmin && (
             <form id="invite-form" action={createInvite} className="mt-2.5 flex items-center gap-3 border-t border-line py-3 text-[12.5px] text-muted">
@@ -110,6 +113,7 @@ export default async function DeskMembers({ searchParams }: { searchParams: Prom
             ))
           )}
         </Section>
+        )}
         {sp.error && <p className="mt-4 text-[12px] text-wait">That didn&apos;t go through ({sp.error}).</p>}
       </Reading>
     </>

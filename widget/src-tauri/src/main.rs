@@ -40,6 +40,12 @@ fn site_host() -> &'static str {
     SITE.trim_start_matches("https://").trim_start_matches("http://").split('/').next().unwrap_or("")
 }
 fn site_panel() -> String { format!("{SITE}/widget") }
+// How the site tells an app window from a browser tab: every DevBrain
+// webview carries this marker, and the server sends browsers to /open
+// instead of rendering the Console. Keep the WebKit prefix so anything
+// sniffing for a normal browser still behaves.
+const APP_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 DevBrainApp/1";
+
 fn site_desk(route: Option<&str>) -> String {
     // A route is a site path under /desk ("/", "/prs", "/board?x=1") — never a
     // full URL, so a deep link can't point the Desk somewhere else.
@@ -562,7 +568,8 @@ fn main() {
             .focusable(false)
             .visible(false)
             .inner_size(ZONE_HOT * settings.badge_scale, ZONE_HOT * settings.badge_scale)
-            .build()?;
+            .user_agent(APP_USER_AGENT)
+                .build()?;
             let _ = badge.set_visible_on_all_workspaces(true);
 
             // --- panel -----------------------------------------------------
@@ -613,7 +620,8 @@ fn main() {
             .resizable(false)
             .visible(false)
             .inner_size(PANEL_W, PANEL_H)
-            .build()?;
+            .user_agent(APP_USER_AGENT)
+                .build()?;
             let _ = panel.set_visible_on_all_workspaces(true);
             round_corners(&panel, PANEL_RADIUS);
 
@@ -680,6 +688,7 @@ fn main() {
                 .visible(false)
                 .inner_size(desk_bounds.map(|b| b.w.max(DESK_MIN_W)).unwrap_or(DESK_W), desk_bounds.map(|b| b.h.max(DESK_MIN_H)).unwrap_or(DESK_H))
                 .min_inner_size(DESK_MIN_W, DESK_MIN_H)
+                .user_agent(APP_USER_AGENT)
                 .build()?;
             if let Some(b) = desk_bounds {
                 let _ = desk.set_position(LogicalPosition::new(b.x, b.y));

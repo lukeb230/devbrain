@@ -26,8 +26,8 @@ CH="${2:-beta}"
 VM="${3:-devbrain-run}"
 SERVER="${DEVBRAIN_SERVER:-https://devbrain-seven.vercel.app}"
 REPO="lukeb230/devbrain"
-if [ "$CH" = "beta" ]; then APP="DevBrain Beta"; CMD="devbrain-beta"; DIR=".devbrain-beta"; ASSET="DevBrain-Beta.dmg"
-else APP="DevBrain"; CMD="devbrain"; DIR=".devbrain"; ASSET="DevBrain.dmg"; fi
+if [ "$CH" = "beta" ]; then APP="DevBrain Beta"; CMD="devbrain-beta"; DIR=".devbrain-beta"; ASSET="DevBrain-Beta.dmg"; PLUGIN="plugin-beta"
+else APP="DevBrain"; CMD="devbrain"; DIR=".devbrain"; ASSET="DevBrain.dmg"; PLUGIN="plugin"; fi
 
 step() { print -r -- "\n── $* ──────────────────────────────────────"; }
 fail() { print -r -- "✗ $*" >&2; exit 1; }
@@ -83,9 +83,13 @@ run "mkdir -p ~/.cursor && ~/$DIR/bin/$CMD hosts 2>&1 | tail -6"
 run "~/$DIR/bin/$CMD update 2>&1 | grep -E 'hosts|plugin|cli' || true"
 run "python3 -c \"import json;d=json.load(open('$HOME/.cursor/hooks.json'));print('cursor hook events:', sorted(d['hooks']))\" 2>/dev/null || print -r -- '(no cursor hooks yet)'"
 
+step "the CLI is on a real terminal's PATH"
+run "grep -q devbrain ~/.zshrc && zsh -i -c 'which $CMD' 2>/dev/null || print -r -- '✗ $CMD is not on PATH for a new Terminal window'"
+
 step "one real session against a linked repo"
-run "mkdir -p ~/work && cd ~/work && (test -d pg || git clone -q https://github.com/lukeb230/devbrain-playground.git pg) 2>/dev/null || print -r -- '(no git in the VM — skipping the session check)'"
-run "test -d ~/work/pg && cd ~/work/pg && printf '{}' | '/Applications/$APP.app/Contents/Resources/node/bin/node' ~/$DIR/src/plugin/hooks/presence.mjs session_start 2>&1 | head -6 || true"
+run "mkdir -p ~/work && cd ~/work && (test -d pg || git clone -q https://github.com/lukeb230/devbrain-playground.git pg) && print -r -- 'cloned' || print -r -- '(clone failed — is the repo public?)'"
+run "cd ~/work/pg && printf '{}' | '/Applications/$APP.app/Contents/Resources/node/bin/node' ~/$DIR/src/$PLUGIN/hooks/presence.mjs session_start 2>&1 | head -5"
+run "ls ~/$DIR/session-* >/dev/null 2>&1 && print -r -- '✓ presence recorded a session' || print -r -- '✗ no session file — presence did not post'"
 
 print -r -- "\n✔ finished. Expect: bundled node runs, bootstrap all-ok, doctor clean, cursor wired, a session posted."
 print -r -- "  spctl 'rejected' is expected until the app is notarized (docs/NOTARIZE.md)."

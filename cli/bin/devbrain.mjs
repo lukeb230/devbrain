@@ -334,7 +334,15 @@ function wantedPluginVersion() {
 }
 function updatePlugin() {
   CLAUDE = findClaude();
-  if (!CLAUDE) return fail("claude_missing", "Claude Code CLI not found (PATH, ~/.local/bin, ~/.claude/local, app bundle) — install Claude Code, then re-run");
+  if (!CLAUDE) {
+    // Claude Code is one host of three. A Cursor-only (or Codex-only) Mac is
+    // a complete install, so a missing Claude CLI is a note, not a failure —
+    // otherwise every new customer without Claude Code sees "setup failed".
+    const others = detectHosts();
+    return skip(others.length
+      ? `Claude Code not installed — ${others.join(" + ")} wired instead. Install Claude Code and re-run to add it.`
+      : `no agent host found yet — install Claude Code, Cursor or Codex, then run: ${CH.cmd} update`);
+  }
   const mp = claude(["plugin", "marketplace", "list"]);
   // Exact-name match: "devbrain" must not be satisfied by "devbrain-marketplace".
   const haveMarketplace = new RegExp(`^\\s*(?:❯\\s*)?${MARKETPLACE}\\s*$`, "m").test(mp.stdout + mp.stderr);
@@ -842,6 +850,7 @@ if (cmd === "doctor") {
   const results = [];
   const ok = (n, d = "") => results.push(`  ✓ ${n}${d ? " — " + d : ""}`);
   const bad = (n, d = "") => results.push(`  ✗ ${n}${d ? " — " + d : ""}`);
+  const note = (n, d = "") => results.push(`  · ${n}${d ? " — " + d : ""}`); // true but not a problem
 
   let cfg = null;
   if (existsSync(CONFIG_PATH)) {
@@ -923,7 +932,11 @@ if (cmd === "doctor") {
 
   CLAUDE = CLAUDE || findClaude();
   const pl = CLAUDE ? claude(["plugin", "list"]) : { status: 1, stdout: "" };
-  if (pl.status !== 0) bad("claude CLI", "not found (PATH, ~/.local/bin, ~/.claude/local, app bundle)");
+  if (pl.status !== 0) {
+    const others = detectHosts();
+    if (others.length) note("claude CLI", `not installed — ${others.join(" + ")} wired instead (install Claude Code and re-run to add it)`);
+    else bad("agent host", `none found — install Claude Code, Cursor or Codex, then run: ${CH.cmd} update`);
+  }
   else {
     const m = pl.stdout.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
     let want = "?"; try { want = wantedPluginVersion(); } catch { /* */ }

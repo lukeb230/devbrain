@@ -4,7 +4,7 @@ import { LEGAL } from "@/lib/legal";
 import { SignInButton } from "../sign-in-button";
 import { ConsoleWindow, Dot, PanelWindow } from "./app-shots";
 import { IncentiveModal } from "./incentive-modal";
-import { COLLISION, Terminal } from "./terminal";
+import { GUARD, Terminal } from "./terminal";
 import { TryIt } from "./try-it";
 import { EmailForm } from "./email-form";
 
@@ -103,12 +103,23 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
       <Section className="pt-20 sm:pt-24">
         <H2>DevBrain stops the second one.</H2>
         <Lede>Before your agent writes to a file, it already knows whether a teammate is holding it.</Lede>
-        <Terminal
-          className="mt-8"
-          title="nova — claude code — northwind/api"
-          lines={COLLISION}
-          caption="The warning your agent prints, word for word"
-        />
+        <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_330px]">
+          <Terminal
+            title="devbrain · pre-write hook → stdout"
+            lines={GUARD}
+            caption="Real output shape · the file, holder and note are synthetic"
+          />
+          <div className="rounded-xl border border-coralline bg-coralink px-5 py-[18px]">
+            <p className="text-[13.5px] leading-[1.6] text-body">
+              That reason is what your agent shows you. DevBrain returns the decision; your editor
+              draws the prompt and waits — so the answer is yours, not ours.
+            </p>
+            <p className="mt-3 text-[13.5px] leading-[1.6] text-body">
+              On Cursor, which only enforces a hard refusal, the write is blocked outright until you
+              reply to your agent.
+            </p>
+          </div>
+        </div>
 
         <div className="mt-14">
           <h3 className="font-display text-[19px] font-medium tracking-[-.02em] text-txt">Try it yourself.</h3>

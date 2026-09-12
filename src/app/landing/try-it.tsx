@@ -10,9 +10,14 @@ import { useState } from "react";
 // interaction is the whole product, and it is more convincing than any
 // sentence describing it.
 //
-// A simulation, and labelled as one. Real buttons, so it is keyboard
-// navigable; the outcome is announced through a live region rather than only
-// appearing.
+// Both outcomes are what the hook really does, which the first version of
+// this got wrong in both directions: it invented an editor prompt for the
+// refusal, and invented an "⏺ Updated …" line for the clear case. The clear
+// case prints NOTHING — check-collision.mjs calls process.exit(0) — and that
+// silence is the better story anyway: it is invisible unless it matters.
+//
+// Real buttons, so it is keyboard navigable; the outcome is announced through
+// a live region rather than only appearing.
 // ============================================================================
 
 type File = { path: string; held?: { who: string; what: string } };
@@ -60,36 +65,39 @@ export function TryIt() {
 
       <div className="min-w-0">
         <div aria-live="polite" className="lp-win min-h-[196px] overflow-hidden bg-codebg">
-          <div className="flex h-[34px] items-center gap-2 border-b border-black/30 bg-[#242019] px-3.5">
-            <span className="h-[11px] w-[11px] rounded-full bg-[#ec6a5e]" />
-            <span className="h-[11px] w-[11px] rounded-full bg-[#f4bf4f]" />
-            <span className="h-[11px] w-[11px] rounded-full bg-[#61c554]" />
-            <span className="mx-auto pr-10 text-[11.5px] font-medium text-white/65">your agent</span>
+          <div className="flex h-[34px] items-center gap-2.5 border-b border-black/30 bg-[#242019] px-4">
+            <span className="h-[6px] w-[6px] rounded-full bg-[#f0b35b]" />
+            <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-white/65">devbrain · pre-write hook → stdout</span>
           </div>
           <pre className="overflow-x-auto whitespace-pre-wrap px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]">
             {!picked ? (
-              <span className="text-white/45">Choose a file on the left and your agent will try to write to it.</span>
+              <span className="text-white/45">Choose a file on the left. DevBrain checks it before your agent writes.</span>
             ) : picked.held ? (
               <>
-                <span className="text-white/90">{`› Edit ${picked.path}`}</span>
+                <span className="text-white/45">{"{ "}</span>
+                <span className="text-[#f0b35b]">{'"permissionDecision": "ask",'}</span>
+                {"\n  "}
+                <span className="text-white/70">{'"permissionDecisionReason":'}</span>
+                {"\n    "}
+                <span className="text-[#f08a84]">{`"DevBrain: ${picked.path} is being worked on\n     right now by ${picked.held.who} (claimed: ${picked.held.what}).\n     Editing it anyway risks a collision — coordinate\n     first, or approve to proceed deliberately."`}</span>
+                {"\n"}
+                <span className="text-white/45">{"}"}</span>
                 {"\n\n"}
-                <span className="text-[#f08a84]">{`⏺ DevBrain: ${picked.path} is being worked on right now by\n  ${picked.held.who} (claimed: ${picked.held.what}). Editing it anyway\n  risks a collision — coordinate first, or approve to proceed\n  deliberately.`}</span>
-                {"\n\n"}
-                <span className="text-[#f0b35b]">{"? Proceed anyway?   ❯ No, coordinate first    Yes, I know"}</span>
+                <span className="text-white/45">{"your editor shows that reason and waits for you"}</span>
               </>
             ) : (
               <>
-                <span className="text-white/90">{`› Edit ${picked.path}`}</span>
+                <span className="text-white/45">{"(no output)"}</span>
                 {"\n\n"}
-                <span className="text-[#7fd39b]">{`⏺ Updated ${picked.path}`}</span>
+                <span className="text-[#7fd39b]">{"exit 0"}</span>
                 {"\n"}
-                <span className="text-white/45">{"  nobody else is in this file · claimed for this session"}</span>
+                <span className="text-white/45">{"nobody else is in this file — the hook says nothing\nand your agent writes, exactly as it would without us"}</span>
               </>
             )}
           </pre>
         </div>
         <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] text-muted">
-          <span>A simulation of the real check.</span>
+          <span>The real check, on synthetic team data.</span>
           {picked && (
             <button type="button" onClick={() => setPicked(null)} className="text-accenttext hover:underline">
               reset

@@ -4,7 +4,7 @@ import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
 import { PLANS, TRIAL_DAYS, dollars } from "@/lib/billing/plans";
 import { ConsoleWindow, Dot, PanelWindow, PrWindow } from "@/app/landing/app-shots";
-import { BRIEF, COLLISION, Terminal } from "@/app/landing/terminal";
+import { BRIEF, GUARD, Terminal } from "@/app/landing/terminal";
 import { TryIt } from "@/app/landing/try-it";
 import { BrowserShell } from "../browser-shell";
 import { SignInButton } from "../sign-in-button";
@@ -100,10 +100,15 @@ export default async function HowItWorks() {
           </Lede>
           <Terminal
             className="mt-8"
-            title="nova — claude code — northwind/api"
-            lines={COLLISION}
-            caption="Synthetic session · this is the agent's own output"
+            title="devbrain · pre-write hook → stdout"
+            lines={GUARD}
+            caption="Real output shape · the file, holder and note are synthetic"
           />
+          <p className="mt-6 max-w-[58ch] text-[14px] leading-[1.6] text-muted">
+            DevBrain returns the decision and the reason. Your editor draws the prompt and waits for
+            you — we do not put a dialog in front of you and we do not decide for you. On Cursor,
+            which only enforces a hard refusal, the write is blocked until you reply.
+          </p>
           <div className="mt-12">
             <h3 className="font-display text-[19px] font-medium tracking-[-.02em] text-txt">Try the check.</h3>
             <p className="mt-2 max-w-[54ch] text-[14px] leading-[1.6] text-muted">
@@ -127,7 +132,7 @@ export default async function HowItWorks() {
             from what actually happened.
           </Lede>
           <div className="mt-8 grid items-start gap-8 lg:grid-cols-2">
-            <Terminal title="session start" lines={BRIEF} />
+            <Terminal title="devbrain · session start → your agent\u0027s context" lines={BRIEF} caption="Real keys and structure · values are synthetic" />
             <div>
               <p className="max-w-[46ch] text-[15.5px] leading-[1.6] text-body">
                 The same picture is what tells you which pull requests are safe to merge, and in which

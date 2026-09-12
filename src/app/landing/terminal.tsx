@@ -97,13 +97,14 @@ export function Terminal({
   return (
     <div ref={box} className={className}>
       <figure className="lp-win overflow-hidden bg-codebg">
-        <div className="flex h-[34px] items-center gap-2 border-b border-black/30 bg-[#242019] px-3.5">
-          <span className="h-[11px] w-[11px] rounded-full bg-[#ec6a5e]" />
-          <span className="h-[11px] w-[11px] rounded-full bg-[#f4bf4f]" />
-          <span className="h-[11px] w-[11px] rounded-full bg-[#61c554]" />
-          <span className="mx-auto pr-10 text-[11.5px] font-medium text-white/65">{title}</span>
+        <div className="flex h-[34px] items-center gap-2.5 border-b border-black/30 bg-[#242019] px-4">
+          <span className="h-[6px] w-[6px] rounded-full bg-[#f0b35b]" />
+          <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-white/65">{title}</span>
         </div>
-        <div className="overflow-x-auto px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]">
+        <div
+          className="overflow-x-auto px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]"
+          style={{ minHeight: `calc(${lines.length} * 1.8em + 2.5rem)` }}
+        >
           {visible.map((l, i) => (
             <div key={i} className={`whitespace-pre-wrap ${TONE[l.tone ?? ""] ?? ""}`}>
               {l.text}
@@ -123,32 +124,60 @@ export function Terminal({
   );
 }
 
-/** The collision, as the agent prints it. Used on both pages. */
-export const COLLISION: Line[] = [
-  { text: "nova@northwind ~/api › claude", tone: "prompt" },
-  { text: "" },
-  { text: "› Edit src/api/auth.ts", tone: "cmd" },
-  { text: "" },
-  { text: "⏺ DevBrain: src/api/auth.ts is being worked on right now by", tone: "stop" },
-  { text: "  Kai (claimed: refactoring the session guard). Editing it anyway", tone: "stop" },
-  { text: "  risks a collision — coordinate first, or approve to proceed", tone: "stop" },
-  { text: "  deliberately.", tone: "stop" },
-  { text: "" },
-  { text: "? Proceed anyway?   ❯ No, coordinate first    Yes, I know", tone: "warn" },
+// ---------------------------------------------------------------------------
+// What DevBrain actually emits.
+//
+// These are taken from the source, not imagined. An earlier version of this
+// file invented an editor's permission prompt ("? Proceed anyway? ❯ No,
+// coordinate first") and a hand-formatted brief. Neither exists. DevBrain
+// returns a decision and a reason; the EDITOR draws whatever prompt it draws,
+// and this page has no business depicting a UI it does not own.
+//
+//   guard   plugin/hooks/check-collision.mjs → emitGuard() in host.mjs
+//   brief   presence.mjs: emitContext(host, "## Team context (DevBrain)\n" +
+//           JSON.stringify(ctx, null, 2)), shape from buildDigest() in
+//           src/lib/digest.ts
+//
+// Values are synthetic; keys, strings and structure are not.
+// ---------------------------------------------------------------------------
+
+/** The guard's stdout, verbatim in shape. */
+export const GUARD: Line[] = [
+  { text: "{", tone: "dim" },
+  { text: '  "hookSpecificOutput": {', tone: "dim" },
+  { text: '    "hookEventName": "PreToolUse",', tone: "cmd" },
+  { text: '    "permissionDecision": "ask",', tone: "warn" },
+  { text: '    "permissionDecisionReason":', tone: "cmd" },
+  { text: '      "DevBrain: src/api/auth.ts is being worked on right now', tone: "stop" },
+  { text: "       by Kai (claimed: refactoring the session guard).", tone: "stop" },
+  { text: "       Editing it anyway risks a collision — coordinate", tone: "stop" },
+  { text: '       first, or approve to proceed deliberately."', tone: "stop" },
+  { text: "  }", tone: "dim" },
+  { text: "}", tone: "dim" },
 ];
 
-/** The brief an agent is handed at session start. */
+/** The brief: the heading, then the payload, with the real keys. */
 export const BRIEF: Line[] = [
   { text: "## Team context (DevBrain)", tone: "warn" },
-  { text: "" },
-  { text: "2 teammates active" },
-  { text: "  Kai   · src/api/**   claimed, session guard", tone: "ok" },
-  { text: "  Rio   · tests/**     writing coverage", tone: "ok" },
-  { text: "" },
-  { text: "since you were last here" },
-  { text: "  #128 merged  · rate limiting" },
-  { text: "  decision     · tokens are hashed, never stored" },
-  { text: "" },
-  { text: "waiting for you" },
-  { text: '  handoff from Rio · "auth tests need the new fixture"', tone: "warn" },
+  { text: "{", tone: "dim" },
+  { text: '  "repo": "northwind/api",' },
+  { text: '  "you": "Nova",' },
+  { text: '  "active_sessions": [', tone: "dim" },
+  { text: '    { "dev": "Kai", "branch": "refactor/session-guard",', tone: "ok" },
+  { text: '      "files": ["src/api/session.ts"] },', tone: "ok" },
+  { text: '    { "dev": "Rio", "branch": "chore/coverage",', tone: "ok" },
+  { text: '      "files": ["tests/auth.spec.ts"] }', tone: "ok" },
+  { text: "  ],", tone: "dim" },
+  { text: '  "claims": [', tone: "dim" },
+  { text: '    { "dev_label": "Kai", "paths": ["src/api/**"],', tone: "warn" },
+  { text: '      "note": "refactoring the session guard" }', tone: "warn" },
+  { text: "  ],", tone: "dim" },
+  { text: '  "merge_plan": [', tone: "dim" },
+  { text: '    { "number": 131, "after": "#128",' },
+  { text: '      "shared_files": ["src/api/session.ts"] }' },
+  { text: "  ],", tone: "dim" },
+  { text: '  "recent_decisions": [', tone: "dim" },
+  { text: '    { "text": "tokens are hashed, never stored", "by": "Kai" }' },
+  { text: "  ]", tone: "dim" },
+  { text: "}", tone: "dim" },
 ];

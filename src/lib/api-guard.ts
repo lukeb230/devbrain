@@ -43,8 +43,11 @@ export async function apiAuth(request: Request): Promise<ApiAuth | { denied: Nex
 
   const auth = await resolveDevToken(request.headers.get("authorization"));
   if (!auth) {
-    await durableTake([{ bucket: bad, limit: l.ip_per_min, window: 60 }]);
-    return { denied: UNAUTHORIZED() };
+    // Use the answer. Discarding it meant the request that DISCOVERED the
+    // address was over still got a 401, so a burst of cold instances each
+    // spent one before any of them said no.
+    const spent = await durableTake([{ bucket: bad, limit: l.ip_per_min, window: 60 }]);
+    return { denied: spent ? tooMany(spent, 60) : UNAUTHORIZED() };
   }
   const over = await durableTake([
     { bucket: `tok:${auth.token_id}`, limit: l.token_per_min, window: 60 },

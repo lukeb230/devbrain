@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   const ip = clientIp(request);
   // Two ceilings: this instance's own (free, instant) and the platform-wide
   // one (shared by every instance, so a spread-out flood still trips).
-  if (!joinLimiter.take(ip) || publicLimit(ip, "join")) {
+  if (!joinLimiter.take(ip) || (await publicLimit(ip, "join"))) {
     return NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent("Too many attempts — wait a minute and try again.")}`);
   }
   const explicitNext = safeNext(url.searchParams.get("next"), "");

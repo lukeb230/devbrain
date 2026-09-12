@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const token = url.searchParams.get("token") ?? "";
   const fail = (why: string) => NextResponse.redirect(`${url.origin}/?from=widget&device_error=${encodeURIComponent(why)}`);
   const ip = clientIp(request);
-  if (!deviceLimiter.take(ip) || publicLimit(ip, "device")) return fail("too many attempts — wait a minute");
+  if (!deviceLimiter.take(ip) || (await publicLimit(ip, "device"))) return fail("too many attempts — wait a minute");
   if (!token.startsWith("dbd_")) return fail("bad token");
 
   const admin = supabaseAdmin();

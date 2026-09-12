@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const self = `/auth/device/start?channel=${channel}`;
   // This route mints a one-time token and writes a row; bound it per IP even
   // though it also needs a session.
-  if (publicLimit(clientIp(request), "device_start")) {
+  if (await publicLimit(clientIp(request), "device_start")) {
     return NextResponse.redirect(`${url.origin}/?from=widget&device_error=${encodeURIComponent("too many attempts — wait a minute")}`);
   }
 

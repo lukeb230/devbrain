@@ -43,10 +43,10 @@ export async function apiAuth(request: Request): Promise<ApiAuth | { denied: Nex
 
   const auth = await resolveDevToken(request.headers.get("authorization"));
   if (!auth) {
-    durableTake([{ bucket: bad, limit: l.ip_per_min, window: 60 }]);
+    await durableTake([{ bucket: bad, limit: l.ip_per_min, window: 60 }]);
     return { denied: UNAUTHORIZED() };
   }
-  const over = durableTake([
+  const over = await durableTake([
     { bucket: `tok:${auth.token_id}`, limit: l.token_per_min, window: 60 },
     { bucket: `org:${auth.org_id}`, limit: l.org_per_min, window: 60 },
     { bucket: `orgd:${auth.org_id}`, limit: l.org_per_day, window: 86_400 },
@@ -57,9 +57,9 @@ export async function apiAuth(request: Request): Promise<ApiAuth | { denied: Nex
 }
 
 /** Per-IP ceiling for the endpoints anyone can reach without a token. */
-export function publicLimit(ip: string, what: string): NextResponse | null {
+export async function publicLimit(ip: string, what: string): Promise<NextResponse | null> {
   const l = limits();
-  const over = durableTake([
+  const over = await durableTake([
     { bucket: `ip:${what}:${ip}`, limit: l.ip_per_min, window: 60 },
     { bucket: `ipd:${ip}`, limit: l.ip_per_min * 60, window: 86_400 },
   ]);

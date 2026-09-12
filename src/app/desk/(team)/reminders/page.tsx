@@ -65,6 +65,10 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
                 ))}
               </div>
             </Section>
+            {/* A teammate's Reminders list names are personal ("Groceries",
+                "Therapy") and only an admin can act on them anyway, so this
+                list is admins-only. */}
+            {isAdmin && (
             <Section title="Seen on teammates' Macs, not mapped">
               <div className="mt-2.5">
                 {unmapped.length === 0 ? <Empty className="border-y border-line">Nothing new — every list a teammate&apos;s Mac has seen is mapped.</Empty> : unmapped.map((s, i) => (
@@ -78,6 +82,7 @@ export default async function DeskReminders({ searchParams }: { searchParams: Pr
                 ))}
               </div>
             </Section>
+            )}
           </div>
           <div>
             <section className="rounded-xl border border-line bg-row px-5 py-[18px]">

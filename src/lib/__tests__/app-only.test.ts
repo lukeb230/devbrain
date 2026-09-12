@@ -26,7 +26,7 @@ describe("browserRedirect", () => {
     for (const p of ["/desk", "/desk/board", "/desk/rules"]) expect(browserRedirect(p, APP, true)).toBeNull();
   });
   it("keeps the front door and billing open to browsers", () => {
-    for (const p of ["/", "/welcome", "/welcome/plan", "/join/abc", "/open", "/pricing", "/desk/plan", "/settings/setup", "/privacy", "/auth/callback", "/api/v1/health"]) {
+    for (const p of ["/", "/how-it-works", "/welcome", "/welcome/plan", "/join/abc", "/open", "/pricing", "/desk/plan", "/settings/setup", "/privacy", "/auth/callback", "/api/v1/health"]) {
       expect(browserRedirect(p, SAFARI, true)).toBeNull();
     }
   });

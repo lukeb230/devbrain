@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { installationWritePerms } from "@/lib/github-writer";
 import { operatorOrgId } from "@/lib/alerts";
 import { writeGranted } from "@/lib/writer-gates";
+import { apiKey } from "@/lib/agent";
 
 // ============================================================================
 // Health — GET /api/v1/health · Auth: Bearer <dev token>.
@@ -14,6 +15,35 @@ import { writeGranted } from "@/lib/writer-gates";
 // ============================================================================
 
 const TICK_STALE_S = 10 * 60;
+
+/** Identify the key without exposing it: which env name it came from, its
+ *  prefix and last four, and its length. */
+function keyFingerprint() {
+  const names = ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY", "claude_api_key"] as const;
+  const from = names.find((n) => process.env[n]) ?? null;
+  const k = apiKey();
+  if (!k) return { from: null, masked: null, length: 0 };
+  return { from, masked: `${k.slice(0, 15)}…${k.slice(-4)}`, length: k.length };
+}
+
+/** One cheap live call, so the provider's current verdict is in the payload
+ *  rather than inferred from a two-day-old tick error. Costs ~1 token and is
+ *  not metered against a team: it is an operator diagnostic, not a feature. */
+async function probeProvider(): Promise<{ status: number | null; ok: boolean; error: string | null }> {
+  const k = apiKey();
+  if (!k) return { status: null, ok: false, error: "no key configured" };
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": k, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: process.env.DEVBRAIN_AGENT_MODEL || "claude-sonnet-4-5", max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+    });
+    if (res.ok) return { status: res.status, ok: true, error: null };
+    return { status: res.status, ok: false, error: (await res.text().catch(() => "")).slice(0, 400) };
+  } catch (err) {
+    return { status: null, ok: false, error: String(err).slice(0, 200) };
+  }
+}
 
 export async function GET(request: Request) {
   const auth = await apiAuth(request);
@@ -60,7 +90,14 @@ export async function GET(request: Request) {
       stale_after_s: TICK_STALE_S,
       last_result: data?.value ?? null,
     },
-    agent_configured: Boolean(process.env.ANTHROPIC_API_KEY),
+    // Which key is this deployment actually holding, and what does the
+    // provider say about it right now? Vercel marks the variable Sensitive, so
+    // it is write-only — without this, "the key is fine" and "the deployment
+    // says no credit" cannot be reconciled. Masked the way a card is: enough
+    // to match against the Anthropic Console, never enough to use.
+    agent_configured: Boolean(apiKey()),
+    agent_key: keyFingerprint(),
+    agent_probe: await probeProvider(),
     journals,
     github_write,
     alerts: {

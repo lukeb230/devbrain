@@ -75,16 +75,19 @@ run "set -e; NODE='/Applications/$APP.app/Contents/Resources/node/bin/node'; \$N
 step "bootstrap"
 run "'/Applications/$APP.app/Contents/Resources/node/bin/node' ~/$DIR/src/cli/bin/devbrain.mjs bootstrap --server '$SERVER' --token '$TOKEN' --reminders off --json 2>&1 | tail -14"
 
-step "doctor"
-run "~/$DIR/bin/$CMD doctor 2>&1 | tail -22" || print -r -- "(doctor exited non-zero — read the ✗ lines above)"
+step "doctor — before any agent host exists (one ✗ expected: no host)"
+run "~/$DIR/bin/$CMD doctor 2>&1 | tail -22" || true
 
 step "hosts (Cursor appears once ~/.cursor exists)"
 run "mkdir -p ~/.cursor && ~/$DIR/bin/$CMD hosts 2>&1 | tail -6"
 run "~/$DIR/bin/$CMD update 2>&1 | grep -E 'hosts|plugin|cli' || true"
-run "python3 -c \"import json;d=json.load(open('$HOME/.cursor/hooks.json'));print('cursor hook events:', sorted(d['hooks']))\" 2>/dev/null || print -r -- '(no cursor hooks yet)'"
+run "python3 -c \"import json,os;d=json.load(open(os.path.expanduser('~/.cursor/hooks.json')));print('cursor hook events:', sorted(d['hooks']))\" 2>/dev/null || print -r -- '✗ no cursor hooks written'"
 
 step "the CLI is on a real terminal's PATH"
 run "grep -q devbrain ~/.zshrc && zsh -i -c 'which $CMD' 2>/dev/null || print -r -- '✗ $CMD is not on PATH for a new Terminal window'"
+
+step "doctor — final (must be clean)"
+run "~/$DIR/bin/$CMD doctor 2>&1 | tail -22" || print -r -- "✗ doctor still reports problems"
 
 step "one real session against a linked repo"
 run "mkdir -p ~/work && cd ~/work && (test -d pg || git clone -q https://github.com/lukeb230/devbrain-playground.git pg) && print -r -- 'cloned' || print -r -- '(clone failed — is the repo public?)'"

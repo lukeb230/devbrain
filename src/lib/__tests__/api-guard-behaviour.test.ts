@@ -17,7 +17,8 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-const resolveDevToken = vi.fn(async (_h: string | null) => null as null | Record<string, string>);
+type Resolved = { org_id: string; user_id: string; label: string; token_id: string; parent_token_id: string | null };
+const resolveDevToken = vi.fn(async (_h: string | null) => null as Resolved | null);
 vi.mock("@/lib/token", () => ({ resolveDevToken: (h: string | null) => resolveDevToken(h) }));
 
 const { apiAuth } = await import("@/lib/api-guard");

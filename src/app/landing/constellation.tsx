@@ -28,7 +28,7 @@ function Row({ tone, name, host, children, className = "" }: { tone: "go" | "wai
 const Path = ({ label }: { label: string }) => (
   <div className="flex items-stretch gap-3 py-1 pl-5" aria-hidden="true">
     <div className="relative w-px bg-line2">
-      <span className="lp-drop absolute inset-x-0 top-0 block bg-accent/50" />
+      <span className="lp-drop absolute inset-x-0 top-0 block bg-accent" />
     </div>
     <span className="self-center font-mono text-[10px] uppercase tracking-[.1em] text-muted">{label}</span>
   </div>
@@ -49,7 +49,7 @@ export function Constellation() {
 
       <Path label="before the write" />
 
-      <div className="lp-interrupt rounded-lg border border-stop/45 bg-stop/[.07] px-3.5 py-3">
+      <div className="lp-interrupt rounded-lg border border-[var(--wg-stop-line)] bg-[var(--wg-stop-bg)] px-3.5 py-3">
         <div className="flex items-center gap-2">
           <Dot tone="stop" />
           <span className="text-[13px] font-medium text-stop">Stopped</span>

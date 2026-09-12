@@ -4,34 +4,30 @@ import { PLANS, TRIAL_DAYS, dollars } from "@/lib/billing/plans";
 import { SignInButton } from "../sign-in-button";
 import { Constellation } from "./constellation";
 import { EmailForm } from "./email-form";
+import { Dot, Mono, Panel, Row, Terminal } from "./ui";
 
 // ============================================================================
-// The landing page, built in the product's own visual world: the instrument.
+// The landing page. Five beats, then the details:
 //
-// Dark is chosen from the use scene, not the category — the people this is for
-// read it between a terminal and an editor. The surfaces, hairlines, status
-// vocabulary and mono-for-data are the app's, so the page and the thing it
-// sells look like one product.
+//   1  the claim            work like you're the only one in the repo
+//   2  the problem          shown, in two rows, not described
+//   3  the fix              the agent's own output, immediately after
+//   4  without / with       the same three moments, side by side, real UI
+//   5  the payoff           what a session starts knowing
 //
-// Structurally it refuses the marketing defaults: no eyebrow labels above
-// headings, no trio of identical cards standing in for a page, no 01/02/03,
-// and no monospace worn as a costume — mono is for file paths, counts, hosts
-// and terminal output, which is what mono is for in the app.
+// Built from the app's own vocabulary (./ui.tsx) so the page and the product
+// look like one thing. Where an earlier version explained in paragraphs, this
+// one shows the instrument and says less.
 //
-// Every number here is real: spots from platform_counts(), prices from
-// plans.ts. The page cannot say "free" the day the beta ends.
+// Every number is real: spots from platform_counts(), prices from plans.ts.
 // ============================================================================
 
 const Section = ({ id, children, className = "" }: { id?: string; children: React.ReactNode; className?: string }) => (
-  <section id={id} className={`mx-auto w-full max-w-[980px] px-6 sm:px-8 ${className}`}>{children}</section>
+  <section id={id} className={`mx-auto w-full max-w-[1020px] px-6 sm:px-8 ${className}`}>{children}</section>
 );
 
 const H2 = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="max-w-[20ch] font-display text-[30px] font-medium leading-[1.1] tracking-[-.025em] text-txt text-balance sm:text-[38px]">{children}</h2>
-);
-
-const Lede = ({ children }: { children: React.ReactNode }) => (
-  <p className="mt-4 max-w-[68ch] text-[15px] leading-[1.65] text-body">{children}</p>
+  <h2 className="max-w-[22ch] font-display text-[30px] font-medium leading-[1.1] tracking-[-.025em] text-txt text-balance sm:text-[38px]">{children}</h2>
 );
 
 export async function Landing({ nextParam, from, notice }: { nextParam?: string; from?: string; notice?: React.ReactNode }) {
@@ -57,17 +53,16 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
         </Section>
       </header>
 
-      {/* ---- hero ------------------------------------------------------- */}
-      <Section className="pt-16 sm:pt-24">
-        <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_430px] lg:gap-14">
+      {/* ---- 1. the claim ------------------------------------------------ */}
+      <Section className="pt-14 sm:pt-20">
+        <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_420px]">
           <div>
             <h1 className="font-display text-[42px] font-medium leading-[1.03] tracking-[-.04em] text-txt text-balance sm:text-[58px]">
-              Your coding agents have no idea what your team is doing.
+              Work like you&apos;re the only one in the repo.
             </h1>
-            <p className="mt-6 max-w-[54ch] text-[17px] leading-[1.6] text-body">
-              DevBrain is the layer that tells them. Every agent sees who is editing what, what just
-              merged, and what the team decided last week — <span className="text-txt">before</span> it
-              touches a file.
+            <p className="mt-6 max-w-[50ch] text-[17px] leading-[1.6] text-body">
+              You&apos;re not. Every agent on your team knows who is editing what, what just merged,
+              and what was decided — so nobody has to ask.
             </p>
 
             <div className="mt-9 flex flex-wrap items-center gap-5">
@@ -75,13 +70,12 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
               <a href="#how" className="-my-2 py-2 text-[13.5px] text-accent hover:underline">See how it works</a>
             </div>
             <p className="mt-4 max-w-[46ch] text-[13px] leading-[1.6] text-muted">
-              Read-only GitHub sign-in. No card, nothing installed yet — you link a repo and install
-              the plugin after.
+              Read-only GitHub sign-in. No card, nothing installed yet.
             </p>
 
             {beta.free && spotsLeft !== null && !full && (
-              <div className="mt-9 inline-flex items-center gap-3 rounded-lg border border-line bg-row px-3.5 py-2.5">
-                <span className="h-[7px] w-[7px] rounded-full bg-go" />
+              <div className="mt-8 inline-flex items-center gap-3 rounded-lg border border-line bg-row px-3.5 py-2.5">
+                <Dot tone="go" />
                 <span className="font-mono text-[12.5px] tabular-nums text-txt">{spotsLeft}</span>
                 <span className="text-[12.5px] text-muted">of {beta.maxTeams} beta spots open · free while it runs</span>
               </div>
@@ -91,177 +85,201 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
         </div>
       </Section>
 
-      {/* ---- the problem: an incident list, not three cards ------------- */}
-      <Section className="pt-28 sm:pt-36">
-        <H2>Three things that happen on every team running agents</H2>
-        <div className="mt-9 border-t border-line">
-          {[
-            { tone: "stop", t: "Two agents, one file", b: "Your agent opens auth.ts. So does your teammate's, in another window, right now. Neither one finds out until the merge conflict." },
-            { tone: "wait", t: "Work that undoes work", b: "An agent's picture of the repo is from whenever its session started. It confidently rewrites something that shipped an hour ago." },
-            { tone: "wait", t: "Context dies with the session", b: "What the team worked out last week is in a transcript nobody will open again. Every session starts from nothing." },
-          ].map((c) => (
-            <div key={c.t} className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 border-b border-line py-5 sm:grid-cols-[auto_19ch_1fr] sm:gap-x-6">
-              <span className={`h-[7px] w-[7px] shrink-0 translate-y-[-2px] rounded-full ${c.tone === "stop" ? "bg-stop" : "bg-wait"}`} />
-              <h3 className="text-[15px] font-medium leading-[1.4] text-txt">{c.t}</h3>
-              <p className="col-span-2 max-w-[62ch] text-[13.5px] leading-[1.65] text-muted sm:col-span-1">{c.b}</p>
-            </div>
-          ))}
+      {/* ---- 2. the problem, shown ---------------------------------------- */}
+      <Section className="pt-20 sm:pt-28">
+        <H2>Right now, your agents are working blind.</H2>
+        <div className="mt-9 grid gap-2.5 sm:max-w-[560px]">
+          <Row tone="go" name="Nova" host="Claude Code">
+            writing <Mono>src/api/auth.ts</Mono>
+          </Row>
+          <Row tone="go" name="Kai" host="Cursor">
+            writing <Mono>src/api/auth.ts</Mono>
+          </Row>
+          <div className="flex items-center gap-2 pt-1 text-[13px] text-muted">
+            <Dot tone="stop" />
+            Neither one knows about the other. You find out at the merge.
+          </div>
         </div>
       </Section>
 
-      {/* ---- the mechanism ---------------------------------------------- */}
-      <Section className="pt-28 sm:pt-36">
-        <H2>It stops the edit before it happens.</H2>
-        <Lede>
-          A hook runs before your agent writes to any file. It asks what your teammates&apos; sessions
-          are holding, and if the answer is &ldquo;that one&rdquo;, your agent stops and tells you:
-        </Lede>
-
-        <figure className="mt-8 overflow-hidden rounded-xl border border-line2 bg-codebg">
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
-            <span className="h-[7px] w-[7px] rounded-full bg-wait" />
-            <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-white/55">agent stopped · src/api/auth.ts</span>
-          </div>
-          <pre className="whitespace-pre-wrap px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[13px]">
+      {/* ---- 3. the fix, immediately -------------------------------------- */}
+      <Section className="pt-14">
+        <H2>DevBrain stops the second one.</H2>
+        <div className="mt-9">
+          <Terminal head="agent stopped · src/api/auth.ts" foot="The warning your agent prints, word for word.">
 {`DevBrain: src/api/auth.ts is being worked on right now by
 Kai (claimed: refactoring the session guard). Editing it anyway
 risks a collision — coordinate first, or approve to proceed
 deliberately.`}
-          </pre>
-          <figcaption className="border-t border-white/10 px-5 py-3 text-[12px] text-white/45">
-            The warning your agent prints, word for word.
-          </figcaption>
-        </figure>
-
-        <p className="mt-7 max-w-[68ch] text-[15px] leading-[1.65] text-body">
-          Not a notification you read afterwards. A decision, at the moment it still costs nothing to
-          make.
-        </p>
-        {!full && (
-          <p className="mt-5 text-[13.5px] text-muted">
-            <a href="#start" className="font-medium text-accent hover:underline">Put this on one of your repos</a>
-            {" — free while the beta runs."}
-          </p>
-        )}
-      </Section>
-
-      {/* ---- how it works: a sequence, not three boxes ------------------ */}
-      <Section id="how" className="scroll-mt-8 pt-28 sm:pt-36">
-        <H2>Three steps, then you forget it is there.</H2>
-        <ol className="mt-9 border-l border-line pl-6 sm:pl-8">
-          {[
-            { t: "Install the plugin", b: "One command in Claude Code, Cursor or Codex. It wires hooks into the agent you already use — no new editor, no new workflow." },
-            { t: "Your agents check in", b: "Presence, claims and activity go to your team as the work happens. Nobody has to remember to post a status." },
-            { t: "Every session starts informed", b: "At session start the team brief is injected: who is active, what is claimed, what changed, what was decided." },
-          ].map((s) => (
-            <li key={s.t} className="relative pb-8 last:pb-0">
-              <span className="absolute -left-[26px] top-[7px] h-[7px] w-[7px] rounded-full bg-accent sm:-left-[34px]" />
-              <h3 className="text-[16px] font-medium text-txt">{s.t}</h3>
-              <p className="mt-1.5 max-w-[64ch] text-[13.5px] leading-[1.65] text-muted">{s.b}</p>
-            </li>
-          ))}
-        </ol>
-        <p className="mt-8 max-w-[66ch] text-[13.5px] leading-[1.65] text-muted">
-          A teammate is whoever holds a token — a person on any of the three agents, or a spawned
-          agent session working on its own. They all show up the same way, because to everyone else on
-          the team the difference does not matter.
+          </Terminal>
+        </div>
+        <p className="mt-7 max-w-[62ch] text-[15px] leading-[1.65] text-body">
+          Before the write, not after the merge. A decision, while it still costs nothing to make.
         </p>
       </Section>
 
-      {/* ---- what you get: grouped, not eight flat items ---------------- */}
-      <Section className="pt-28 sm:pt-36">
-        <H2>Shared awareness, not another dashboard to check.</H2>
-        <div className="mt-9 grid gap-x-12 gap-y-9 sm:grid-cols-3">
-          {[
-            { when: "While you work", items: [["Collision warnings", "The guard above, on every edit, for every agent."], ["Live presence", "Who is in which repo, on which branch, touching which files."], ["Claims", "An agent takes a lane; the others route around it."]] },
-            { when: "Between sessions", items: [["Handoffs", "Leave one mid-thought. The next session picks it up."], ["Team memory", "Decisions and journals, searchable."], ["Restore points", "A marked spot to return to after a wrong turn."]] },
-            { when: "When it ships", items: [["PR traffic lights", "Which pull requests are safe to merge, and in which order."], ["Tasks that move themselves", "A task closes when the PR doing the work merges."]] },
-          ].map((g) => (
-            <div key={g.when}>
-              <h3 className="font-mono text-[10.5px] uppercase tracking-[.11em] text-accent">{g.when}</h3>
-              <dl className="mt-4">
-                {g.items.map(([t, b]) => (
-                  <div key={t} className="border-t border-line py-3.5">
-                    <dt className="text-[14px] font-medium text-txt">{t}</dt>
-                    <dd className="mt-1 text-[13px] leading-[1.6] text-muted">{b}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ))}
+      {/* ---- 4. without / with --------------------------------------------- */}
+      <Section className="pt-20 sm:pt-28">
+        <H2>The same three moments, with and without.</H2>
+        <div className="mt-9 grid gap-5 md:grid-cols-2">
+          <Panel tone="bad" title="Without DevBrain">
+            <Row tone="go" name="Two agents, one file">
+              both writing <Mono>src/api/auth.ts</Mono>
+            </Row>
+            <Row tone="stop" name="Merge conflict" flag="stop">
+              <Mono>3 files</Mono> · 40 minutes of work redone
+            </Row>
+            <div className="h-px bg-line" />
+            <Row tone="idle" name="Session ends">
+              what it learned goes with it
+            </Row>
+            <Row tone="stop" name="Next session" flag="stop">
+              starts from nothing, asks the same questions
+            </Row>
+            <div className="h-px bg-line" />
+            <Row tone="idle" name="Two PRs, same area">
+              merged in the order they were opened
+            </Row>
+            <Row tone="stop" name="main is broken" flag="stop">
+              the second one needed the first
+            </Row>
+          </Panel>
+
+          <Panel tone="good" title="With DevBrain">
+            <Row tone="wait" name="Kai holds the lane">
+              claimed <Mono>src/api/**</Mono>
+            </Row>
+            <Row tone="go" name="Nova is stopped" flag="go">
+              told before the write · no conflict
+            </Row>
+            <div className="h-px bg-line" />
+            <Row tone="idle" name="Session ends">
+              leaves a handoff and a journal
+            </Row>
+            <Row tone="go" name="Next session" flag="go">
+              opens knowing what the last one found
+            </Row>
+            <div className="h-px bg-line" />
+            <Row tone="idle" name="Two PRs, same area">
+              DevBrain reads both diffs
+            </Row>
+            <Row tone="go" name="Merge order shown" flag="go">
+              <Mono>#128</Mono> first, then <Mono>#131</Mono>
+            </Row>
+          </Panel>
         </div>
       </Section>
 
-      {/* ---- price ------------------------------------------------------ */}
-      <Section className="pt-28 sm:pt-36">
+      {/* ---- 5. the payoff -------------------------------------------------- */}
+      <Section className="pt-20 sm:pt-28">
+        <H2>So every session opens already knowing.</H2>
+        <div className="mt-9 grid items-start gap-8 lg:grid-cols-[minmax(0,440px)_1fr]">
+          <Terminal head="session start · team brief">
+{`2 teammates active
+  Kai   · src/api/**   claimed, session guard
+  Rio   · tests/**     writing coverage
+
+since you were last here
+  #128 merged  · rate limiting
+  decision     · tokens are hashed, never stored
+
+waiting for you
+  handoff from Rio · "auth tests need the new fixture"`}
+          </Terminal>
+          <p className="max-w-[46ch] text-[15px] leading-[1.65] text-body">
+            Injected into your agent&apos;s context at session start, every time. Nobody wrote it,
+            nobody was asked for it, and nobody had to remember to read it.
+            <span className="mt-4 block text-muted">
+              That is the whole idea: the coordination happens, and none of it is your job.
+            </span>
+          </p>
+        </div>
+      </Section>
+
+      {/* ---- how it works ---------------------------------------------------- */}
+      <Section id="how" className="scroll-mt-8 pt-20 sm:pt-28">
+        <H2>Three steps, then you forget it is there.</H2>
+        <ol className="mt-9 grid gap-6 border-l border-line pl-6 sm:pl-8">
+          {[
+            ["Install the plugin", <>One command in Claude Code, Cursor or Codex. No new editor, no new workflow.</>],
+            ["Your agents check in", <>Presence, claims and activity go to the team as work happens.</>],
+            ["Every session starts informed", <>The brief above, injected automatically.</>],
+          ].map(([t, b], i) => (
+            <li key={i} className="relative">
+              <span className="absolute -left-[26px] top-[7px] h-[7px] w-[7px] rounded-full bg-accent sm:-left-[34px]" />
+              <h3 className="text-[16px] font-medium text-txt">{t}</h3>
+              <p className="mt-1 max-w-[60ch] text-[13.5px] leading-[1.6] text-muted">{b}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-7 max-w-[60ch] text-[13.5px] leading-[1.6] text-muted">
+          An agent session you spawned counts as a teammate too — which is where most collisions
+          come from.
+        </p>
+      </Section>
+
+      {/* ---- price ------------------------------------------------------------ */}
+      <Section className="pt-20 sm:pt-28">
         {beta.free ? (
           <>
             <H2>Free while the beta runs.</H2>
-            <Lede>
-              No card, no trial counting down. Your team gets {PLANS.base.actionsPerDay} AI actions a
-              day and unlimited seats, repos and teammates. When the beta ends you get a {TRIAL_DAYS}-day
-              trial to decide, and you are told before it happens — nothing starts charging on its own.
-            </Lede>
-            <p className="mt-4 text-[13.5px] text-muted">
-              Afterwards it is {dollars(PLANS.base.priceCents)} or {dollars(PLANS.scale.priceCents)} a
-              month for the whole team, not per seat. <Link href="/pricing" className="text-accent hover:underline">See the plans</Link>.
+            <p className="mt-4 max-w-[62ch] text-[15px] leading-[1.65] text-body">
+              No card, no trial counting down. When the beta ends you get a {TRIAL_DAYS}-day trial and
+              fair warning — nothing starts charging on its own. Afterwards it is{" "}
+              {dollars(PLANS.base.priceCents)} or {dollars(PLANS.scale.priceCents)} a month for the
+              whole team, not per seat. <Link href="/pricing" className="text-accent hover:underline">See the plans</Link>.
             </p>
           </>
         ) : (
           <>
             <H2>Per team, not per seat.</H2>
-            <Lede>
+            <p className="mt-4 max-w-[62ch] text-[15px] leading-[1.65] text-body">
               {dollars(PLANS.base.priceCents)} or {dollars(PLANS.scale.priceCents)} a month for the
               whole team, with a {TRIAL_DAYS}-day trial.{" "}
               <Link href="/pricing" className="text-accent hover:underline">See the plans</Link>.
-            </Lede>
+            </p>
           </>
         )}
       </Section>
 
-      {/* ---- objections -------------------------------------------------- */}
-      <Section className="pt-28 sm:pt-36">
-        <H2>Before you ask</H2>
-        <div className="mt-9 grid gap-x-12 sm:grid-cols-2">
+      {/* ---- objections -------------------------------------------------------- */}
+      <Section className="pt-16 sm:pt-20">
+        <div className="grid gap-x-12 sm:grid-cols-2">
           {[
-            { q: "Does DevBrain see my source code?", a: <>No. It stores metadata — who is active, which files were touched, task and PR records, and redacted session summaries. Not file contents. The <Link href="/privacy" className="text-accent hover:underline">privacy page</Link> is specific about every field.</> },
-            { q: "Do my teammates have to use the same agent as me?", a: <>No. Claude Code, Cursor and Codex all report the same way, and a person on one sees everyone on the others.</> },
-            { q: "What about agent sessions I spawn myself?", a: <>They appear as their own teammates, with their own presence and claims — which is the point, since that is where most collisions come from.</> },
-            { q: "Do I need the Mac app?", a: <>The coordination runs in a CLI and an agent plugin. The Console and the live panel are a Mac app today; other platforms are not built yet.</> },
-            { q: "Does it write to my repositories?", a: <>Its GitHub access is read-oriented, and it does not push code. It reads pull-request metadata through a GitHub App you install per repo.</> },
-            { q: "What happens when the beta ends?", a: <>You get told in advance, then a {TRIAL_DAYS}-day trial. There is no card on file, so nothing can charge you without you deciding to.</> },
+            { q: "Does it see my source code?", a: <>No — metadata only: who is active, which files were touched, PR records, redacted summaries. The <Link href="/privacy" className="text-accent hover:underline">privacy page</Link> lists every field.</> },
+            { q: "Do we all have to use the same agent?", a: <>No. Claude Code, Cursor and Codex report the same way and see each other.</> },
+            { q: "What about sessions I spawn myself?", a: <>They are teammates too — which is where most collisions come from.</> },
+            { q: "Do I need the Mac app?", a: <>Coordination runs in a CLI and a plugin. The Console is a Mac app today.</> },
           ].map((f) => (
             <div key={f.q} className="border-t border-line py-5">
               <h3 className="text-[14.5px] font-medium text-txt">{f.q}</h3>
-              <p className="mt-1.5 max-w-[58ch] text-[13px] leading-[1.65] text-muted">{f.a}</p>
+              <p className="mt-1.5 max-w-[52ch] text-[13px] leading-[1.6] text-muted">{f.a}</p>
             </div>
           ))}
         </div>
       </Section>
 
-      {/* ---- close ------------------------------------------------------- */}
-      <Section id="start" className="scroll-mt-8 pt-28 sm:pt-36">
-        <div className="rounded-2xl border border-line2 bg-row px-6 py-10 sm:px-12 sm:py-14">
+      {/* ---- close -------------------------------------------------------------- */}
+      <Section id="start" className="scroll-mt-8 pt-16 sm:pt-20">
+        <div className="rounded-2xl border border-line2 bg-row px-6 py-9 sm:px-11 sm:py-12">
           {full ? (
             <>
               <H2>The beta is full — get the next spot.</H2>
-              <Lede>
-                All {beta.maxTeams} team spots are taken. Leave an address and you will hear the moment
-                one opens up. An invite link from someone already on DevBrain still works.
-              </Lede>
+              <p className="mt-4 max-w-[52ch] text-[15px] leading-[1.6] text-body">
+                All {beta.maxTeams} spots are taken. Leave an address and you will hear when one opens.
+              </p>
               <EmailForm source="beta_full" className="mt-8 max-w-[440px]" />
             </>
           ) : (
             <>
               <H2>Put it on one repo and watch what happens.</H2>
-              <Lede>
-                Sign in with GitHub, create a team, link a repo, install the plugin. The next session
-                anyone on your team starts will already know about the others.
-              </Lede>
+              <p className="mt-4 max-w-[52ch] text-[15px] leading-[1.6] text-body">
+                Sign in, link a repo, install the plugin. The next session anyone starts will already
+                know about the others.
+              </p>
               <div className="mt-8"><SignInButton next={signInNext} /></div>
-              <p className="mt-3 text-[13px] text-muted">Read-only GitHub sign-in. No card, nothing installed yet.</p>
-              <div className="mt-10 border-t border-line pt-7">
-                <p className="text-[13.5px] text-muted">Not ready today? Leave an address and I&apos;ll tell you when things change.</p>
+              <div className="mt-8 border-t border-line pt-6">
+                <p className="text-[13.5px] text-muted">Not ready today? Leave an address.</p>
                 <EmailForm className="mt-4 max-w-[440px]" />
               </div>
             </>
@@ -269,9 +287,9 @@ deliberately.`}
         </div>
       </Section>
 
-      <Section className="pt-20">
+      <Section className="pt-14">
         <footer className="flex flex-wrap items-center gap-5 border-t border-line pt-7 text-[12.5px] text-muted">
-          <span className="text-muted">DevBrain</span>
+          <span>DevBrain</span>
           <Link href="/pricing" className="-my-2 py-2 hover:text-txt">Pricing</Link>
           <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
           <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>

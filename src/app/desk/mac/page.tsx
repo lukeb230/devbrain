@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { isAppRequest } from "@/lib/app-only";
 import { sendTestAlert } from "@/app/settings/org/alert-actions";
 import { operatorOrgId } from "@/lib/alerts";
 import { installationWritePerms } from "@/lib/github-writer";
@@ -27,6 +29,9 @@ export default async function DeskMac() {
   const org = await currentOrg();
   if (!org) redirect("/welcome");
   const admin = supabaseAdmin();
+  // Which surface is this? The app's webviews carry a marker in their user
+  // agent; anything else is a browser tab (see src/lib/app-only.ts).
+  const inApp = isAppRequest((await headers()).get("user-agent"));
 
   const [{ data: tick }, { data: repos }, { data: jpol }, { data: tokens }, { count: opsOpen }, { count: teamOpen }, operator] = await Promise.all([
     admin.from("system_state").select("value, updated_at").eq("key", "last_tick").maybeSingle(),
@@ -75,7 +80,8 @@ export default async function DeskMac() {
                 <h3 className="m-0 font-display text-[14px] font-semibold text-txt">Install health</h3>
                 <span className="ml-auto font-mono text-[10px] uppercase tracking-[.12em] text-faint">same checks as devbrain doctor</span>
               </div>
-              <Health first level={tickOk ? "go" : "stop"} title="Agent tick" sub={at ? `last heartbeat ${age}s ago · every 2 minutes` : "no heartbeat recorded"} right={<span className={`font-mono text-[11px] ${tickOk ? "text-go" : "text-stop"}`}>{tickOk ? "ok" : "stale"}</span>} />
+              <Health first level={inApp ? "go" : "wait"} title="Console surface" sub={inApp ? "running in the DevBrain app" : "running in a browser — the Console belongs to the app"} right={<span className={`font-mono text-[11px] ${inApp ? "text-go" : "text-wait"}`}>{inApp ? "app" : "browser"}</span>} />
+              <Health level={tickOk ? "go" : "stop"} title="Agent tick" sub={at ? `last heartbeat ${age}s ago · every 2 minutes` : "no heartbeat recorded"} right={<span className={`font-mono text-[11px] ${tickOk ? "text-go" : "text-stop"}`}>{tickOk ? "ok" : "stale"}</span>} />
               <Health level={process.env.ANTHROPIC_API_KEY ? "go" : "wait"} title="AI units" sub={process.env.ANTHROPIC_API_KEY ? "reviews, journals, digests, spec extraction run" : "no API key on the server — deterministic units only"} />
               <Health level={recent.length ? "go" : "dim"} title="Your tokens in use" sub={recent.length ? recent.map((t) => t.label).join(", ") : "none used in the last 15 minutes"} right={<span className="font-mono text-[11px] text-muted">{(tokens ?? []).length} live</span>} />
               {(repos ?? []).map((r) => {

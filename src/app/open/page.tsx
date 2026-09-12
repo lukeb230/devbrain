@@ -21,6 +21,9 @@ import { hasRole } from "@/lib/org";
 export const dynamic = "force-dynamic";
 
 const RELEASES = "https://github.com/lukeb230/devbrain/releases/latest";
+// With the Console app-only, "continue in the browser" would bounce straight
+// back here — so it is only offered when the gate is off.
+const APP_ONLY = process.env.DEVBRAIN_APP_ONLY === "1";
 
 export default async function OpenPage({ searchParams }: { searchParams: Promise<{ to?: string; joined?: string; created?: string; unlinked?: string; deleted?: string; checkout?: string; billing_error?: string }> }) {
   const sp = await searchParams;
@@ -66,7 +69,7 @@ export default async function OpenPage({ searchParams }: { searchParams: Promise
         <div className="mt-[22px] flex flex-col gap-2">
           <a href={`devbrain://desk${route}`} className="rounded-[10px] bg-accent2 px-4 py-[11px] text-center text-[13px] font-semibold text-white hover:brightness-110">Open the Console in the app</a>
           <a href={RELEASES} className="rounded-[10px] border border-line2 bg-row px-4 py-[11px] text-center text-[13px] font-medium text-txt hover:border-line3">Don&apos;t have the app? Download it</a>
-          <Link href={to} className="text-center text-[12px] text-muted hover:text-txt hover:underline">Continue in the browser instead</Link>
+          {!APP_ONLY && <Link href={to} className="text-center text-[12px] text-muted hover:text-txt hover:underline">Continue in the browser instead</Link>}
         </div>
         <p className="mt-10 text-[11.5px] leading-[1.6] text-faint">
           Beta build? <a href={`devbrain-beta://desk${route}`} className="text-accent hover:underline">Open in DevBrain Beta</a>. Setting up a new Mac by hand: <Link href="/settings/setup" className="text-accent hover:underline">setup page</Link>.

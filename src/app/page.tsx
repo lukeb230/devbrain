@@ -56,7 +56,7 @@ export default async function LandingPage({
         <img src="/brain.png" width={49} height={40} alt="" />
         <div className="mt-3 font-display text-[17px] font-bold tracking-[-.02em] text-txt">DevBrain</div>
         <p className="mb-3.5 mt-1.5 max-w-[260px] text-[12.5px] leading-[1.5] text-muted">Sign in with GitHub in your browser — the app picks it up and brings you back.</p>
-        <SignInButton next={surface === "desk" ? "/desk" : "/widget"} size="sm" />
+        <SignInButton next={nextParam ?? (surface === "desk" ? "/desk" : "/widget")} size="sm" />
       </main>
     </BrowserShell>
   );

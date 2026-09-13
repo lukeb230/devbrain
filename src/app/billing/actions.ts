@@ -5,8 +5,8 @@ import { createCheckout, SITE } from "@/lib/billing/checkout";
 import { type PlanId } from "@/lib/billing/plans";
 import { requireRoleOrRedirect } from "@/lib/org";
 
-// Site-side Checkout: a plain form post from /welcome/plan, /open or /pricing
-// that lands on Stripe. Success returns to /open, which shows the download
+// Site-side Checkout: a plain form post from /welcome/plan or /open that
+// lands on Stripe. Success returns to /open, which shows the download
 // once the webhook has flipped the team.
 export async function checkoutFromSite(formData: FormData): Promise<void> {
   const me = await requireRoleOrRedirect("admin", "/open");

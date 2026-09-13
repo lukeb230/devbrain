@@ -62,11 +62,15 @@ export async function POST(request: Request) {
               const eventsByOrg: Record<string, RequestEvent[]> = {};
               const linksByOrg: Record<string, LinkRow[]> = {};
               if (orgIds.length) {
-                const [{ data: evs }, { data: links }] = await Promise.all([
-                  admin.from("events").select("org_id, kind, at, payload").in("org_id", orgIds).in("kind", ["repo_link_requested", "repo_link_cancelled"]).order("at", { ascending: false }).limit(200),
+                // Per-org, not one shared limit: one busy team must not push
+                // another team's open request out of the window.
+                const [perOrg, { data: links }] = await Promise.all([
+                  Promise.all(orgIds.map((id) =>
+                    admin.from("events").select("org_id, kind, at, payload").eq("org_id", id).in("kind", ["repo_link_requested", "repo_link_cancelled"]).order("at", { ascending: false }).limit(50),
+                  )),
                   admin.from("linked_repos").select("org_id, created_at, unlinked_at").in("org_id", orgIds),
                 ]);
-                for (const e of evs ?? []) (eventsByOrg[e.org_id as string] ??= []).push(e as RequestEvent);
+                for (const { data: evs } of perOrg) for (const e of evs ?? []) (eventsByOrg[e.org_id as string] ??= []).push(e as RequestEvent);
                 for (const l of links ?? []) (linksByOrg[l.org_id as string] ??= []).push(l as LinkRow);
               }
               claimedOrg = pickClaimOrg({ requesterLogin: requester, members: (members ?? []) as { org_id: string; github_login: string | null }[], eventsByOrg, linksByOrg });

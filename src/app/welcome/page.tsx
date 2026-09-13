@@ -19,6 +19,8 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
   if (!user) redirect("/");
   const { invite_error, from } = await searchParams;
   const inPanel = from === "widget";
+  // Both app windows carry their surface so the forms return to them.
+  const appNext = from === "widget" ? "/widget" : from === "desk" ? "/desk" : null;
   const ctx = await currentOrg();
   // Say the beta is full here rather than after someone types a team name.
   const full = await signupBlock("team");
@@ -43,7 +45,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
             <>
               <p className="mb-2.5 mt-1 text-[12.5px] text-muted">You&apos;ll be its owner. Link repos and invite people next.</p>
               <form action={createTeam} className={row}>
-                {inPanel && <input type="hidden" name="next" value="/widget" />}
+                {appNext && <input type="hidden" name="next" value={appNext} />}
                 <input name="name" required maxLength={60} placeholder="Team name" className={input} />
                 <button className="whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-[9px] text-[12.5px] font-semibold text-white">Create team</button>
               </form>
@@ -55,7 +57,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
           <div className="font-display text-[17px] font-medium text-txt">Join with an invite</div>
           <p className="mb-2.5 mt-1 text-[12.5px] text-muted">Paste the link a teammate sent you.</p>
           <form action={useInvite} className={row}>
-            {inPanel && <input type="hidden" name="next" value="/widget" />}
+            {appNext && <input type="hidden" name="next" value={appNext} />}
             <input name="invite" required placeholder="https://…/join/…" className={input} />
             <button className="whitespace-nowrap rounded-lg border border-line2 bg-row px-3.5 py-[9px] text-[12.5px] font-medium text-txt hover:border-line3">Join</button>
           </form>

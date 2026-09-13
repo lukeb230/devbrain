@@ -37,7 +37,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
-  if (!org) redirect("/welcome");
+  if (!org) redirect("/welcome?from=desk");
 
   const [repos, billing] = await Promise.all([teamRepos(org.orgId), loadBilling(org.orgId)]);
 

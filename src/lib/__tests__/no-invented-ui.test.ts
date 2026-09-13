@@ -85,7 +85,9 @@ describe("the marketing pages do not invent product UI", () => {
   });
 
   it("the collision warning is verbatim from the guard", () => {
-    const guard = read("plugin/hooks/check-collision.mjs");
+    // The sentence is composed server-side now (POST /api/v1/guard records
+    // the warning in the same round trip); the hook only relays it.
+    const guard = read("src/lib/guard.ts");
     const sentence = "Editing it anyway risks a collision — coordinate first, or approve to proceed deliberately.";
     expect(guard).toContain(sentence);
     // The page wraps it across JSON lines, so compare on collapsed whitespace.

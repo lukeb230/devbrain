@@ -135,6 +135,20 @@ function lastPromptAt(convo) {
  *  prompt in that conversation (any prompt — they have seen the warning and
  *  chosen to continue), and only within an hour. A bare retry by the agent
  *  stays denied. */
+function ackKey(repo, rel) {
+  return join(devbrainHome(), "collision-acks", `${repo.replace("/", "_")}--${Buffer.from(rel).toString("base64url").slice(0, 80)}`);
+}
+/** Cursor's sticky denial state for a file: when it was first denied, and
+ *  whether the person has since sent a prompt (so the next attempt is allowed
+ *  silently). Read-only — check-collision.mjs asks this BEFORE calling the
+ *  server so a silently-allowed attempt is not recorded as a second warning. */
+export function cursorAckState(repo, rel, convo) {
+  let deniedAt = 0;
+  try { deniedAt = Number(readFileSync(ackKey(repo, rel), "utf8")) || 0; } catch { /* first time */ }
+  const fresh = Boolean(deniedAt) && Date.now() - deniedAt < 60 * 60_000;
+  return { fresh, allowSilently: fresh && lastPromptAt(convo) > deniedAt };
+}
+
 export function emitGuard(host, { repo, rel, reason, convo }) {
   if (host !== "cursor") {
     process.stdout.write(JSON.stringify({
@@ -142,15 +156,11 @@ export function emitGuard(host, { repo, rel, reason, convo }) {
     }));
     return;
   }
-  const dir = join(devbrainHome(), "collision-acks");
-  const key = join(dir, `${repo.replace("/", "_")}--${Buffer.from(rel).toString("base64url").slice(0, 80)}`);
-  let deniedAt = 0;
-  try { deniedAt = Number(readFileSync(key, "utf8")) || 0; } catch { /* first time */ }
-  const fresh = deniedAt && Date.now() - deniedAt < 60 * 60_000;
-  if (fresh && lastPromptAt(convo) > deniedAt) return; // the person replied after seeing the warning → allow silently
+  const { fresh, allowSilently } = cursorAckState(repo, rel, convo);
+  if (allowSilently) return; // the person replied after seeing the warning → allow silently
   try {
-    mkdirSync(dir, { recursive: true });
-    if (!fresh) writeFileSync(key, String(Date.now()));
+    mkdirSync(dirname(ackKey(repo, rel)), { recursive: true });
+    if (!fresh) writeFileSync(ackKey(repo, rel), String(Date.now()));
   } catch { /* fall through to deny */ }
   process.stdout.write(JSON.stringify({
     permission: "deny",

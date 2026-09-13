@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentOrg, hasRole, withError } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { installationOctokit } from "@/lib/github";
+import { COOKIE, NOTICE_COOKIE_OPTS } from "@/lib/cookies";
 
 // GitHub redirects here after the user installs the app
 // (Setup URL: https://<host>/api/github/setup). We claim the installation
@@ -9,7 +10,25 @@ import { installationOctokit } from "@/lib/github";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const installationId = Number(searchParams.get("installation_id"));
-  if (!installationId) return NextResponse.redirect(`${origin}/desk/team`);
+  const setupAction = searchParams.get("setup_action");
+
+  // A developer who is not a GitHub org owner cannot install the App; GitHub
+  // records a REQUEST and sends them here with setup_action=request and no
+  // installation_id. Record it as an event so "requested" can be derived
+  // (src/lib/onboarding-request.ts) and the walkthrough can show the wait.
+  if (!installationId && setupAction === "request") {
+    const supabaseR = await supabaseServer();
+    const { data: { user: requester } } = await supabaseR.auth.getUser();
+    if (!requester) return NextResponse.redirect(`${origin}/`);
+    const ctxR = await currentOrg();
+    if (!ctxR) return NextResponse.redirect(`${origin}/welcome`);
+    if (!hasRole(ctxR.role, "admin")) return NextResponse.redirect(`${origin}${withError("/desk", "link_repo_admin")}`);
+    await supabaseAdmin().from("events").insert({
+      org_id: ctxR.orgId, repo_id: null, kind: "repo_link_requested", payload: { by: ctxR.login },
+    });
+    return NextResponse.redirect(`${origin}/desk?requested=1`);
+  }
+  if (!installationId) return NextResponse.redirect(`${origin}/desk`);
 
   const supabase = await supabaseServer();
   const {
@@ -38,7 +57,9 @@ export async function GET(request: Request) {
       org_id: existingInst.org_id, repo_id: null, kind: "error",
       payload: { where: "setup:claim_conflict", by_org: membership.org_id, installation_id: installationId },
     });
-    return NextResponse.redirect(`${origin}${withError("/desk", "install_owned")}`);
+    const res = NextResponse.redirect(`${origin}/desk`);
+    res.cookies.set(COOKIE.notice, "install_owned", NOTICE_COOKIE_OPTS);
+    return res;
   }
 
   // Claim (or create) the installation row for this org.
@@ -89,5 +110,6 @@ export async function GET(request: Request) {
     console.error("setup sync failed:", err);
   }
 
-  return NextResponse.redirect(`${origin}/desk/team?linked=1`);
+  await admin.from("events").insert({ org_id: membership.org_id, repo_id: null, kind: "repo_linked", payload: { by: ctx.login, installation_id: installationId } });
+  return NextResponse.redirect(`${origin}/desk?linked=1`);
 }

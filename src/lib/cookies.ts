@@ -8,6 +8,7 @@ export const COOKIE = {
   lastRepo: "devbrain_last_repo", // last repo visited → widget scope
   next: "devbrain_next",         // post-login destination (desktop hand-off)
   newToken: "devbrain_new_token", // plaintext dev token, shown once
+  notice: "devbrain_notice",     // one-shot message for the onboarding wall (60 s)
 } as const;
 
 const secure = process.env.NODE_ENV === "production"; // Safari refuses Secure on http://localhost
@@ -17,6 +18,7 @@ export const ORG_COOKIE_OPTS = { ...base, maxAge: 60 * 60 * 24 * 365 };
 export const LAST_REPO_COOKIE_OPTS = { ...base, maxAge: 60 * 60 * 24 * 90 };
 export const NEXT_COOKIE_OPTS = { ...base, maxAge: 3600 };
 export const NEW_TOKEN_COOKIE_OPTS = { ...base, path: "/settings", maxAge: 120 };
+export const NOTICE_COOKIE_OPTS = { ...base, path: "/desk", maxAge: 60 };
 
 /** Every DevBrain cookie with the path it is set on — deletion must match. */
 export const ALL_DEVBRAIN_COOKIES: { name: string; path: string }[] = [
@@ -25,6 +27,7 @@ export const ALL_DEVBRAIN_COOKIES: { name: string; path: string }[] = [
   { name: COOKIE.next, path: "/" },
   { name: COOKIE.newToken, path: "/settings" },
   { name: COOKIE.newToken, path: "/desk" },
+  { name: COOKIE.notice, path: "/desk" },
 ];
 
 /** Structurally matches both `await cookies()` and `NextResponse.cookies`. */

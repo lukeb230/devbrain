@@ -18,8 +18,8 @@ import { describe, expect, it } from "vitest";
 const APP = ["src/app/desk", "src/app/widget", "src/lib"];
 const FILES = [
   "src/app/landing/app-shots.tsx",
-  "src/app/landing/try-it.tsx",
-  "src/app/landing/terminal.tsx",
+  "src/app/landing/panel-window.tsx",
+  "src/app/landing/spawn-window.tsx",
 ];
 
 /** Every label the shots put on screen, and where it must exist. */
@@ -39,6 +39,14 @@ const DEPICTED = [
   "cleared to land",
   "waiting on a teammate",
   "conflicts with main",
+  "Team now",
+  "Open the Console",
+  "press merge",
+  "resolve against",
+  "Pick up",
+  "last hour",
+  "collision",
+  "open tasks",
 ];
 
 /** Strings that were invented once and must never come back. */

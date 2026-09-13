@@ -13,6 +13,6 @@ export async function POST(request: Request) {
   const supabase = await supabaseServer();
   await supabase.auth.signOut();
   const res = NextResponse.redirect(new URL(signOutDestination(typeof from === "string" ? from : null), request.url), { status: 302 });
-  clearDevbrainCookies(res.cookies); // org, last repo, pending destination, shown-once token
+  clearDevbrainCookies(res.cookies); // org, last repo, pending destination, shown-once token, notice
   return res;
 }

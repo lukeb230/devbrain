@@ -102,7 +102,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
               </form>
             </span>
           </div>
-          {notice && NOTICES[notice] && <NoticeOnce text={NOTICES[notice]} />}
+          <NoticeOnce text={notice && NOTICES[notice] ? NOTICES[notice] : null} />
           {pendingBanner && (
             <>
               <RefreshWhile active />

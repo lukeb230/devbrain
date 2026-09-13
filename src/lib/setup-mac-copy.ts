@@ -16,3 +16,12 @@ export function setupMacCopy(i: { done: boolean; hasToken: boolean; orgName: str
   }
   return { button: "Set up this Mac", note: null };
 }
+
+/** Mint a fresh token for this team unless the Mac already holds a usable
+ *  one: the server says step 3 is done AND config.json has a token AND the
+ *  last bootstrap did not fail. Any other combination means the token on
+ *  this Mac is missing, stale, or for another team. An extra token row on a
+ *  re-run costs nothing; a "--token required" dead end costs the setup. */
+export function shouldMint(i: { done: boolean; hasToken: boolean; bootstrapOk: boolean | null | undefined }): boolean {
+  return !i.done || !i.hasToken || i.bootstrapOk === false;
+}

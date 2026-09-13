@@ -45,6 +45,8 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
   // Every step after "team" is completed by something OUTSIDE this window —
   // GitHub's redirect in the browser, the app's bootstrap, an editor start.
   // Poll until everything is green so the wall never shows a stale step.
+  // When the layout mounts the wall (blocking), this is always true, so the
+  // wall polls for as long as it is open and visible.
   const pendingOrWorking = !state.complete;
 
   return (

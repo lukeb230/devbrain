@@ -10,7 +10,7 @@ export function RefreshWhile({ active }: { active: boolean }) {
   const router = useRouter();
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => router.refresh(), 5000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 5000);
     return () => clearInterval(t);
   }, [active, router]);
   return null;

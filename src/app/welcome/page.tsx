@@ -64,8 +64,11 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
         </section>
 
         <div className="mt-8 flex items-center gap-4 text-[12px] text-faint">
-          {ctx && <a href={inPanel ? "/widget" : "/open"} className="text-accent hover:underline">Back to {ctx.orgName}</a>}
-          <form action="/auth/sign-out" method="post" className="ml-auto"><button className="hover:text-txt">Sign out</button></form>
+          {ctx && <a href={appNext ?? "/open"} className="text-accent hover:underline">Back to {ctx.orgName}</a>}
+          <form action="/auth/sign-out" method="post" className="ml-auto">
+            {appNext && <input type="hidden" name="from" value={from} />}
+            <button className="hover:text-txt">Sign out</button>
+          </form>
         </div>
       </main>
     </BrowserShell>

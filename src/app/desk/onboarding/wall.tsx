@@ -1,3 +1,4 @@
+import { Copy } from "@/app/desk/copy";
 import { DeskNext } from "@/app/desk/desk-next";
 import { ExternalLink } from "@/app/desk/external-link";
 import { toggleRule } from "@/app/dashboard/[repoId]/rules/actions";
@@ -60,7 +61,12 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
         {state.repoState === "requested" && (
           <div className="mt-6 rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-4 py-3 text-[13px] text-wait">
             <div className="font-semibold">Waiting on your GitHub org owner to approve DevBrain{openRequestBy ? ` (requested by ${openRequestBy})` : ""}.</div>
-            <div className="mt-1 text-[12.5px]">Send them this link: <code className="rounded bg-row2 px-1 font-mono text-[11px] text-txt">{requestLink}</code>. This page updates itself when they approve.</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px]">
+              <span>Send them this link:</span>
+              <code className="rounded bg-row2 px-1 font-mono text-[11px] text-txt">{requestLink}</code>
+              <Copy text={requestLink} />
+              <span>This page updates itself when they approve.</span>
+            </div>
             {isAdmin && (
               <form action={cancelRequest} className="mt-2"><DeskNext />
                 <button className="text-[12px] font-semibold text-accent hover:underline">Start over</button>

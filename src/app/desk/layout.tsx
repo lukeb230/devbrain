@@ -44,8 +44,10 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const walled = billing ? wallReason({ status: billing.status, hasSubscription: billing.hasSubscription, trialEndsAt: billing.trialEndsAt, periodEnd: billing.periodEnd }) !== null : false;
 
   const onboarding = await loadOnboarding(org, repos);
-  const policyMap = await loadPolicyMap(repos);
   const showOnboardingWall = !walled && onboarding.blocking;
+  // The policy map is only for the wall's Customise list — skip the query on
+  // every other Desk request.
+  const policyMap = showOnboardingWall ? await loadPolicyMap(repos) : {};
   const onboardingNudge = onboarding.complete ? null : onboarding.repoState === "requested" ? "Waiting on GitHub approval" : "Finish setup";
   // One-shot message from the GitHub setup route (e.g. install_owned); the
   // cookie expires in 60 s, so a layout can read it without clearing it.

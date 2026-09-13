@@ -19,7 +19,11 @@ export function pickClaimOrg(args: {
   const orgs = [...new Set(args.members.filter((m) => (m.github_login ?? "").toLowerCase() === login).map((m) => m.org_id))];
   let best: { orgId: string; at: number } | null = null;
   for (const orgId of orgs) {
-    const open = openRequest(args.eventsByOrg[orgId] ?? [], args.linksByOrg[orgId] ?? [], args.now);
+    const events = (args.eventsByOrg[orgId] ?? []).filter((e) => {
+      if (e.kind === "repo_link_cancelled") return true;
+      return (e.payload.by ?? "").toLowerCase() === login;
+    });
+    const open = openRequest(events, args.linksByOrg[orgId] ?? [], args.now);
     if (!open) continue;
     const at = new Date(open.at).getTime();
     if (!best || at > best.at) best = { orgId, at };

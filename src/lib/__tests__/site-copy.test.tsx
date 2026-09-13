@@ -14,6 +14,23 @@ const source = SITE_FILES.map((p) => strip(readFileSync(p, "utf8"))).join("\n");
 const html = renderToStaticMarkup(<LandingBody spotsLeft={148} maxTeams={200} free full={false} />);
 const text = html.replace(/<[^>]+>/g, " ");
 
+// Drops every element carrying role="img" (the panel recreation, the chat
+// window, the spawn window) and everything inside it, tracking tag depth so
+// nested markup inside the illustration doesn't leak out.
+const dropIllustrations = (h: string) => {
+  let out = "", depth = 0;
+  const tagRe = /<(\/?)([a-zA-Z][\w-]*)\b([^>]*?)(\/?)>/g;
+  let last = 0, m: RegExpExecArray | null;
+  while ((m = tagRe.exec(h))) {
+    const [full, closing, , attrs, selfClose] = m;
+    if (depth === 0) out += h.slice(last, m.index);
+    last = m.index + full.length;
+    if (depth === 0 && !closing && /role="img"/.test(attrs) && !selfClose) { depth = 1; continue; }
+    if (depth > 0) { if (!closing && !selfClose) depth++; else if (closing) depth--; }
+  }
+  return out + h.slice(last);
+};
+
 describe("the site's copy", () => {
   it("renders the hero and the guard sentence on the server", () => {
     expect(text).toContain("Work like you");
@@ -41,7 +58,11 @@ describe("the site's copy", () => {
     expect(s).not.toContain("—");
   });
   it("speaks as a team, never as one person", () => {
-    const own = text.replace(/[^.?!]*\?/g, ""); // drop FAQ-style questions (the visitor speaking)
+    // Illustrations (role="img") are mock people talking inside a recreated
+    // screenshot, not the site itself, so a character may say "I" or "my";
+    // the rule only binds the site's own voice.
+    const textWithoutIllustrations = dropIllustrations(html).replace(/<[^>]+>/g, " ");
+    const own = textWithoutIllustrations.replace(/[^.?!]*\?/g, ""); // drop FAQ-style questions (the visitor speaking)
     expect(own).not.toMatch(/\b(I|me|my)\b/);
     expect(FAQ_ITEMS).toHaveLength(11);
   });

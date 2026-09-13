@@ -1,4 +1,5 @@
 import { DeskNext } from "@/app/desk/desk-next";
+import { ExternalLink } from "@/app/desk/external-link";
 import { toggleRule } from "@/app/dashboard/[repoId]/rules/actions";
 import { Switch } from "@/app/desk/ui";
 import type { TeamRepo } from "@/lib/desk/repos";
@@ -112,7 +113,7 @@ function body(s: Step, c: { isOwner: boolean; isAdmin: boolean; repos: TeamRepo[
       return (
         <>
           Install the DevBrain GitHub App on the repository your team works in. If you're not an owner of the GitHub organisation, GitHub will send a request to whoever is — that's fine, this page will wait.
-          <div className="mt-2"><a href={c.installUrl} className="inline-block rounded-lg bg-accent2 px-3.5 py-[9px] text-[12.5px] font-semibold text-white">Link a repository</a></div>
+          <div className="mt-2"><ExternalLink href={c.installUrl} className="inline-block rounded-lg bg-accent2 px-3.5 py-[9px] text-[12.5px] font-semibold text-white">Link a repository</ExternalLink></div>
         </>
       );
     case "mac":

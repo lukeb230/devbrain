@@ -9,6 +9,7 @@ import { operatorOrgId } from "@/lib/alerts";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { DeskNext } from "../../desk-next";
+import { ExternalLink } from "../../external-link";
 import { Reading } from "../../panes";
 import { ACTION_MUTED, Button, Dot, Empty, Field, LinkButton, Section } from "../../ui";
 
@@ -45,7 +46,7 @@ export default async function DeskTeam({ searchParams }: { searchParams: Promise
       <Reading>
         <div className="flex items-end gap-4">
           <h1 className="font-display text-[32px] font-medium tracking-[-.02em] text-txt">Team settings</h1>
-          {isAdmin && <a href={`https://github.com/apps/${APP_SLUG}/installations/new`} className="ml-auto" title="Install the DevBrain GitHub App on a repo; it appears here when GitHub sends us back"><LinkButton>Link a repo</LinkButton></a>}
+          {isAdmin && <ExternalLink href={`https://github.com/apps/${APP_SLUG}/installations/new`} className="ml-auto"><LinkButton>Link a repo</LinkButton></ExternalLink>}
         </div>
         <p className="mt-2 text-[13px] text-muted">{me.orgName} · {repoCount ?? 0} repo{repoCount === 1 ? "" : "s"} · {memberCount ?? 0} member{memberCount === 1 ? "" : "s"} · plan {billing?.plan.name ?? orgRow?.plan ?? "—"}{operator === me.orgId ? " · this team operates the deployment" : ""} · members, roles and invite links live on <Link href="/desk/members" className="text-accent hover:underline">Members</Link></p>
         {sp.linked && <p className="mt-4 rounded-[10px] border border-[var(--wg-go-line)] bg-[var(--wg-go-bg)] px-3.5 py-2.5 text-[13px] text-go">Repo linked. Pick it from the repo switcher above.</p>}

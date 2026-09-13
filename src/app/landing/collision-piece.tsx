@@ -2,7 +2,7 @@ import { Reveal } from "./reveal";
 import { TEAM } from "./mock-team";
 
 const MESSAGES = (t: typeof TEAM) => [
-  { who: t.you, me: true, at: "4:31 PM", text: "hey is anyone in auth.ts? just got a conflict on my login PR" },
+  { who: t.you, me: true, at: "4:31 PM", text: "hey is anyone in auth.ts? just got a conflict on the login PR" },
   { who: t.cursor, me: false, at: "4:38 PM", text: "yeah since this morning, session guard refactor. did you change login()?" },
   { who: t.you, me: true, at: "4:38 PM", text: "rewrote it" },
   { who: t.cursor, me: false, at: "4:39 PM", text: "ok. call?" },

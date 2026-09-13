@@ -6,8 +6,9 @@ import { fileURLToPath } from "node:url";
 // of this suite is the CONTRACTS teammates' plugins depend on (digest shape,
 // traffic lights, lanes, merge order, reminders title parsing).
 export default defineConfig({
+  esbuild: { jsx: "automatic" },
   test: {
-    include: ["src/lib/__tests__/**/*.test.ts", "plugin/hooks/__tests__/**/*.test.ts", "cli/bin/__tests__/**/*.test.ts"],
+    include: ["src/lib/__tests__/**/*.test.ts", "src/lib/__tests__/**/*.test.tsx", "plugin/hooks/__tests__/**/*.test.ts", "cli/bin/__tests__/**/*.test.ts"],
     environment: "node",
   },
   resolve: {

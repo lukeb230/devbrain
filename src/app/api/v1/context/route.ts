@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/api-guard";
 import { buildDigest } from "@/lib/digest";
 import type { MemoryHit } from "@/lib/memory";
+import { loadGuardStats } from "@/lib/guard-load";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
 // ============================================================================
@@ -117,7 +118,7 @@ export async function GET(request: Request) {
     .eq("repo_id", repo.id)
     .neq("state", "open")
     .gte("updated_at", new Date(Date.now() - 72 * 3600_000).toISOString());
-  const [digestQ, reviewsQ] = await Promise.all([
+  const [digestQ, reviewsQ, guard7d] = await Promise.all([
     admin.from("digests").select("day, body").eq("repo_id", repo.id).order("day", { ascending: false }).limit(1),
     admin
       .from("pr_reviews")
@@ -125,6 +126,9 @@ export async function GET(request: Request) {
       .eq("repo_id", repo.id)
       .order("created_at", { ascending: false })
       .limit(20),
+    // The guard's own record: warnings in the last week, and how many were
+    // followed by an edit anyway. Derived from rows; two numbers, no verdict.
+    loadGuardStats(admin, repo.id, new Date(Date.now() - 7 * 86_400_000).toISOString()),
   ]);
 
   let relevantHistory: MemoryHit[] | undefined;
@@ -139,8 +143,8 @@ export async function GET(request: Request) {
     relevantHistory = hits.filter((h) => (h.rank ?? 0) >= top * 0.25);
   }
 
-  return NextResponse.json(
-    buildDigest({
+  return NextResponse.json({
+    ...buildDigest({
       repo: repo.full_name,
       you: auth.label,
       prs: prs.data ?? [],
@@ -158,5 +162,6 @@ export async function GET(request: Request) {
       reviews: reviewsQ.data ?? [],
       relevantHistory,
     }),
-  );
+    guard_7d: guard7d,
+  });
 }

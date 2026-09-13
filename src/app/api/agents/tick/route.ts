@@ -7,6 +7,7 @@ import { canAutoMerge, canUpdateBranch } from "@/lib/writer-gates";
 import { installationOctokit, prBehindBy } from "@/lib/github";
 import { brainToMemory, eventToMemory, handoffToMemory, journalToMemory, reviewToMemory, taskToMemory, type MemoryRow } from "@/lib/memory";
 import { fetchBrainDocs } from "@/lib/github";
+import { loadGuardStats } from "@/lib/guard-load";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeLights } from "@/lib/traffic";
 import { deriveVerdict, type ReviewPoint } from "@/lib/review";
@@ -943,13 +944,14 @@ export async function POST(request: Request) {
         if (existing && existing.length > 0) continue;
 
         const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-        const [{ data: acts }, { data: evts }, { data: prs }, { data: tasks }, { data: handoffs }] =
+        const [{ data: acts }, { data: evts }, { data: prs }, { data: tasks }, { data: handoffs }, guard] =
           await Promise.all([
             admin.from("activity").select("dev_label, label, file, at").eq("repo_id", repo.id).gte("at", since).order("at", { ascending: false }).limit(300),
             admin.from("events").select("kind, payload, at").eq("repo_id", repo.id).gte("at", since).in("kind", ["broadcast", "decision", "main_push"]).limit(50),
             admin.from("prs").select("number, title, author, state, review_state, mergeable_state, updated_at").eq("repo_id", repo.id).gte("updated_at", since).limit(30),
             admin.from("tasks").select("title, priority, status, created_by, done_by, assigned_to").eq("repo_id", repo.id).limit(50),
             admin.from("handoffs").select("dev_label, summary, picked_up_by").eq("repo_id", repo.id).is("picked_up_at", null).limit(10),
+            loadGuardStats(admin, repo.id, since),
           ]);
 
         if ((acts ?? []).length === 0 && (evts ?? []).length === 0 && (prs ?? []).length === 0) {
@@ -985,6 +987,9 @@ export async function POST(request: Request) {
           `PRS TOUCHED:\n${(prs ?? []).map((p) => `#${p.number} ${p.title} — ${p.state}${p.review_state ? "/" + p.review_state : ""}${p.mergeable_state === "dirty" ? " CONFLICTS" : ""} by ${p.author}`).join("\n") || "(none)"}`,
           `TASKS:\n${(tasks ?? []).map((t) => `[P${t.priority}/${t.status}] ${t.title}${t.assigned_to ? " -> " + t.assigned_to : ""}`).join("\n") || "(none)"}`,
           `UNCLAIMED HANDOFFS:\n${(handoffs ?? []).map((h) => `${h.dev_label}: ${h.summary}`).join("\n") || "(none)"}`,
+          // Two honest numbers, never a verdict: a warning followed by an edit
+          // may have been coordinated first. Report both; call neither "prevented".
+          `COLLISION GUARD (last 24h): ${guard.warned} warning${guard.warned === 1 ? "" : "s"}; ${guard.edited_after} followed by an edit to that file within ${guard.window_min} min.`,
         ].join("\n\n");
 
         const body = (await askClaude(DIGEST_SYSTEM, telemetry, 700, undefined, repo.org_id)).trim().slice(0, 4000);

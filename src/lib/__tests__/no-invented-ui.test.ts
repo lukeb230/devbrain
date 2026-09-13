@@ -64,24 +64,30 @@ const BANNED = [
   "Updated src/",
 ];
 
+const SITE_DIRS = ["src/app/landing", "src/app/faq"];
+
 const read = (p: string) => readFileSync(p, "utf8");
-const appSource = () =>
-  APP.flatMap((dir) => {
-    const out: string[] = [];
-    const walk = (d: string) => {
-      for (const e of require("node:fs").readdirSync(d, { withFileTypes: true })) {
-        const full = `${d}/${e.name}`;
-        if (e.isDirectory()) walk(full);
-        else if (/\.(ts|tsx|mjs)$/.test(e.name)) out.push(readFileSync(full, "utf8"));
-      }
-    };
-    walk(dir);
-    return out;
-  }).join("\n");
+const walkFiles = (dir: string, test: RegExp) => {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const e of require("node:fs").readdirSync(d, { withFileTypes: true })) {
+      const full = `${d}/${e.name}`;
+      if (e.isDirectory()) walk(full);
+      else if (test.test(e.name)) out.push(readFileSync(full, "utf8"));
+    }
+  };
+  walk(dir);
+  return out;
+};
+const appSource = () => APP.flatMap((dir) => walkFiles(dir, /\.(ts|tsx|mjs)$/)).join("\n");
+// Every .tsx file under the marketing site, not just the illustrations in
+// FILES — a banned string can just as easily land in copy or a page shell.
+const siteSource = () => SITE_DIRS.flatMap((dir) => walkFiles(dir, /\.tsx$/)).join("\n");
 
 describe("the marketing pages do not invent product UI", () => {
   const app = appSource();
   const pages = FILES.map(read).join("\n");
+  const site = siteSource();
 
   it.each(DEPICTED)("%s exists in the app", (label) => {
     expect(app).toContain(label);
@@ -89,7 +95,7 @@ describe("the marketing pages do not invent product UI", () => {
 
   it.each(BANNED)("%s never comes back", (label) => {
     // The terminal file documents the bans in a comment; strip comments first.
-    const code = pages.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const code = site.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toContain(label);
   });
 

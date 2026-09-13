@@ -49,7 +49,7 @@ const NAV = [
 /** The Console's Home page. Sidebar 180 · list pane 272 · reading pane. */
 export function ConsoleWindow() {
   return (
-    <figure className="lp-win bg-ink">
+    <figure className="lp-win bg-ink" role="img" aria-label="Illustration: the DevBrain Console's Home page">
       <TitleBar title="DevBrain Console" />
       <div className="grid min-h-[430px] grid-cols-[180px_272px_minmax(0,1fr)]">
         {/* sidebar */}

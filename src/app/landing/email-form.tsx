@@ -60,7 +60,7 @@ export function EmailForm({ source = "landing", label = "Email address", classNa
           disabled={pending}
           className="min-h-[46px] whitespace-nowrap rounded-lg bg-accent2 px-4 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
         >
-          {pending ? "Saving…" : "Keep me posted"}
+          {pending ? "Sending…" : "Send"}
         </button>
       </div>
       {state && !state.ok && (

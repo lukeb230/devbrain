@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { publicLimit } from "@/lib/api-guard";
 import { clientIp } from "@/lib/client-ip";
-import { COOKIE, NEXT_COOKIE_OPTS } from "@/lib/cookies";
+import { CHANNEL_COOKIE_OPTS, COOKIE, NEXT_COOKIE_OPTS } from "@/lib/cookies";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
 
@@ -68,5 +68,9 @@ p{color:#475569;font-size:14px;line-height:1.5}</style></head>
 <body><div class="card"><h2 style="margin:0 0 8px">Signed in</h2>
 <p>Sending you back to <b>${appName}</b>… If nothing happens, click below, then you can close this tab.</p>
 <a class="btn" href="${appUrl}">Open ${appName}</a></div></body></html>`;
-  return new NextResponse(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+  const res = new NextResponse(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+  // Remember which build this browser signs in for, so /open can deep-link
+  // to the app the person actually has (devbrain:// vs devbrain-beta://).
+  res.cookies.set(COOKIE.channel, channel, CHANNEL_COOKIE_OPTS);
+  return res;
 }

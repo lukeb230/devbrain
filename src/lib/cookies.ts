@@ -9,6 +9,7 @@ export const COOKIE = {
   next: "devbrain_next",         // post-login destination (desktop hand-off)
   newToken: "devbrain_new_token", // plaintext dev token, shown once
   notice: "devbrain_notice",     // one-shot message for the onboarding wall (60 s)
+  channel: "devbrain_channel",   // which app build last signed in from this browser: stable | beta
 } as const;
 
 const secure = process.env.NODE_ENV === "production"; // Safari refuses Secure on http://localhost
@@ -19,6 +20,10 @@ export const LAST_REPO_COOKIE_OPTS = { ...base, maxAge: 60 * 60 * 24 * 90 };
 export const NEXT_COOKIE_OPTS = { ...base, maxAge: 3600 };
 export const NEW_TOKEN_COOKIE_OPTS = { ...base, path: "/settings", maxAge: 120 };
 export const NOTICE_COOKIE_OPTS = { ...base, path: "/desk", maxAge: 60 };
+// Set by /auth/device/start when the app opens the browser to sign in; read
+// by /open so its "Open in the app" button uses the scheme of the build the
+// person actually has. Not cleared on sign-out (see ALL_DEVBRAIN_COOKIES).
+export const CHANNEL_COOKIE_OPTS = { ...base, maxAge: 60 * 60 * 24 * 365 };
 
 /** Every DevBrain cookie with the path it is set on — deletion must match. */
 export const ALL_DEVBRAIN_COOKIES: { name: string; path: string }[] = [

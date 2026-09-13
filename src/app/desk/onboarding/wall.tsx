@@ -144,9 +144,9 @@ function Rules({ repos, policies, done }: { repos: TeamRepo[]; policies: Record<
               </form>
             ))}
           </div>
-          <p className="mt-2">Both turn on session journals: when a session ends, a redacted excerpt — the conversation and which tools/files it used, never file contents or command output — is summarised into a journal the whole team can read, labelled with its author. Letting DevBrain merge or update branches for you is a separate switch on the Rules page.</p>
         </>
       )}
+      <p className="mt-2">Both turn on session journals: when a session ends, a redacted excerpt — the conversation and which tools/files it used, never file contents or command output — is summarised into a journal the whole team can read, labelled with its author. Letting DevBrain merge approved PRs, update branches, or open revert PRs for you are separate switches on the Rules page.</p>
       <details className="mt-3">
         <summary className="cursor-pointer text-[12px] font-semibold text-accent">{done ? "Adjust the rules" : "Customise instead"}</summary>
         {repos.map((r) => (

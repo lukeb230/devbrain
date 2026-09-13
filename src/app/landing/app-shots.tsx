@@ -79,7 +79,7 @@ export function ConsoleWindow() {
           {[
             // Titles match the generators in src/lib/desk/needs-you.ts.
             { t: "stop" as Tone, h: "#133 has conflicts", s: "Auth refactor · 2m ago" },
-            { t: "wait" as Tone, h: "Handoff from Rio", s: "auth tests need the new fixture" },
+            { t: "wait" as Tone, h: "Handoff from Jonah", s: "auth tests need the new fixture" },
           ].map((r) => (
             <div key={r.h} className={`mx-2 mb-1.5 rounded-lg border-l-[3px] bg-row px-2.5 py-2 ${r.t === "stop" ? "border-l-stop" : "border-l-wait"}`}>
               <div className="text-[12.5px] font-medium leading-[1.35] text-txt">{r.h}</div>
@@ -92,9 +92,9 @@ export function ConsoleWindow() {
             <span className="font-mono text-[11px] text-accenttext">3</span>
           </div>
           {[
-            { t: "wait" as Tone, n: "Kai", s: "cursor · src/api/**", sel: true },
-            { t: "go" as Tone, n: "Rio", s: "codex · tests/**" },
-            { t: "go" as Tone, n: "Nova", s: "claude code · src/ui/**" },
+            { t: "wait" as Tone, n: "Lena", s: "cursor · src/api/**", sel: true },
+            { t: "go" as Tone, n: "Jonah", s: "codex · tests/**" },
+            { t: "go" as Tone, n: "Sam", s: "claude code · src/ui/**" },
           ].map((r) => (
             <div key={r.n} className={`mx-2 rounded-lg px-2.5 py-2 ${r.sel ? "bg-row2" : ""}`}>
               <div className="flex items-center gap-2 text-[12.5px] font-medium text-txt"><Dot tone={r.t} />{r.n}</div>
@@ -127,15 +127,15 @@ export function ConsoleWindow() {
               <div className="rounded-[11px] border border-line bg-row px-4 py-3.5">
                 <div className="text-[13px] font-semibold text-txt">Claimed areas</div>
                 <div className="mt-2 text-[12.5px] leading-[1.7] text-muted">
-                  <span className="font-mono text-[11.5px] text-txt">src/api/**</span> · Kai<br />
-                  <span className="font-mono text-[11.5px] text-txt">tests/**</span> · Rio
+                  <span className="font-mono text-[11.5px] text-txt">src/api/**</span> · Lena<br />
+                  <span className="font-mono text-[11.5px] text-txt">tests/**</span> · Jonah
                 </div>
               </div>
               <div className="rounded-[11px] border border-line bg-row px-4 py-3.5">
                 <div className="text-[13px] font-semibold text-txt">Open handoffs</div>
                 <div className="mt-2 text-[12.5px] leading-[1.7] text-muted">
                   auth fixtures<br />
-                  <span className="text-faint">from Rio · unclaimed</span>
+                  <span className="text-faint">from Jonah · unclaimed</span>
                 </div>
               </div>
             </div>
@@ -143,7 +143,7 @@ export function ConsoleWindow() {
             <div className="mt-3.5 rounded-[11px] border border-line bg-row px-4 py-3.5">
               <div className="text-[13px] font-semibold text-txt">Standup</div>
               <p className="mt-1.5 text-[12.5px] leading-[1.6] text-muted">
-                Rate limiting landed in #128. Kai is part-way through the session guard and has
+                Rate limiting landed in #128. Lena is part-way through the session guard and has
                 <span className="font-mono text-[11.5px] text-txt"> src/api/**</span> held.
               </p>
             </div>

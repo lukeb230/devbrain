@@ -58,3 +58,11 @@ export function revalidateSurfaces(...dashboardPaths: string[]) {
 export function inAppSurface(from: string | undefined): "widget" | "desk" | null {
   return from === "widget" || from === "desk" ? from : null;
 }
+
+/** Where /auth/sign-out lands. An app window must come back to its own
+ *  bare sign-in screen (the landing page keyed by ?from=), never the
+ *  marketing page — the Desk window would hand that to the browser. */
+export function signOutDestination(from: string | null | undefined): string {
+  const s = inAppSurface(from ?? undefined);
+  return s ? `/?from=${s}` : "/";
+}

@@ -569,7 +569,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               <div className="flex items-center justify-between rounded-lg px-2.5 py-2"><span>Appearance</span><Seg options={[{ key: "light", label: "Light" }, { key: "system", label: "System" }, { key: "dark", label: "Dark" }]} value={themePref} onPick={pickTheme} /></div>
               <div className="my-1 border-t border-line" />
               <a href="/desk/mac" target="_blank" onClick={(e) => { setMenu(false); desk(e, "/mac"); }} className="block rounded-lg px-2.5 py-2 font-display text-[12.5px] font-semibold text-accent hover:bg-row2">Open settings in the Console →</a>
-              <form action="/auth/sign-out" method="post"><button className="block w-full rounded-lg px-2.5 py-2 text-left text-[12.5px] text-muted hover:bg-row2 hover:text-txt">Sign out</button></form>
+              <form action="/auth/sign-out" method="post"><input type="hidden" name="from" value="widget" /><button className="block w-full rounded-lg px-2.5 py-2 text-left text-[12.5px] text-muted hover:bg-row2 hover:text-txt">Sign out</button></form>
             </div>
           </>
         )}

@@ -96,6 +96,10 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
             <span className="ml-auto flex items-center gap-2">
               <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accent">{initial}</span>
               <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>
+              <form action="/auth/sign-out" method="post" className="ml-1">
+                <input type="hidden" name="from" value="desk" />
+                <button className="rounded-md px-1.5 py-0.5 font-mono text-[10.5px] text-faint hover:bg-row2 hover:text-txt" title="Sign out of DevBrain on this Mac">Sign out</button>
+              </form>
             </span>
           </div>
           {notice && NOTICES[notice] && (

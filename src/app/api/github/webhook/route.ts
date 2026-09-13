@@ -4,6 +4,7 @@ import { alert } from "@/lib/alerts";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { changedFiles, prChangedFiles, prMergeableState, verifyWebhook } from "@/lib/github";
 import { pickClaimOrg } from "@/lib/github-claim";
+import { syncInstallationRepos } from "@/lib/github-sync";
 import type { RequestEvent, LinkRow } from "@/lib/onboarding-request";
 
 /** Log a diagnostic into the events table so failures are visible, not silent. */
@@ -80,9 +81,16 @@ export async function POST(request: Request) {
             account_type: inst.account.type,
             ...(claimedOrg ? { org_id: claimedOrg } : {}),
           });
-          // Repos selected during install arrive on this same payload.
-          for (const r of payload.repositories ?? []) {
-            await upsertRepo(admin, inst.id, r);
+          if (claimedOrg) {
+            // Claiming an approved request never goes through the setup
+            // redirect, so this is the only place its repos get default
+            // branches and a relink — mirror the direct-install path.
+            await syncInstallationRepos(admin, inst.id, claimedOrg);
+          } else {
+            // Repos selected during install arrive on this same payload.
+            for (const r of payload.repositories ?? []) {
+              await upsertRepo(admin, inst.id, r);
+            }
           }
         } else if (payload.action === "deleted") {
           // App uninstalled → keep history: soft-unlink its repos, mark the

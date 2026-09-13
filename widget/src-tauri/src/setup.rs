@@ -433,7 +433,7 @@ pub fn handle_deep_link(app: &AppHandle, urls: &[tauri::Url]) {
             if let Some(w) = app.get_webview_window("desk") {
                 let _ = w.eval(&format!("window.location.replace({:?})", target));
             }
-            crate::show_desk(app.clone(), None);
+            crate::raise_desk(app.clone());
         } else if let Some(panel) = app.get_webview_window("panel") {
             let _ = panel.eval(&format!("window.location.replace({:?})", target));
             let _ = panel.show();

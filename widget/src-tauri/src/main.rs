@@ -385,6 +385,16 @@ pub fn show_desk(app: AppHandle, route: Option<String>) {
             target
         ));
     }
+    raise_desk(app);
+}
+
+/// Bring the Desk window to the front (size/position restore, Dock policy,
+/// show/unminimize/focus, hide the panel) without touching its URL. Split out
+/// of `show_desk` so a caller that has already navigated the Desk itself
+/// (e.g. the sign-in deep link) can raise it without a second, conflicting
+/// navigation.
+pub fn raise_desk(app: AppHandle) {
+    let Some(desk) = app.get_webview_window("desk") else { return };
     if let Some(b) = *app.state::<State>().desk.lock().unwrap() {
         let _ = desk.set_size(LogicalSize::new(b.w.max(DESK_MIN_W), b.h.max(DESK_MIN_H)));
         let _ = desk.set_position(LogicalPosition::new(b.x, b.y));

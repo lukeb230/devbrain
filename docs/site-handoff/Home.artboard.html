@@ -1,0 +1,390 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+  <style>
+    /* Dusk, lifted from src/app/globals.css (.lp block) */
+    :root{
+      --ink:#f4f1ea; --row:#fbfaf6; --pane:#f8f6f0; --row2:#ebe6da;
+      --line:#e3ded2; --line2:#d6d0c2; --line3:#c8c2b4;
+      --txt:#1d1b17; --body:#3a3630; --muted:#625e56; --faint:#6e6963; --faint-app:#9b968a;
+      --go:#1d9a55; --wait:#a86b12; --stop:#bc2a2f;
+      --accent:#c9554c; --accent-text:#a53a33; --accent2:#c14b43;
+      --coral-ink:#fbe8e5; --coral-line:#f0b8b2;
+      --code-bg:#1b1916; --code-fg:#e6dfd2; --code-bar:#242019;
+      --page:#e7e1d4; --page2:#ddd6c6;
+      --wait-bg:#fcf1dc; --wait-line:#edcf92; --stop-bg:#fde8e8; --stop-line:#f3b3b5; --go-bg:#e6f6ec; --go-line:#a9dfc0;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--page);color:var(--txt);font-family:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:inherit;text-decoration:none}
+    .d{font-family:"Bricolage Grotesque","IBM Plex Sans","Helvetica Neue",Arial,sans-serif}
+    .m{font-family:"IBM Plex Mono",Menlo,Consolas,monospace}
+    .wrap{width:1140px;margin:0 auto;padding:0 28px}
+    .h2{font-family:"Bricolage Grotesque","IBM Plex Sans",sans-serif;font-size:38px;font-weight:500;line-height:1.08;letter-spacing:-.028em;color:var(--txt);max-width:20ch;margin:0}
+    .lede{margin:16px 0 0;max-width:54ch;font-size:16.5px;line-height:1.6;color:var(--body)}
+    .btn{display:inline-flex;align-items:center;gap:9px;border-radius:10px;font-family:"Bricolage Grotesque","IBM Plex Sans",sans-serif;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+    .btn-primary{background:var(--accent2);color:#fff;padding:13px 20px;font-size:15.5px}
+    .btn-ghost{background:var(--row);color:var(--txt);border:1px solid var(--line2);padding:12px 18px;font-size:15.5px}
+    .win{border-radius:11px;overflow:hidden;border:1px solid rgba(60,40,20,.16);box-shadow:0 1px 1px rgba(60,40,20,.10),0 8px 18px rgba(60,40,20,.10),0 34px 70px rgba(60,40,20,.22);background:var(--ink)}
+    .titlebar{display:flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--row)}
+    .tl{width:11px;height:11px;border-radius:50%}
+    .cap{margin:12px 0 0;font-family:"IBM Plex Mono",Menlo,monospace;font-size:12px;color:var(--muted)}
+    .dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none}
+    /* session card, from app-shots.tsx */
+    .sc{width:320px;border-radius:12px;border:1px solid var(--line2);background:var(--row);padding:14px 16px}
+    .sc-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--txt)}
+    .sc-host{margin-left:auto;font-family:"IBM Plex Mono",Menlo,monospace;font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+    .sc-k{margin-top:8px;font-size:12px;color:var(--muted)}
+    .sc-v{margin-top:2px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:12px;color:var(--txt)}
+    /* terminal, from terminal.tsx */
+    .term{background:var(--code-bg)}
+    .term-bar{display:flex;align-items:center;gap:10px;height:34px;padding:0 16px;background:var(--code-bar);border-bottom:1px solid rgba(0,0,0,.3)}
+    .term-body{padding:20px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:12.5px;line-height:1.8;color:var(--code-fg);white-space:pre}
+    .t-dim{color:rgba(255,255,255,.45)} .t-cmd{color:rgba(255,255,255,.9)} .t-warn{color:#f0b35b} .t-stop{color:#f08a84} .t-ok{color:#7fd39b}
+    /* panel, from widget/app.tsx (Dusk panel) */
+    .pn{width:440px;background:var(--ink);font-size:13.5px;color:var(--txt)}
+    .pn-head{display:flex;align-items:center;gap:10px;background:var(--row);padding:14px 16px 8px}
+    .pn-tabs{display:flex;background:var(--row);border-bottom:1px solid var(--line);padding:0 10px}
+    .pn-tab{flex:1;text-align:center;padding:7px 0;font-family:"Bricolage Grotesque",sans-serif;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;position:relative}
+    .pn-tab.on{color:var(--accent);border-bottom-color:var(--accent2)}
+    .pn-body{padding:0 16px 16px}
+    .sec{display:flex;align-items:baseline;gap:8px;margin-top:18px}
+    .sec b{font-family:"Bricolage Grotesque",sans-serif;font-size:13px;font-weight:600;color:var(--txt)}
+    .sec i{font-style:normal;font-family:"IBM Plex Mono",Menlo,monospace;font-size:10.5px;color:var(--accent)}
+    .sec u{text-decoration:none;margin-left:auto;font-family:"IBM Plex Mono",Menlo,monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint-app)}
+    .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+    .row.first{border-top:0}
+    .row .t{font-size:13px;color:var(--txt)} .row .w{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .act{margin-left:auto;font-family:"Bricolage Grotesque",sans-serif;font-size:11.5px;font-weight:600;color:var(--accent);flex:none}
+    .stat{border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+    .stat b{display:block;font-family:"Bricolage Grotesque",sans-serif;font-size:22px;font-weight:700;line-height:1;letter-spacing:-.03em;color:var(--txt)}
+    .stat b.warn{color:var(--stop)}
+    .stat span{display:block;margin-top:4px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:10px;color:var(--faint-app)}
+    .av{position:relative;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;border:1px solid var(--line2);background:var(--row2);font-family:"Bricolage Grotesque",sans-serif;font-size:11px;font-weight:600;color:var(--txt);flex:none}
+    .av.me{border-color:var(--coral-line);background:var(--coral-ink);color:var(--accent)}
+    .av i{position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border-radius:50%;background:var(--go);border:2px solid var(--ink)}
+    .host{font-family:"IBM Plex Mono",Menlo,monospace;font-size:10px;color:var(--faint-app);flex:none}
+    /* console */
+    .nav-g{padding:10px 10px 4px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint-app)}
+    .nav-i{border:1px solid transparent;border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--body)}
+    .nav-i.on{border-color:var(--coral-line);background:var(--coral-ink);font-weight:600;color:var(--accent-text)}
+    .ls{display:flex;align-items:baseline;gap:8px;padding:18px 16px 10px}
+    .ls b{font-family:"Bricolage Grotesque",sans-serif;font-size:18px;font-weight:500;color:var(--txt)}
+    .ls i{font-style:normal;font-family:"IBM Plex Mono",Menlo,monospace;font-size:11px;color:var(--accent-text)}
+    .need{margin:0 8px 6px;border-radius:8px;border-left:3px solid var(--wait);background:var(--row);padding:8px 10px}
+    .need .a{font-size:12.5px;font-weight:500;line-height:1.35;color:var(--txt)} .need .b{margin-top:2px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:11px;color:var(--muted)}
+    .who{margin:0 8px;border-radius:8px;padding:8px 10px}
+    .who .a{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;color:var(--txt)} .who .b{margin-top:2px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:11px;color:var(--muted)}
+    .card{border-radius:11px;border:1px solid var(--line);background:var(--row);padding:14px 16px}
+    .card .h{font-size:13px;font-weight:600;color:var(--txt)} .card .p{margin-top:8px;font-size:12.5px;line-height:1.7;color:var(--muted)}
+    .card .p code{font-family:"IBM Plex Mono",Menlo,monospace;font-size:11.5px;color:var(--txt)}
+    .titlebar span.t{margin:0 auto;padding-right:40px;font-size:11.5px;font-weight:500;color:var(--muted)}
+    .tab{display:flex;align-items:center;gap:8px;padding:0 16px;height:38px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:12px;color:rgba(255,255,255,.55);border-right:1px solid rgba(0,0,0,.35)}
+    .tab.on{background:var(--code-bg);color:#fff}
+    .term2{background:var(--code-bg);padding:16px 18px;font-family:"IBM Plex Mono",Menlo,monospace;font-size:12.5px;line-height:1.8;color:var(--code-fg);white-space:pre}
+    .sw{display:inline-flex;align-items:center;width:64px;height:36px;border-radius:999px;background:var(--go);padding:3px;justify-content:flex-end;flex:none}
+    .sw i{width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+    .note{border-radius:12px;border:1px solid var(--coral-line);background:var(--coral-ink);padding:18px 20px;font-size:13.5px;line-height:1.6;color:var(--body)}
+  </style>
+</helmet>
+
+<div style="width:1440px;background:var(--page);padding-bottom:80px">
+
+  <!-- NAV -->
+  <div style="border-bottom:1px solid var(--line2);background:rgba(244,241,234,.7)">
+    <div class="wrap" style="display:flex;align-items:center;gap:20px;min-height:58px">
+      <img src="logo.png" alt="" style="width:26px;height:21px;object-fit:contain">
+      <span class="d" style="font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--txt)">DevBrain</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:22px;font-size:13.5px;color:var(--muted)">
+        <a href="#faq">FAQ</a>
+        <a href="#download" class="btn btn-primary" style="padding:8px 14px;font-size:13px;border-radius:8px">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>
+          Download for Mac
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="wrap" style="padding-top:72px;display:flex;flex-direction:column;align-items:center;text-align:center">
+    <h1 class="d" style="margin:0;font-size:68px;font-weight:500;line-height:1.0;letter-spacing:-.035em;color:var(--txt);max-width:16ch">Work like you're the <span style="color:var(--accent-text)">only one</span> in the repo.</h1>
+    <p class="lede" style="margin-top:22px;font-size:17.5px;max-width:60ch">You're not. Your agents just handle it. They know who's in which file, they steer around each other, and the PRs land in the right order without you refereeing any of it.</p>
+    <div style="margin-top:30px;display:flex;align-items:center;justify-content:center;gap:14px">
+      <a href="#download" class="btn btn-primary" style="padding:14px 24px;font-size:16.5px"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>Download for Mac</a>
+      <a href="#faq" class="btn btn-ghost" style="padding:13px 22px;font-size:16.5px">Read the FAQ
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#1d1b17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg>
+      </a>
+    </div>
+    <p style="margin:16px 0 0;font-size:13px;color:var(--muted)">Mac only for now. You sign in with GitHub once the app is open. No card.</p>
+    <div style="margin-top:22px;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line2);background:var(--row);border-radius:999px;padding:7px 16px">
+      <span class="dot" style="background:var(--go)"></span>
+      <span class="m" style="font-size:13px;font-weight:500;color:var(--txt)">148</span>
+      <span style="font-size:13px;color:var(--muted)">beta spots left · free until the beta ends</span>
+    </div>
+
+    <!-- the desktop: Console behind, panel in front -->
+    <div style="width:100%;position:relative;height:660px;margin-top:56px;text-align:left">
+    <!-- ConsoleWindow, from app-shots.tsx: sidebar 180 · list pane 272 · reading pane -->
+    <div class="win" style="position:absolute;left:0;top:0;width:900px">
+      <div class="titlebar"><span class="tl" style="background:#ec6a5e"></span><span class="tl" style="background:#f4bf4f"></span><span class="tl" style="background:#61c554"></span><span class="t">DevBrain Console</span></div>
+      <div style="display:grid;grid-template-columns:180px 272px minmax(0,1fr);min-height:430px">
+        <!-- sidebar -->
+        <div style="border-right:1px solid var(--line);background:var(--row);padding:0 8px 10px">
+          <div class="d" style="padding:12px 6px 8px;font-size:19px;font-weight:500;letter-spacing:-.01em;color:var(--txt)">DevBrain</div>
+          <div style="padding:4px 6px;font-size:13px;color:var(--txt)">Northwind</div>
+          <div class="m" style="margin:6px 0 2px;border:1px solid var(--line);border-radius:8px;background:var(--ink);padding:5px 8px;font-size:11.5px;color:var(--muted)">northwind/api ▾</div>
+          <div class="nav-g">Work</div>
+          <div class="nav-i on">Home</div><div class="nav-i">Board</div><div class="nav-i">Pull requests</div><div class="nav-i">Specs</div>
+          <div class="nav-g">Memory</div>
+          <div class="nav-i">Brain</div><div class="nav-i">Feed &amp; memory</div><div class="nav-i">History</div>
+          <div class="nav-g">Settings</div>
+          <div class="nav-i">Team</div><div class="nav-i">This Mac</div>
+        </div>
+        <!-- list pane -->
+        <div style="border-right:1px solid var(--line);background:var(--pane);overflow:hidden">
+          <div class="ls"><b>Needs you</b><i>2</i></div>
+          <div class="need" style="border-left-color:var(--stop)"><div class="a">#133 has conflicts</div><div class="b">Auth refactor · 2m ago</div></div>
+          <div class="need"><div class="a">Handoff from Jonah</div><div class="b">auth tests need the new fixture</div></div>
+          <div class="ls" style="padding-top:22px;padding-bottom:8px"><b>Now working</b><i>3</i></div>
+          <div class="who" style="background:var(--row2)"><div class="a"><span class="dot" style="background:var(--wait)"></span>Lena</div><div class="b">cursor · src/api/**</div></div>
+          <div class="who"><div class="a"><span class="dot" style="background:var(--go)"></span>Jonah</div><div class="b">codex · tests/**</div></div>
+          <div class="who"><div class="a"><span class="dot" style="background:var(--go)"></span>Sam</div><div class="b">claude code · src/ui/**</div></div>
+        </div>
+        <!-- reading pane -->
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:16px;height:44px;border-bottom:1px solid var(--line);background:var(--pane);padding:0 16px">
+            <span style="flex:1;max-width:240px;border:1px solid var(--line);border-radius:8px;background:var(--ink);padding:5px 10px;font-size:12px;color:var(--faint-app)">⌘K &nbsp;Jump to anything…</span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--coral-ink);font-size:11px;font-weight:600;color:var(--accent-text)">S</span><span class="m" style="font-size:10.5px;color:var(--muted)">sam · owner</span></span>
+          </div>
+          <div style="padding:24px 28px 28px">
+            <p class="m" style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Tuesday 15 September</p>
+            <h3 class="d" style="margin:4px 0 0;font-size:24px;font-weight:500;letter-spacing:-.02em;color:var(--txt)">Good afternoon</h3>
+            <div style="margin-top:16px;display:flex;gap:8px">
+              <span style="border:1px solid var(--line2);border-radius:8px;background:var(--row);padding:6px 12px;font-size:12.5px;font-weight:500">Claim a lane</span>
+              <span style="border:1px solid var(--line2);border-radius:8px;background:var(--row);padding:6px 12px;font-size:12.5px;font-weight:500">Leave a handoff</span>
+              <span style="border:1px solid var(--line2);border-radius:8px;background:var(--row);padding:6px 12px;font-size:12.5px;font-weight:500">Broadcast</span>
+            </div>
+            <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div class="card"><div class="h">Claimed areas</div><div class="p"><code>src/api/**</code> · Lena<br><code>tests/**</code> · Jonah</div></div>
+              <div class="card"><div class="h">Open handoffs</div><div class="p">auth fixtures<br><span style="color:var(--faint-app)">from Jonah · unclaimed</span></div></div>
+            </div>
+            <div class="card" style="margin-top:14px"><div class="h">Standup</div><div class="p" style="margin-top:6px;line-height:1.6">Rate limiting landed in #128. Lena is part-way through the session guard and has <code>src/api/**</code> held.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+      <!-- the panel, Home tab, from widget/app.tsx -->
+      <div class="win pn" style="position:absolute;right:0;top:0;box-shadow:0 1px 1px rgba(60,40,20,.14),0 12px 26px rgba(60,40,20,.18),0 44px 90px rgba(60,40,20,.32)">
+        <div class="pn-head">
+          <img src="logo.png" alt="" style="width:25px;height:20px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(217,100,91,.25))">
+          <span class="d" style="font-size:15px;font-weight:700;letter-spacing:-.02em">DevBrain</span>
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--go);box-shadow:0 0 8px var(--go)"></span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <span style="font-size:11.5px;color:var(--faint-app)">Northwind</span>
+            <span class="m" style="font-size:11px;color:var(--muted);border:1px solid var(--line2);border-radius:7px;padding:3px 8px">northwind/api ▾</span>
+          </span>
+          <span style="font-size:15px;color:var(--muted);line-height:1">⚙</span>
+        </div>
+        <div class="pn-tabs"><span class="pn-tab on">Home</span><span class="pn-tab">Tasks</span><span class="pn-tab">PRs<i style="position:absolute;right:26%;top:8px;width:5px;height:5px;border-radius:50%;background:var(--wait)"></i></span></div>
+        <div class="pn-body">
+
+          <!-- pulse -->
+          <div style="position:relative;height:72px;margin-top:12px">
+            <span class="m" style="position:absolute;left:0;top:0;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint-app)">last hour · <span style="color:var(--accent)">3 people</span> · 3 PR events · collision</span>
+            <svg viewBox="0 0 412 44" preserveAspectRatio="none" style="position:absolute;left:0;right:0;top:14px;height:44px;width:100%">
+              <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c14b43" stop-opacity=".22"/><stop offset="1" stop-color="#c14b43" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0 36 L14 34 L28 35 L43 30 L57 31 L71 27 L85 29 L99 22 L114 24 L128 18 L142 20 L156 14 L170 16 L184 12 L199 15 L213 10 L227 13 L241 9 L255 12 L270 16 L284 11 L298 8 L312 12 L326 10 L341 14 L355 9 L369 12 L383 8 L397 11 L412 10 L412 44 L0 44 Z" fill="url(#g)"/>
+              <path d="M0 36 L14 34 L28 35 L43 30 L57 31 L71 27 L85 29 L99 22 L114 24 L128 18 L142 20 L156 14 L170 16 L184 12 L199 15 L213 10 L227 13 L241 9 L255 12 L270 16 L284 11 L298 8 L312 12 L326 10 L341 14 L355 9 L369 12 L383 8 L397 11 L412 10" fill="none" stroke="#c14b43" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+              <circle cx="128" cy="18" r="3" fill="#f4f1ea" stroke="#1d9a55" stroke-width="1.5"/>
+              <circle cx="255" cy="12" r="3" fill="#f4f1ea" stroke="#a86b12" stroke-width="1.5"/>
+              <circle cx="341" cy="14" r="3" fill="#f4f1ea" stroke="#1d9a55" stroke-width="1.5"/>
+              <circle cx="400" cy="11" r="3" fill="#bc2a2f" stroke="#bc2a2f" stroke-width="1.5"/>
+              <line x1="400" y1="8" x2="400" y2="40" stroke="#1d1b17" stroke-width="1" stroke-dasharray="2 3" opacity=".6"/>
+            </svg>
+            <div class="m" style="position:absolute;left:0;right:0;bottom:2px;display:flex;justify-content:space-between;font-size:10px;color:var(--faint-app)"><span>−60m</span><span>−30m</span><span>now</span></div>
+          </div>
+
+          <!-- needs you -->
+          <div class="sec"><b>Needs you</b><i>3</i></div>
+          <div class="row first"><span class="dot" style="background:var(--stop);box-shadow:0 0 8px var(--stop)"></span><div style="min-width:0;flex:1"><div class="t">#133 has conflicts</div><div class="w">Auth refactor — resolve against main</div></div><span class="act">Fix</span></div>
+          <div class="row"><span class="dot" style="background:var(--go);box-shadow:0 0 8px var(--go)"></span><div style="min-width:0;flex:1"><div class="t">#128 is cleared to land</div><div class="w">cleared to land — press merge</div></div><span class="act">Merge</span></div>
+          <div class="row"><span class="dot" style="background:var(--wait)"></span><div style="min-width:0;flex:1"><div class="t">Handoff from Jonah on chore/coverage</div><div class="w">auth tests need the new fixture</div></div><span class="act">Pick up</span></div>
+
+          <!-- counts -->
+          <div style="margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+            <div class="stat"><b>3</b><span>PRs</span></div>
+            <div class="stat"><b class="warn">1</b><span>conflict</span></div>
+            <div class="stat"><b class="warn">1</b><span>collision</span></div>
+            <div class="stat"><b>4</b><span>open tasks</span></div>
+          </div>
+
+          <!-- team now -->
+          <div class="sec"><b>Team now</b><i>3</i></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0"><span class="av">L<i></i></span><div style="min-width:0;flex:1"><div style="display:flex;align-items:baseline;gap:6px;font-size:13px"><span>Lena</span><span class="host">Cursor</span></div><div class="w">refactoring the session guard</div></div><span class="m" style="font-size:10.5px;color:var(--faint-app)">since 09:02</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><span class="av">J<i></i></span><div style="min-width:0;flex:1"><div style="display:flex;align-items:baseline;gap:6px;font-size:13px"><span>Jonah</span><span class="host">Codex</span></div><div class="w">adding coverage for the auth fixtures</div></div><span class="m" style="font-size:10.5px;color:var(--faint-app)">since 09:41</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><span class="av me">S<i></i><b style="position:absolute;right:-8px;top:-6px;border-radius:999px;background:var(--accent2);color:#fff;padding:0 4px;font-family:'IBM Plex Mono',Menlo,monospace;font-size:9px;font-weight:400;line-height:13px">×3</b></span><div style="min-width:0;flex:1"><div style="display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--accent)"><span>you</span><span class="host">Claude</span></div><div class="w">wiring the login form</div></div><span class="m" style="font-size:10.5px;color:var(--faint-app)">since 09:14</span></div>
+
+          <a href="#" class="d" style="margin-top:18px;display:flex;align-items:center;gap:8px;border:1px solid var(--line2);border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--accent)">Open the Console <span class="m" style="margin-left:auto;font-size:10px;font-weight:400;color:var(--faint-app)">board · PRs · brain · feed · team</span>→</a>
+        </div>
+      </div>
+
+    </div>
+    <p style="align-self:flex-start;margin:22px 0 0;max-width:62ch;font-size:14.5px;line-height:1.6;color:var(--body);text-align:left">The panel lives in the bottom corner of your screen. Move your mouse into the corner, a small badge appears, click it and the panel opens. Move away and it's gone.</p>
+    <p style="align-self:flex-start;margin:14px 0 0;max-width:62ch;font-size:14.5px;line-height:1.6;color:var(--body);text-align:left">That's your side of it. Your agents don't use the panel. They read and write the same thing directly, through the plugin: who's where, what's claimed, what was decided, what's next. Everything below this is them doing that on their own.</p>
+  </div>
+
+  <!-- 1. THE BRIEF -->
+  <div class="wrap" style="padding-top:110px">
+    <h2 class="h2">Every session starts already caught up.</h2>
+    <p class="lede">Nobody writes a status. When a session opens, DevBrain hands the agent what happened since it last looked: who's active, what got merged, what was decided, what a teammate left half-done. It's put together from what actually happened, so it's never stale.</p>
+    <div style="margin-top:32px;position:relative;border-radius:12px;background:var(--ink);border:1px solid var(--line2);padding:40px 48px 36px">
+      <div class="d" style="font-size:56px;font-weight:500;letter-spacing:-.035em;line-height:1;color:var(--txt)">Since Lena logged off on Friday<span style="color:var(--accent-text)">.</span></div>
+      <div style="margin-top:36px;display:grid;grid-template-columns:repeat(4,1fr);gap:24px">
+        <div><div class="d m" style="font-size:96px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--go)">17</div><div style="margin-top:6px;font-size:14px;font-weight:500">PRs merged</div><div class="m" style="margin-top:3px;font-size:11.5px;color:var(--muted)">#112 to #128 · rate limiting, the new fixture, docs</div></div>
+        <div><div class="d m" style="font-size:96px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--wait)">5</div><div style="margin-top:6px;font-size:14px;font-weight:500">decisions logged</div><div class="m" style="margin-top:3px;font-size:11.5px;color:var(--muted)">tokens are hashed, never stored · and four more</div></div>
+        <div><div class="d m" style="font-size:96px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--wait)">3</div><div style="margin-top:6px;font-size:14px;font-weight:500">dead ends recorded</div><div class="m" style="margin-top:3px;font-size:11.5px;color:var(--muted)">mocking the clock in the login spec · and two more</div></div>
+        <div><div class="d m" style="font-size:96px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--accent-text)">2</div><div style="margin-top:6px;font-size:14px;font-weight:500">handoffs waiting for Sam</div><div class="m" style="margin-top:3px;font-size:11.5px;color:var(--muted)">the auth fixture from Jonah · CI wiring from Lena</div></div>
+      </div>
+      <div style="margin-top:36px;border-top:1px solid var(--line2);padding-top:22px;display:flex;align-items:center;gap:14px">
+        <span style="display:grid;place-items:center;width:34px;height:34px;border-radius:9px;border:1px solid var(--coral-line);background:var(--coral-ink);font-family:'Bricolage Grotesque',sans-serif;font-size:13px;font-weight:600;color:var(--accent-text);flex:none">S</span>
+        <div style="font-size:15.5px;line-height:1.5;color:var(--body)"><b style="color:var(--txt)">Sam's session opened Monday at 09:02 with all of it in front of it.</b> She didn't ask Lena, or anyone, anything. Neither did her agent.</div>
+      </div>
+    </div>
+    <p style="margin:22px 0 0;max-width:62ch;font-size:14.5px;line-height:1.6;color:var(--muted)">It can dig further on its own, too. Before an agent goes exploring the codebase, it can ask the team's memory whether anyone has dealt with this before, and get back what past sessions learned, tried, and gave up on, with a name and a date on each.</p>
+  </div>
+
+  <!-- 2. THE GUARD -->
+  <div class="wrap" style="padding-top:110px">
+    <h2 class="h2">It stops the second agent before it writes.</h2>
+    <p class="lede">Lena's agent and Sam's agent both go for <span class="m" style="font-size:14.5px;color:var(--txt)">auth.ts</span> around 9:14. Without DevBrain they find out at 4:30, from a merge conflict. With it, the second one gets stopped before it touches the file.</p>
+    <div style="margin-top:36px;position:relative;height:440px">
+      <!-- 9:14 · the file -->
+      <div style="position:absolute;left:0;top:0;width:1084px;height:360px;border-radius:12px;background:var(--ink);border:1px solid var(--line2);overflow:hidden">
+        <div class="m" style="position:absolute;left:64px;top:112px;font-size:128px;letter-spacing:-.045em;color:var(--txt);line-height:1;white-space:nowrap">auth.ts</div>
+        <svg style="position:absolute;left:104px;top:70px" width="26" height="30" viewBox="0 0 26 30"><path d="M2 2 L2 24 L8 18 L13 28 L17 26 L12 16 L20 16 Z" fill="#a86b12" stroke="#f4f1ea" stroke-width="1.5"/></svg>
+        <span class="m" style="position:absolute;left:126px;top:96px;border-radius:6px;padding:4px 9px;background:var(--wait);color:#fff;font-size:11.5px">Lena · Cursor</span>
+        <svg style="position:absolute;left:430px;top:242px" width="26" height="30" viewBox="0 0 26 30"><path d="M2 2 L2 24 L8 18 L13 28 L17 26 L12 16 L20 16 Z" fill="#c14b43" stroke="#f4f1ea" stroke-width="1.5"/></svg>
+        <span class="m" style="position:absolute;left:452px;top:268px;border-radius:6px;padding:4px 9px;background:var(--accent2);color:#fff;font-size:11.5px">Sam · Claude Code</span>
+        <span class="m" style="position:absolute;left:28px;top:22px;font-size:12px;color:var(--muted)">src/api/auth.ts · 09:14</span>
+        <span class="m" style="position:absolute;left:28px;bottom:22px;font-size:12px;color:var(--stop)">2 agents · 0 aware</span>
+      </div>
+
+      <!-- 4:31 · how they find out -->
+      <div class="win" style="position:absolute;right:0;top:112px;width:440px;background:var(--row)">
+        <div class="titlebar"><span class="tl" style="background:#ec6a5e"></span><span class="tl" style="background:#f4bf4f"></span><span class="tl" style="background:#61c554"></span><span class="t"># eng-backend</span></div>
+        <div style="padding:16px 18px 18px;font-size:13.5px;line-height:1.5">
+          <div style="display:flex;gap:10px"><span style="display:grid;place-items:center;width:32px;height:32px;border-radius:7px;background:var(--coral-ink);color:var(--accent-text);font-weight:600;flex:none">S</span><div><div><b>Sam</b> <span class="m" style="font-size:11px;color:var(--faint-app)">4:31 PM</span></div><div style="margin-top:2px;color:var(--body)">hey is anyone in auth.ts? just got a conflict on my login PR</div></div></div>
+          <div style="display:flex;gap:10px;margin-top:14px"><span style="display:grid;place-items:center;width:32px;height:32px;border-radius:7px;background:var(--wait-bg);color:var(--wait);font-weight:600;flex:none">L</span><div><div><b>Lena</b> <span class="m" style="font-size:11px;color:var(--faint-app)">4:38 PM</span></div><div style="margin-top:2px;color:var(--body)">yeah since this morning, session guard refactor. did you change login()?</div></div></div>
+          <div style="display:flex;gap:10px;margin-top:14px"><span style="display:grid;place-items:center;width:32px;height:32px;border-radius:7px;background:var(--coral-ink);color:var(--accent-text);font-weight:600;flex:none">S</span><div><div><b>Sam</b> <span class="m" style="font-size:11px;color:var(--faint-app)">4:38 PM</span></div><div style="margin-top:2px;color:var(--body)">rewrote it</div></div></div>
+          <div style="display:flex;gap:10px;margin-top:14px"><span style="display:grid;place-items:center;width:32px;height:32px;border-radius:7px;background:var(--wait-bg);color:var(--wait);font-weight:600;flex:none">L</span><div><div><b>Lena</b> <span class="m" style="font-size:11px;color:var(--faint-app)">4:39 PM</span></div><div style="margin-top:2px;color:var(--body)">ok. call?</div></div></div>
+        </div>
+      </div>
+      <span class="m" style="position:absolute;right:0;top:82px;font-size:12px;color:var(--muted)">seven hours later</span>
+    </div>
+    <div class="note" style="margin-top:28px;padding:28px 32px 26px">
+      <div class="m" style="font-size:11.5px;color:var(--accent-text)">09:14:07 · what Sam's agent gets back, before it touches the file</div>
+      <div class="d" style="margin-top:14px;font-size:26px;font-weight:500;line-height:1.3;letter-spacing:-.02em;color:var(--txt);max-width:40ch">DevBrain: <span class="m" style="font-size:22px">src/api/auth.ts</span> is being worked on right now by Lena (claimed: refactoring the session guard). Editing it anyway risks a collision — coordinate first, or approve to proceed deliberately.</div>
+      <p style="margin:20px 0 0;max-width:70ch">Her agent shows her that and waits. DevBrain never decides for you. It just makes sure you get asked. Cursor can't ask, only refuse, so there the edit is blocked until you tell the agent what to do.</p>
+    </div>
+  </div>
+
+  <!-- 3. ROUTING -->
+  <div class="wrap" style="padding-top:110px">
+    <h2 class="h2">They stay out of each other's way on their own.</h2>
+    <p class="lede">When an agent starts a task, it claims the files that task is likely to touch, and every other agent on the repo steers around them until the work lands. When your agent asks what's next, it gets the highest-priority task whose files nobody else is in. You never type a path.</p>
+    <div style="margin-top:32px;border-radius:12px;background:var(--ink);border:1px solid var(--line2);padding:44px 48px 40px">
+      <div class="d" style="font-size:38px;font-weight:500;line-height:1.22;letter-spacing:-.025em;color:var(--txt);max-width:26ch"><span style="color:var(--wait)">Lena's agent</span> claimed <span class="m" style="font-size:31px">src/api/**</span> when it started the guard refactor.<br><span style="color:var(--go)">Jonah's agent</span> claimed <span class="m" style="font-size:31px">tests/**</span> when it picked up the fixtures.<br><span style="color:var(--accent-text)">Sam's agent</span> was handed the one task that touched neither.</div>
+      <div style="margin-top:30px;display:flex;align-items:center;gap:26px;font-size:13px;color:var(--muted)"><span><span class="d m" style="font-size:28px;font-weight:500;color:var(--txt)">0</span> &nbsp;paths typed by a person</span><span><span class="d m" style="font-size:28px;font-weight:500;color:var(--txt)">0</span> &nbsp;messages about who's where</span><span><span class="d m" style="font-size:28px;font-weight:500;color:var(--txt)">3</span> &nbsp;agents, none in each other's files</span></div>
+    </div>
+    <p style="margin:22px 0 0;max-width:62ch;font-size:14.5px;line-height:1.6;color:var(--muted)">Claims let go by themselves. They release when the work lands and expire on a timer as a backstop, so a forgotten one never blocks anybody. Starting a bigger job, like a refactor or a migration? The agent claims the area up front with a one-line note, and everyone else's agent reads it.</p>
+  </div>
+
+  <!-- 4. SPAWN -->
+  <div class="wrap" style="padding-top:110px">
+    <h2 class="h2">Run more agents than you have people.</h2>
+    <p class="lede">One command spawns another agent on a fresh clone of the repo. It shows up as its own session, gets its own guard and its own claims, and is handed a task whose files are free. Three of your own sessions coordinate with each other exactly the way three teammates would.</p>
+    <div class="win" style="margin-top:32px">
+      <div style="display:flex;align-items:stretch;background:#2e2922;border-bottom:1px solid rgba(0,0,0,.35)">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;height:38px"><span class="tl" style="background:#ec6a5e"></span><span class="tl" style="background:#f4bf4f"></span><span class="tl" style="background:#61c554"></span></div>
+        <div class="tab"><span class="dot" style="background:#7fd39b"></span>Sam · src/ui/**</div>
+        <div class="tab on"><span class="dot" style="background:#7fd39b"></span>Sam · 2 · src/api/limits/**</div>
+        <div class="tab"><span class="dot" style="background:#7fd39b"></span>Sam · 3 · tests/**</div>
+        <div class="tab" style="border-right:0;color:rgba(255,255,255,.35)">+</div>
+      </div>
+      <div class="term2" style="padding:20px 22px;min-height:230px"><span class="t-dim">$</span> devbrain spawn
+<span class="t-dim">  token "Sam · 2" minted · cloned northwind/api → ~/dev/northwind-api-2</span>
+
+<span class="t-dim">›</span> rate limit the token endpoint
+
+<span class="t-ok">●</span> DevBrain brief: Sam is in src/ui/**, Sam · 3 is in tests/**. #44 is yours; its files are free.
+<span class="t-ok">●</span> devbrain - start_task (MCP)(id: "t_44")
+  <span class="t-dim">⎿  started · claimed src/api/limits/** for 8h</span>
+<span class="t-ok">●</span> Update(src/api/limits/limiter.ts)<span style="display:inline-block;width:7px;height:1.05em;background:#e6dfd2;vertical-align:-2px;margin-left:2px"></span></div>
+    </div>
+    <p style="margin:22px 0 0;max-width:62ch;font-size:14.5px;line-height:1.6;color:var(--muted)">Your spawned sessions are teammates too. Each shows up on the team board under its own name, and if one of them wanders into a file another one is in, it gets the same stop as it would from Lena.</p>
+  </div>
+
+  <!-- 5. PRS -->
+  <div class="wrap" style="padding-top:110px">
+    <h2 class="h2">PRs merge themselves, in the right order.</h2>
+    <p class="lede">Every open PR gets a light. Green means approved, conflict-free, and its turn. When two PRs touch the same files, the one that should land first goes green and the other one waits, so each takes a small rebase instead of one big mess at the end. Turn on auto-merge and DevBrain presses merge the moment a PR goes green, and keeps the waiting ones up to date with main.</p>
+    <div style="border-radius:12px;background:var(--ink);border:1px solid var(--line2);margin-top:32px;padding:40px 48px 36px;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center">
+      <div>
+        <div style="display:flex;align-items:center;gap:18px"><span class="sw"><i></i></span><span class="d" style="font-size:26px;font-weight:500;letter-spacing:-.02em">Auto-merge approved green PRs</span></div>
+        <p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:var(--muted);max-width:44ch">When a PR's light turns green, a teammate approved it, it's conflict-free, and it's this PR's turn in the merge order, DevBrain presses merge for you. A PR only the AI cleared is never auto-merged. Branch protection still applies.</p>
+        <p class="m" style="margin:14px 0 0;font-size:11.5px;color:var(--faint-app)">Settings → Rules · per repo · admin only · off by default</p>
+      </div>
+      <div style="border-left:1px solid var(--line2);padding-left:48px">
+        <div class="m" style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint-app)">since you flipped it</div>
+        <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div><div class="d m" style="font-size:64px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--go)">23</div><div style="margin-top:4px;font-size:13px">PRs merged by DevBrain</div></div>
+          <div><div class="d m" style="font-size:64px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--wait)">9</div><div style="margin-top:4px;font-size:13px">branches updated from main</div></div>
+          <div><div class="d m" style="font-size:64px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--txt)">0</div><div style="margin-top:4px;font-size:13px">pushes to main</div></div>
+          <div><div class="d m" style="font-size:64px;font-weight:500;letter-spacing:-.04em;line-height:1;color:var(--txt)">0</div><div style="margin-top:4px;font-size:13px">merged without a human's approval</div></div>
+        </div>
+      </div>
+    </div>
+    <p style="margin:22px 0 0;max-width:62ch;font-size:14.5px;line-height:1.6;color:var(--muted)">Every write is a branch and a PR, or the merge of a PR a person approved. Anything branch protection would block, DevBrain can't do either. Working alone? Flip one more switch and a clean PR that DevBrain's own review passed goes green, labelled as AI-reviewed so nobody mistakes it for a teammate's approval.</p>
+  </div>
+
+  <!-- DOWNLOAD -->
+  <div class="wrap" style="padding-top:110px">
+    <div style="border-radius:16px;border:1px solid var(--line2);background:var(--row);padding:48px 44px">
+      <h2 class="h2">Try it on one repo.</h2>
+      <p class="lede">Download it, sign in with GitHub, pick a repo. It takes about five minutes. The next time anyone on the team opens a session, it will know who else is there.</p>
+      <div style="margin-top:28px;display:flex;align-items:center;gap:16px">
+        <a href="#download" class="btn btn-primary"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>Download for Mac</a>
+        <span style="display:inline-flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)"><span class="dot" style="background:var(--go)"></span><span class="m" style="color:var(--txt)">148</span> beta spots left · free until the beta ends</span>
+      </div>
+      <p style="margin:12px 0 0;font-size:13px;color:var(--muted)">Signing in doesn't give DevBrain access to your code. You pick the repo yourself, after.</p>
+      <div style="margin-top:36px;border-top:1px solid var(--line);padding-top:24px">
+        <p style="margin:0;font-size:13.5px;color:var(--muted)">Not on a Mac, or not ready yet? Leave your email and we'll let you know.</p>
+        <div style="margin-top:16px;display:flex;gap:8px;max-width:440px">
+          <span style="flex:1;border:1px solid var(--line2);background:var(--ink);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--faint-app)">you@company.com</span>
+          <span class="d" style="border:1px solid var(--line2);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;color:var(--txt)">Send</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="wrap" style="padding-top:56px">
+    <div style="border-top:1px solid var(--line2);padding-top:24px">
+      <div style="display:flex;align-items:center;gap:20px;font-size:13px;color:var(--muted)">
+        <span>DevBrain</span><a href="#faq">FAQ</a><a href="#privacy">Privacy</a><a href="#terms">Terms</a>
+      </div>
+      <p style="margin:20px 0 0;max-width:86ch;font-size:12px;line-height:1.6;color:var(--muted)">Claude and Claude Code are trademarks of Anthropic. Cursor is a trademark of Anysphere. Codex and GitHub are trademarks of OpenAI and GitHub, Inc. DevBrain is not affiliated with, endorsed by, or sponsored by any of them.</p>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -46,7 +46,7 @@ describe("surfaceOf / surfaceRoot / withErrorOn", () => {
   });
 });
 
-import { inAppSurface } from "@/lib/surface";
+import { inAppSurface, signOutDestination } from "@/lib/surface";
 
 describe("inAppSurface", () => {
   it("names the two app surfaces and nothing else", () => {
@@ -55,5 +55,17 @@ describe("inAppSurface", () => {
     expect(inAppSurface(undefined)).toBeNull();
     expect(inAppSurface("")).toBeNull();
     expect(inAppSurface("browser")).toBeNull();
+  });
+});
+
+describe("signOutDestination", () => {
+  it("sends app windows back to their own sign-in screen", () => {
+    expect(signOutDestination("desk")).toBe("/?from=desk");
+    expect(signOutDestination("widget")).toBe("/?from=widget");
+  });
+  it("browser and junk go to the landing", () => {
+    expect(signOutDestination(null)).toBe("/");
+    expect(signOutDestination("dashboard")).toBe("/");
+    expect(signOutDestination("//evil")).toBe("/");
   });
 });

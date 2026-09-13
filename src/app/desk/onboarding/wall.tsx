@@ -42,7 +42,12 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
   const isAdmin = hasRole(org.role, "admin");
   const installUrl = `https://github.com/apps/${appSlug}/installations/new`;
   const requestLink = `https://github.com/apps/${appSlug}`;
-  const pendingOrWorking = state.repoState === "requested" || (!state.steps.find((s) => s.id === "working")!.done && repos.length > 0);
+  // Every step after "team" is completed by something OUTSIDE this window —
+  // GitHub's redirect in the browser, the app's bootstrap, an editor start.
+  // Poll until everything is green so the wall never shows a stale step.
+  // When the layout mounts the wall (blocking), this is always true, so the
+  // wall polls for as long as it is open and visible.
+  const pendingOrWorking = !state.complete;
 
   return (
     <main className="min-w-0 flex-1 overflow-y-auto px-10 pb-12 pt-10">
@@ -80,7 +85,7 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
               <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${s.done ? "bg-go text-white" : "border border-line2 text-txt"}`}>{s.done ? "✓" : n + 1}</span>
               <div className="min-w-0">
                 <div className={`font-display text-[18px] font-medium ${s.done ? "text-go" : "text-txt"}`}>{TITLES[s.id]}{s.by && s.done ? <span className="ml-2 font-body text-[12px] font-normal text-muted">by {s.by}</span> : null}</div>
-                <div className="mt-1.5 text-[12.5px] leading-[1.6] text-muted">{body(s, { isOwner, isAdmin, repos, installUrl, state, policies })}</div>
+                <div className="mt-1.5 text-[12.5px] leading-[1.6] text-muted">{body(s, { isOwner, isAdmin, repos, installUrl, state, policies, orgId: org.orgId, orgName: org.orgName })}</div>
               </div>
             </li>
           ))}
@@ -96,7 +101,7 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
   );
 }
 
-function body(s: Step, c: { isOwner: boolean; isAdmin: boolean; repos: TeamRepo[]; installUrl: string; state: OnboardingState; policies: Record<string, boolean> }) {
+function body(s: Step, c: { isOwner: boolean; isAdmin: boolean; repos: TeamRepo[]; installUrl: string; state: OnboardingState; policies: Record<string, boolean>; orgId: string; orgName: string }) {
   switch (s.id) {
     case "team":
       return <>You're in. Invite people later from Members.</>;
@@ -115,7 +120,7 @@ function body(s: Step, c: { isOwner: boolean; isAdmin: boolean; repos: TeamRepo[
       return (
         <>
           One click installs the DevBrain command, the editor plugin and its hooks for Claude Code, Cursor and Codex, and keeps them updated. You'll be asked to allow Notifications and Reminders.
-          <div className="mt-2"><SetupMac done={s.done} /></div>
+          <div className="mt-2"><SetupMac done={s.done} orgId={c.orgId} orgName={c.orgName} /></div>
         </>
       );
     case "rules":

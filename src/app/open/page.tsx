@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { appChannel } from "@/lib/app-channel";
+import { COOKIE } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
 import { safeDeskRoute } from "@/lib/retire";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -55,6 +58,7 @@ export default async function OpenPage({ searchParams }: { searchParams: Promise
   }
   const to = safeDeskRoute(sp.to);
   const route = to.replace(/^\/desk/, "") || "/";
+  const build = appChannel((await cookies()).get(COOKIE.channel)?.value);
   const note = sp.checkout === "success" ? `Subscription started — welcome to ${org.orgName}. Download the app below.` : sp.joined ? `You're in — welcome to ${org.orgName}.` : sp.created ? `${org.orgName} is ready.` : sp.unlinked ? `${sp.unlinked} was unlinked.` : sp.deleted ? `${sp.deleted} was deleted.` : null;
 
   return (
@@ -67,12 +71,12 @@ export default async function OpenPage({ searchParams }: { searchParams: Promise
         {note && <p className="mt-2 text-[13.5px] text-go">{note}</p>}
         <p className="mt-2 text-[13px] leading-[1.6] text-muted">DevBrain lives in the Mac app: a menu-bar panel for the glance, and the Console for everything else. The browser is only for signing in, joining a team, linking a repo and downloading the app.</p>
         <div className="mt-[22px] flex flex-col gap-2">
-          <a href={`devbrain://desk${route}`} className="rounded-[10px] bg-accent2 px-4 py-[11px] text-center text-[13px] font-semibold text-white hover:brightness-110">Open the Console in the app</a>
+          <a href={`${build.scheme}://desk${route}`} className="rounded-[10px] bg-accent2 px-4 py-[11px] text-center text-[13px] font-semibold text-white hover:brightness-110">Open the Console in {build.name}</a>
           <a href={RELEASES} className="rounded-[10px] border border-line2 bg-row px-4 py-[11px] text-center text-[13px] font-medium text-txt hover:border-line3">Don&apos;t have the app? Download it</a>
           {!APP_ONLY && <Link href={to} className="text-center text-[12px] text-muted hover:text-txt hover:underline">Continue in the browser instead</Link>}
         </div>
         <p className="mt-10 text-[11.5px] leading-[1.6] text-faint">
-          Beta build? <a href={`devbrain-beta://desk${route}`} className="text-accent hover:underline">Open in DevBrain Beta</a>. Setting up a new Mac by hand: <Link href="/settings/setup" className="text-accent hover:underline">setup page</Link>.
+          Using {build.other.name} instead? <a href={`${build.other.scheme}://desk${route}`} className="text-accent hover:underline">Open in {build.other.name}</a>. Setting up a new Mac by hand: <Link href="/settings/setup" className="text-accent hover:underline">setup page</Link>.
         </p>
       </main>
     </BrowserShell>

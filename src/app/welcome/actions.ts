@@ -20,6 +20,8 @@ function slugify(s: string) {
 export async function createTeam(formData: FormData): Promise<void> {
   const formNext = safeNext(formData.get("next") as string | null, "");
   const inPanel = formNext === "/widget";
+  const inApp = inPanel || formNext === "/desk";
+  const backTo = inPanel ? "&from=widget" : formNext === "/desk" ? "&from=desk" : "";
   const supabase = await supabaseServer();
   const {
     data: { user },
@@ -42,7 +44,7 @@ export async function createTeam(formData: FormData): Promise<void> {
     // Someone already on a team can spin up another; a brand-new account cannot
     // self-serve a team while signups are invite-only — they must use a link.
     if (!count) {
-      redirect(`/welcome?invite_error=${encodeURIComponent("DevBrain is invite-only right now — ask a teammate for an invite link.")}${inPanel ? "&from=widget" : ""}`);
+      redirect(`/welcome?invite_error=${encodeURIComponent("DevBrain is invite-only right now — ask a teammate for an invite link.")}${backTo}`);
     }
   }
 
@@ -50,7 +52,7 @@ export async function createTeam(formData: FormData): Promise<void> {
   // every team costs AI budget out of one shared platform allowance. Checked
   // here, at the only place a new team can appear.
   const full = await signupBlock("team");
-  if (full) redirect(`/welcome?invite_error=${encodeURIComponent(full)}${inPanel ? "&from=widget" : ""}`);
+  if (full) redirect(`/welcome?invite_error=${encodeURIComponent(full)}${backTo}`);
 
   // Free beta: teams created while it runs are comped and stay comped when it
   // ends, until they are deliberately converted. orgs.beta marks the cohort.
@@ -69,7 +71,7 @@ export async function createTeam(formData: FormData): Promise<void> {
       .single();
     org = data;
   }
-  if (!org) redirect(`/welcome?invite_error=${encodeURIComponent("Could not create the team. Try again.")}${inPanel ? "&from=widget" : ""}`);
+  if (!org) redirect(`/welcome?invite_error=${encodeURIComponent("Could not create the team. Try again.")}${backTo}`);
   await admin.from("org_members").insert({ org_id: org.id, user_id: user.id, role: "owner", github_login: login });
   await admin.from("events").insert({ org_id: org.id, repo_id: null, kind: "org_created", payload: { by: login, name } });
 
@@ -77,17 +79,18 @@ export async function createTeam(formData: FormData): Promise<void> {
   jar.set(COOKIE.org, org.id, ORG_COOKIE_OPTS);
   const cookieNext = jar.get(COOKIE.next)?.value ?? "";
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }, ...(cookieNext ? [{ name: COOKIE.next, path: "/" }] : [])]);
-  // Subscription before download: the browser flow goes to the plan step; the
-  // panel flow lands back in the panel, whose wall card opens the Console.
-  // During the free beta there is nothing to pay, so skip straight to the app.
-  redirect(inPanel ? "/widget" : beta.free ? "/open?created=1" : "/welcome/plan");
+  // An app window lands back on itself; the browser goes to the plan step,
+  // or straight to the hand-off page during the free beta.
+  redirect(inApp ? formNext : beta.free ? "/open?created=1" : "/welcome/plan");
 }
 
 export async function useInvite(formData: FormData): Promise<void> {
   const formNext = safeNext(formData.get("next") as string | null, "");
   const inPanel = formNext === "/widget";
+  const inApp = inPanel || formNext === "/desk";
+  const backTo = inPanel ? "&from=widget" : formNext === "/desk" ? "&from=desk" : "";
   const raw = String(formData.get("invite") || "").trim();
   const code = raw.replace(/^.*\/join\//, "").split(/[?#\s]/)[0];
-  if (!code) redirect(`/welcome?invite_error=${encodeURIComponent("Paste the whole invite link.")}${inPanel ? "&from=widget" : ""}`);
+  if (!code) redirect(`/welcome?invite_error=${encodeURIComponent("Paste the whole invite link.")}${backTo}`);
   redirect(`/join/${encodeURIComponent(code)}${formNext ? `?next=${encodeURIComponent(formNext)}` : ""}`);
 }

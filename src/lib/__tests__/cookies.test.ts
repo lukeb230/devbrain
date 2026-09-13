@@ -9,6 +9,11 @@ describe("clearDevbrainCookies", () => {
     for (const [, v, o] of calls) { expect(v).toBe(""); expect(o.maxAge).toBe(0); }
     expect(calls.find((c) => c[0] === COOKIE.newToken)![2].path).toBe("/settings");
   });
+
+  it("keeps the app-channel cookie: signing out does not change which app is installed", () => {
+    expect(COOKIE.channel).toBe("devbrain_channel");
+    expect(ALL_DEVBRAIN_COOKIES.some((c) => c.name === COOKIE.channel)).toBe(false);
+  });
 });
 
 describe("readCookieHeader", () => {

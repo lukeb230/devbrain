@@ -78,3 +78,11 @@ async function mergeOnboarding(orgId: string, userId: string, patch: Record<stri
   const current = (data?.onboarding as Record<string, unknown> | null) ?? {};
   await admin.from("org_members").update({ onboarding: { ...current, ...patch } }).eq("org_id", orgId).eq("user_id", userId);
 }
+
+// The notice cookie is read by the Desk layout on every request. It is set
+// by redirects that cannot render (the GitHub setup route, a failed preset)
+// and must be shown exactly once — so the banner clears it as soon as it has
+// been rendered. Same path as NOTICE_COOKIE_OPTS or the delete is a no-op.
+export async function clearNotice(): Promise<void> {
+  (await cookies()).set(COOKIE.notice, "", { ...NOTICE_COOKIE_OPTS, maxAge: 0 });
+}

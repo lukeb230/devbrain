@@ -3,4 +3,5 @@
 // mounted (a teammate past onboarding still needs to see install_owned).
 export const NOTICES: Record<string, string> = {
   install_owned: "That repository's GitHub App installation already belongs to another DevBrain team. Pick a different repository, or ask that team to unlink it first.",
+  preset_failed: "Saving the rules didn't go through. Try the preset again; if it keeps failing, open Rules and set them one by one.",
 };

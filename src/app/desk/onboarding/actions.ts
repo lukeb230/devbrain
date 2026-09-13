@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { alert } from "@/lib/alerts";
+import { COOKIE, NOTICE_COOKIE_OPTS } from "@/lib/cookies";
 import { presetRows, type Preset } from "@/lib/onboarding-presets";
 import { currentOrg, requireRoleOrRedirect } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
@@ -31,10 +34,17 @@ export async function applyPreset(formData: FormData): Promise<void> {
     // Brain detection: docs already indexed for this repo. Unknown → off.
     const { count } = await admin.from("memory_index").select("repo_id", { count: "exact", head: true }).eq("repo_id", r.id).eq("kind", "brain");
     const rows = presetRows(preset, { hasBrainDocs: (count ?? 0) > 0 });
-    await admin.from("policies").upsert(
+    const { error } = await admin.from("policies").upsert(
       rows.map((x) => ({ org_id: me.orgId, repo_id: r.id, rule: x.rule, enabled: x.enabled, updated_at: now })),
       { onConflict: "repo_id,rule" },
     );
+    if (error) {
+      // A failed write must not silently leave the owner walled with rules
+      // that look chosen but aren't — surface it, don't swallow it.
+      await alert({ scope: { orgId: me.orgId }, key: "onboarding.preset_failed", severity: "error", title: "Could not save the rules preset", detail: error.message });
+      (await cookies()).set(COOKIE.notice, "preset_failed", NOTICE_COOKIE_OPTS);
+      redirect(back);
+    }
     await admin.from("events").insert({ org_id: me.orgId, repo_id: r.id, kind: "rule_change", payload: { preset, by: me.login } });
   }
   await mergeOnboarding(me.orgId, me.userId, { preset });

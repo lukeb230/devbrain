@@ -40,7 +40,6 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
 }) {
   const isOwner = org.role === "owner";
   const isAdmin = hasRole(org.role, "admin");
-  const repoStep = state.steps.find((s) => s.id === "repo")!;
   const installUrl = `https://github.com/apps/${appSlug}/installations/new`;
   const requestLink = `https://github.com/apps/${appSlug}`;
   const pendingOrWorking = state.repoState === "requested" || (!state.steps.find((s) => s.id === "working")!.done && repos.length > 0);

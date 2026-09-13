@@ -57,7 +57,11 @@ export async function POST(request: Request) {
   // ---- 1. PR review: pick one unreviewed open PR --------------------------
   if (!off.has("review")) try {
     if (!agentConfigured()) throw new Error("skip: no API key");
-    const { data: openPrs } = await admin
+    // A failed read here used to leave openPrs null → no target → the unit
+    // returned with no `did` key at all, indistinguishable from "nothing to
+    // review". Three consecutive silent skips were observed on 2026-09-12.
+    // Throwing puts it in did.review_error, which the alert below watches.
+    const { data: openPrs, error: openErr } = await admin
       .from("prs")
       .select("repo_id, org_id, number, title, author, head_branch, base_branch, head_sha, changed_files")
       .eq("state", "open")
@@ -65,16 +69,20 @@ export async function POST(request: Request) {
       .not("head_sha", "is", null)
       .order("updated_at", { ascending: false })
       .limit(20);
+    if (openErr) throw new Error(`prs read failed: ${openErr.message}`);
 
     let target: NonNullable<typeof openPrs>[number] | null = null;
     for (const pr of fair(openPrs)) {
-      const { data: existing } = await admin
+      const { data: existing, error: existingErr } = await admin
         .from("pr_reviews")
         .select("id")
         .eq("repo_id", pr.repo_id)
         .eq("pr_number", pr.number)
         .eq("head_sha", pr.head_sha)
         .limit(1);
+      // A failed read must not read as "unreviewed" — that would re-review
+      // (and re-charge) a PR every tick until the database recovered.
+      if (existingErr) throw new Error(`pr_reviews read failed: ${existingErr.message}`);
       if (!existing || existing.length === 0) {
         target = pr;
         break;
@@ -83,11 +91,14 @@ export async function POST(request: Request) {
 
     if (target) {
       touch(target.org_id);
-      const { data: repo } = await admin
+      const { data: repo, error: repoErr } = await admin
         .from("linked_repos")
         .select("id, full_name, installation_id")
         .eq("id", target.repo_id)
         .single();
+      if (repoErr) throw new Error(`linked_repos read failed: ${repoErr.message}`);
+      // Not an error, but not silence either: say why nothing was reviewed.
+      if (!repo?.installation_id) did.reviewed = `#${target.number} (skipped: repo has no installation)`;
       if (repo?.installation_id) {
         const files = Array.isArray(target.changed_files) ? (target.changed_files as string[]) : [];
         let diff: string;

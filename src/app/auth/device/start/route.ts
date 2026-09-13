@@ -21,7 +21,8 @@ const SCHEME: Record<string, string> = { stable: "devbrain", beta: "devbrain-bet
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const channel = SCHEME[url.searchParams.get("channel") ?? ""] ? (url.searchParams.get("channel") as string) : "stable";
-  const self = `/auth/device/start?channel=${channel}`;
+  const surface = url.searchParams.get("surface") === "desk" ? "desk" : "widget";
+  const self = `/auth/device/start?channel=${channel}&surface=${surface}`;
   // This route mints a one-time token and writes a row; bound it per IP even
   // though it also needs a session.
   if (await publicLimit(clientIp(request), "device_start")) {
@@ -33,9 +34,9 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    // The landing page's sign-in button honours ?next=; from=widget keeps the
-    // copy panel-flavoured.
-    return NextResponse.redirect(`${url.origin}/?from=widget&next=${encodeURIComponent(self)}`);
+    // The landing page's sign-in button honours ?next=; from=<surface> keeps
+    // the copy surface-flavoured.
+    return NextResponse.redirect(`${url.origin}/?from=${surface}&next=${encodeURIComponent(self)}`);
   }
 
   // Signed in but on no team yet: create/join one first (full-size, in the
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
   });
   if (error) return NextResponse.json({ error: "could not start device login" }, { status: 500 });
 
-  const appUrl = `${SCHEME[channel]}://login?token=${encodeURIComponent(token)}`;
+  const appUrl = `${SCHEME[channel]}://login?token=${encodeURIComponent(token)}&surface=${surface}`;
   const appName = channel === "beta" ? "DevBrain Beta" : "DevBrain";
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Return to ${appName}</title>
 <meta http-equiv="refresh" content="0;url=${appUrl}">

@@ -45,3 +45,15 @@ describe("surfaceOf / surfaceRoot / withErrorOn", () => {
     expect(withErrorOn("/desk/board?repo=1", "no_access")).toBe("/desk/board?repo=1&error=no_access");
   });
 });
+
+import { inAppSurface } from "@/lib/surface";
+
+describe("inAppSurface", () => {
+  it("names the two app surfaces and nothing else", () => {
+    expect(inAppSurface("widget")).toBe("widget");
+    expect(inAppSurface("desk")).toBe("desk");
+    expect(inAppSurface(undefined)).toBeNull();
+    expect(inAppSurface("")).toBeNull();
+    expect(inAppSurface("browser")).toBeNull();
+  });
+});

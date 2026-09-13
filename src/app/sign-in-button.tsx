@@ -15,7 +15,7 @@ export function SignInButton({ next, size = "lg" }: { next?: string; size?: "lg"
     // browser; it comes back through the app's devbrain:// URL scheme.
     const core = tauriCore();
     if (core) {
-      try { await core.invoke("start_browser_login"); return; } catch { /* older shell: fall through */ }
+      try { await core.invoke("start_browser_login", { surface: next === "/desk" ? "desk" : "widget" }); return; } catch { /* older shell: fall through */ }
     }
     const supabase = supabaseBrowser();
     // Remember where to land after OAuth in a cookie too: the desktop panel

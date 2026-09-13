@@ -16,7 +16,8 @@ import { clientIp } from "@/lib/client-ip";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
-  const fail = (why: string) => NextResponse.redirect(`${url.origin}/?from=widget&device_error=${encodeURIComponent(why)}`);
+  const surface = url.searchParams.get("surface") === "desk" ? "desk" : "widget";
+  const fail = (why: string) => NextResponse.redirect(`${url.origin}/?from=${surface}&device_error=${encodeURIComponent(why)}`);
   const ip = clientIp(request);
   if (!deviceLimiter.take(ip) || (await publicLimit(ip, "device"))) return fail("too many attempts — wait a minute");
   if (!token.startsWith("dbd_")) return fail("bad token");
@@ -46,5 +47,5 @@ export async function GET(request: Request) {
   const { error: verifyErr } = await supabase.auth.verifyOtp({ type: "magiclink", token_hash: hashed });
   if (verifyErr) return fail("session verification failed");
 
-  return NextResponse.redirect(`${url.origin}/widget`);
+  return NextResponse.redirect(`${url.origin}${surface === "desk" ? "/desk" : "/widget"}`);
 }

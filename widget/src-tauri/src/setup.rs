@@ -379,9 +379,10 @@ pub fn open_external(app: AppHandle, url: String) -> Result<(), String> {
 /// real browser (already logged in to GitHub there). It comes back through
 /// the app's URL scheme — see `handle_deep_link`.
 #[tauri::command]
-pub fn start_browser_login(app: AppHandle) -> Result<(), String> {
+pub fn start_browser_login(app: AppHandle, surface: Option<String>) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let url = format!("{}/auth/device/start?channel={}", crate::SITE, CHANNEL);
+    let surface = match surface.as_deref() { Some("desk") => "desk", _ => "widget" };
+    let url = format!("{}/auth/device/start?channel={}&surface={}", crate::SITE, CHANNEL, surface);
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
@@ -424,8 +425,16 @@ pub fn handle_deep_link(app: &AppHandle, urls: &[tauri::Url]) {
             continue;
         }
         let Some(token) = u.query_pairs().find(|(k, _)| k == "token").map(|(_, v)| v.into_owned()) else { continue };
-        if let Some(panel) = app.get_webview_window("panel") {
-            let target = format!("{}/auth/device?token={}", crate::SITE, token);
+        let desk = u.query_pairs().any(|(k, v)| k == "surface" && v == "desk");
+        let target = format!("{}/auth/device?token={}&surface={}", crate::SITE, token, if desk { "desk" } else { "widget" });
+        if desk {
+            // Console sign-in: land the session in the Desk window's cookie
+            // jar (shared with the panel) and bring the Desk forward.
+            if let Some(w) = app.get_webview_window("desk") {
+                let _ = w.eval(&format!("window.location.replace({:?})", target));
+            }
+            crate::show_desk(app.clone(), None);
+        } else if let Some(panel) = app.get_webview_window("panel") {
             let _ = panel.eval(&format!("window.location.replace({:?})", target));
             let _ = panel.show();
             let _ = panel.set_focus();

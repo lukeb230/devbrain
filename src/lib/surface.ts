@@ -52,3 +52,9 @@ export function revalidateSurfaces(...dashboardPaths: string[]) {
   revalidatePath("/widget");
   revalidatePath("/desk", "layout");
 }
+
+/** Which app webview a ?from= hint names — the 440px panel or the Console.
+ *  A signed-out Console used to fall through to the marketing landing page. */
+export function inAppSurface(from: string | undefined): "widget" | "desk" | null {
+  return from === "widget" || from === "desk" ? from : null;
+}

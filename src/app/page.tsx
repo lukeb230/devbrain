@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { inAppSurface } from "@/lib/surface";
 import { supabaseServer } from "@/lib/supabase/server";
 import { BrowserShell } from "./browser-shell";
 import { Landing } from "./landing/landing";
@@ -27,7 +28,8 @@ export default async function LandingPage({
   const { from, next, auth_error, device_error } = await searchParams;
   // Only same-origin paths may be used as a post-login destination.
   const nextParam = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
-  const inPanel = from === "widget";
+  const surface = inAppSurface(from);
+  const inPanel = surface !== null;
 
   const notice =
     auth_error || device_error ? (
@@ -53,8 +55,8 @@ export default async function LandingPage({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brain.png" width={49} height={40} alt="" />
         <div className="mt-3 font-display text-[17px] font-bold tracking-[-.02em] text-txt">DevBrain</div>
-        <p className="mb-3.5 mt-1.5 max-w-[260px] text-[12.5px] leading-[1.5] text-muted">Sign in with GitHub in your browser — the app picks it up and comes back here.</p>
-        <SignInButton next="/widget" size="sm" />
+        <p className="mb-3.5 mt-1.5 max-w-[260px] text-[12.5px] leading-[1.5] text-muted">Sign in with GitHub in your browser — the app picks it up and brings you back.</p>
+        <SignInButton next={surface === "desk" ? "/desk" : "/widget"} size="sm" />
       </main>
     </BrowserShell>
   );

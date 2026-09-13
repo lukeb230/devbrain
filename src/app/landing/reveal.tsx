@@ -7,7 +7,9 @@ import { countAt } from "@/lib/landing-motion";
 // Play-once reveals. <Reveal> renders its children in the final state (the
 // server never hides anything); after mount a one-shot IntersectionObserver
 // sets data-in and the CSS in globals.css (html.lp-js .lp-fx) animates from
-// the start pose. <Count> is the same idea for a numeral.
+// the start pose. <Count> is the same idea for a numeral. A 2.5s safety timer
+// runs alongside the observer so the page is never left unrevealed if the
+// observer stays silent (see in-view.ts for why that happens here).
 // ============================================================================
 
 export type Fx = "up" | "left" | "right" | "scale" | "panel" | "cursor-l" | "cursor-r" | "file" | "tab" | "fade";
@@ -24,11 +26,12 @@ function useOnce(ref: React.RefObject<Element | null>, amount: number) {
     if (!el || seen) return;
     if (!("IntersectionObserver" in window)) { setSeen(true); return; }
     const io = new IntersectionObserver(
-      (entries) => { if (entries.some((e) => e.isIntersecting)) { setSeen(true); io.disconnect(); } },
+      (entries) => { if (entries.some((e) => e.isIntersecting)) { setSeen(true); io.disconnect(); window.clearTimeout(t); } },
       { threshold: amount, rootMargin: "-10% 0px -10% 0px" },
     );
     io.observe(el);
-    return () => io.disconnect();
+    const t = window.setTimeout(() => { setSeen(true); io.disconnect(); }, 2500);
+    return () => { io.disconnect(); window.clearTimeout(t); };
   }, [ref, amount, seen]);
   return seen;
 }

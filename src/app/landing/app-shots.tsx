@@ -20,6 +20,8 @@
 // would put a real team's private work on a public page.
 // ============================================================================
 
+import { TEAM } from "./mock-team";
+
 export type Tone = "go" | "wait" | "stop" | "idle";
 const TONE: Record<Tone, string> = { go: "bg-go", wait: "bg-wait", stop: "bg-stop", idle: "bg-faint" };
 
@@ -108,8 +110,8 @@ export function ConsoleWindow() {
           <div className="flex h-11 items-center gap-4 border-b border-line bg-pane px-4">
             <span className="max-w-[240px] flex-1 rounded-lg border border-line bg-ink px-2.5 py-[5px] text-[12px] text-faint">⌘K &nbsp;Jump to anything…</span>
             <span className="ml-auto flex items-center gap-2">
-              <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accenttext">L</span>
-              <span className="font-mono text-[10.5px] text-muted">lukeb230 · owner</span>
+              <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accenttext">{TEAM.you[0]}</span>
+              <span className="font-mono text-[10.5px] text-muted">{TEAM.you.toLowerCase()} · owner</span>
             </span>
           </div>
           <div className="px-7 pb-7 pt-6">

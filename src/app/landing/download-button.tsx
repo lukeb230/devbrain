@@ -12,7 +12,7 @@ const SIZE = {
 
 export function DownloadButton({ size = "hero", className = "" }: { size?: keyof typeof SIZE; className?: string }) {
   return (
-    <a href="/download" className={`inline-flex items-center bg-accent2 font-display font-semibold tracking-[-.01em] text-white transition-[background-color,transform] duration-[120ms] hover:-translate-y-px hover:bg-[#b4453d] active:translate-y-0 active:duration-[60ms] ${SIZE[size]} ${className}`}>
+    <a href="/download" className={`inline-flex items-center whitespace-nowrap bg-accent2 font-display font-semibold tracking-[-.01em] text-white transition-[background-color,transform] duration-[120ms] hover:-translate-y-px hover:bg-[#b4453d] active:translate-y-0 active:duration-[60ms] ${SIZE[size]} ${className}`}>
       <Icon size={size === "nav" ? 14 : 18} />Download for Mac
     </a>
   );

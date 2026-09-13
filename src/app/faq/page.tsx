@@ -7,7 +7,7 @@ import { MotionGate, Mount, Reveal } from "@/app/landing/reveal";
 import { SiteFooter, SiteHeader } from "@/app/landing/landing";
 import { FAQ_ITEMS } from "./faq-items";
 
-export const metadata: Metadata = { title: "FAQ · DevBrain", description: "The questions people ask before they download DevBrain." };
+export const metadata: Metadata = { title: "FAQ", description: "The questions people ask before they download DevBrain." };
 export const dynamic = "force-dynamic";
 
 export default async function FaqPage() {

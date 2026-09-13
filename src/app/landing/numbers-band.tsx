@@ -14,10 +14,10 @@ export function NumbersBand({ team = TEAM }: { team?: typeof TEAM }) {
       <Reveal as="p" amount={0.4} y={16} className="font-display text-[34px] font-medium leading-none tracking-[-.035em] text-txt sm:text-[56px]">
         Since {team.cursor} logged off on Friday<span className="text-accenttext">.</span>
       </Reveal>
-      <div className="mt-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-6 xl:grid-cols-4">
         {STATS.map((s, i) => (
           <Reveal key={s.label} delay={200 + i * 90} y={14} className="min-w-0">
-            <div className={`font-display text-[64px] font-medium leading-none tracking-[-.04em] ${s.tone} lg:text-[96px]`}><Count to={s.n} delay={200 + i * 90} /></div>
+            <div className={`font-display text-[64px] font-medium leading-none tracking-[-.04em] ${s.tone} xl:text-[96px]`}><Count to={s.n} delay={200 + i * 90} /></div>
             <div className="mt-2 text-[14px] font-medium text-txt">{s.label}</div>
             <div className="mt-1 font-mono text-[11.5px] leading-[1.5] text-muted">{s.detail}</div>
           </Reveal>

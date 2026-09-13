@@ -170,6 +170,7 @@ html[data-wg-theme="dark"] .wg { @apply wg-dark; }
   --lp-page:#e7e1d4; --lp-page2:#ddd6c6;
   background:var(--lp-page); color:var(--wg-txt);
   caret-color:var(--wg-accent); scrollbar-color:var(--wg-line3) transparent;
+  overflow-x:clip;
 }
 .lp ::selection{background:var(--wg-coral-line);color:#3a1210}
 .lp ::-webkit-scrollbar{width:11px;height:11px}

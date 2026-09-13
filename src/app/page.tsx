@@ -35,7 +35,7 @@ export default async function LandingPage({
     auth_error || device_error ? (
       <p className="rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3.5 py-2.5 text-[13px] text-wait">
         {device_error
-          ? `The desktop sign-in link was ${device_error}. Click Sign in again in the DevBrain panel.`
+          ? `The desktop sign-in link was ${device_error}. Click Sign in again in the ${surface === "desk" ? "DevBrain Console" : "DevBrain panel"}.`
           : "Sign-in didn't complete — the GitHub hand-off was rejected or expired. Try again."}
       </p>
     ) : null;

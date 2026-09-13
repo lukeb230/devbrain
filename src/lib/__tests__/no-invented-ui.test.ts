@@ -20,6 +20,7 @@ const FILES = [
   "src/app/landing/app-shots.tsx",
   "src/app/landing/panel-window.tsx",
   "src/app/landing/spawn-window.tsx",
+  "src/app/landing/guard-note.tsx",
 ];
 
 /** Every label the shots put on screen, and where it must exist. */

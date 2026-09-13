@@ -30,17 +30,12 @@ const TONE: Record<string, string> = {
 /** Total characters, used to drive the reveal. */
 const len = (lines: Line[]) => lines.reduce((n, l) => n + l.text.length + 1, 0);
 
-export function Terminal({
-  title,
-  lines,
-  caption,
-  className = "",
-}: {
-  title: string;
-  lines: Line[];
-  caption?: string;
-  className?: string;
-}) {
+/**
+ * The typing mechanics on their own: reveals `lines` at a human cadence once
+ * scrolled into view, with the same line rendering and blinking cursor
+ * `Terminal` has always shown. No window chrome — callers supply their own.
+ */
+export function Transcript({ lines, className = "" }: { lines: Line[]; className?: string }) {
   const total = len(lines);
   // Server and no-JS render everything; the effect below decides to animate.
   const [shown, setShown] = useState(total);
@@ -95,29 +90,42 @@ export function Terminal({
   }
 
   return (
-    <div ref={box} className={className}>
+    <div ref={box} className={className} style={{ minHeight: `calc(${lines.length} * 1.8em + 2.5rem)` }}>
+      {visible.map((l, i) => (
+        <div key={i} className={`whitespace-pre-wrap ${TONE[l.tone ?? ""] ?? ""}`}>
+          {l.text}
+          {i === visible.length - 1 && (
+            <span
+              aria-hidden="true"
+              className={`ml-[2px] inline-block h-[1.05em] w-[7px] translate-y-[2px] bg-[#e6dfd2] ${done ? "animate-pulse" : ""}`}
+            />
+          )}
+        </div>
+      ))}
+      {visible.length === 0 && <div>&nbsp;</div>}
+    </div>
+  );
+}
+
+export function Terminal({
+  title,
+  lines,
+  caption,
+  className = "",
+}: {
+  title: string;
+  lines: Line[];
+  caption?: string;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
       <figure className="lp-win overflow-hidden bg-codebg">
         <div className="flex h-[34px] items-center gap-2.5 border-b border-black/30 bg-[#242019] px-4">
           <span className="h-[6px] w-[6px] rounded-full bg-[#f0b35b]" />
           <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-white/65">{title}</span>
         </div>
-        <div
-          className="overflow-x-auto px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]"
-          style={{ minHeight: `calc(${lines.length} * 1.8em + 2.5rem)` }}
-        >
-          {visible.map((l, i) => (
-            <div key={i} className={`whitespace-pre-wrap ${TONE[l.tone ?? ""] ?? ""}`}>
-              {l.text}
-              {i === visible.length - 1 && (
-                <span
-                  aria-hidden="true"
-                  className={`ml-[2px] inline-block h-[1.05em] w-[7px] translate-y-[2px] bg-[#e6dfd2] ${done ? "animate-pulse" : ""}`}
-                />
-              )}
-            </div>
-          ))}
-          {visible.length === 0 && <div>&nbsp;</div>}
-        </div>
+        <Transcript lines={lines} className="overflow-x-auto px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]" />
       </figure>
       {caption && <figcaption className="mt-3 font-mono text-[12px] text-muted">{caption}</figcaption>}
     </div>

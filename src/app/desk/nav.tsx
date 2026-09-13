@@ -11,7 +11,7 @@ import { DESK_SECTIONS } from "./sections";
 // repo pickers under it; then the grouped sections, no icons. Active item =
 // coral ink + coral line.
 
-export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, canLink }: {
+export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, canLink, onboardingNudge }: {
   orgs: { id: string; name: string }[];
   orgId: string;
   switchOrg: (fd: FormData) => Promise<void>;
@@ -19,6 +19,7 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
   remembered: string | null;
   appSlug: string;
   canLink: boolean;
+  onboardingNudge: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -72,6 +73,11 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
           <div className="px-1.5 py-1 font-mono text-[12px] text-faint">no repos linked</div>
         )}
       </div>
+      {onboardingNudge && (
+        <Link href="/desk/onboarding" className={`mb-2 block rounded-lg border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-2.5 py-1.5 text-[11.5px] font-semibold text-wait ${active === "onboarding" ? "ring-1 ring-wait" : ""}`}>
+          {onboardingNudge} →
+        </Link>
+      )}
       {DESK_SECTIONS.map((g) => (
         <div key={g.group}>
           <div className="px-2.5 pb-1 pt-2.5 font-mono text-[9px] uppercase tracking-[.12em] text-faint">{g.group}</div>

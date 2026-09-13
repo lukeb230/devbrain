@@ -6,6 +6,8 @@ import { FULL_MESSAGE, hasRoom, loadBeta, platformCounts } from "@/lib/beta";
 import { joinLimiter } from "@/lib/ratelimit";
 import { clientIp } from "@/lib/client-ip";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { alert } from "@/lib/alerts";
+import { soloGreenDrift } from "@/lib/onboarding-presets";
 
 // ============================================================================
 // Invite links — GET /join/<code>[?next=/widget]
@@ -64,6 +66,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     if (error) return fail("Could not join the team. Try the link again.");
     await admin.from("org_invites").update({ uses: inv.uses + 1 }).eq("id", inv.id);
     await admin.from("events").insert({ org_id: inv.org_id, repo_id: null, kind: "member_joined", payload: { login, role: inv.role, invite: inv.id } });
+
+    // A Solo preset outliving the solo situation: solo_green now lets the AI
+    // clear PRs on a team that has a human who could review. Say so once.
+    const { data: pol } = await admin.from("policies").select("repo_id, rule, enabled").eq("org_id", inv.org_id).eq("rule", "solo_green").eq("enabled", true);
+    const drifting = soloGreenDrift((pol ?? []) as { repo_id: string; rule: string; enabled: boolean }[]);
+    if (drifting.length) {
+      await alert({
+        scope: { orgId: inv.org_id },
+        key: "solo_green.drift",
+        severity: "warn",
+        title: "Your team grew — solo_green is still on",
+        detail: `${drifting.length} repo${drifting.length === 1 ? "" : "s"} let the AI review clear a PR with no teammate approval. That made sense alone; now a person can approve. Turn it off under Rules when you're ready.`,
+      });
+    }
   }
 
   const cookieNext = readCookieHeader(request.headers.get("cookie"), COOKIE.next);

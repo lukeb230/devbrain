@@ -15,6 +15,11 @@ Roles: **owner** manages the team and roles · **admin** links repos, edits
 team rules, maps Reminders lists, mints invites · **member** does the
 everyday work (tasks, claims, handoffs, specs, their own tokens).
 
+The first time the team's owner opens the Console, it walks them through
+linking a repository and choosing its rules. Everyone else sees the same
+checklist without being held up by it — a "Finish setup" link in the
+sidebar until their Mac and editor are connected.
+
 ## 2. Install the Mac app (that's the whole install)
 
 Paste this in Terminal:
@@ -38,8 +43,9 @@ That one click:
 - shows a ✓/✗ list per part; anything that failed says exactly why and how
   to fix it, and **Re-run setup** lives in the app's Settings tab
 
-Then restart any open Claude Code session so it loads the plugin, and run
-`devbrain doctor` in a new terminal — every line should be a check mark.
+Then restart any open editor session so it loads the plugin. The app's setup
+checklist turns "It's working" green by itself the first time DevBrain sees
+your editor in a linked repo — nothing to run.
 
 **Prefer the DMG?** Download `DevBrain.dmg` from the
 [latest release](https://github.com/lukeb230/devbrain/releases/latest) and
@@ -97,8 +103,11 @@ For a CI runner, a Linux box or a Mac without the app:
 - Your dev token only lets your machine report presence and read team
   context. It cannot touch code or infrastructure. Revoke it any time on
   Settings → Tokens; leaving a team revokes it automatically.
-- DevBrain's GitHub access is read-only. All code changes happen through
-  your own git + PRs, reviewed by a teammate.
+- DevBrain reads your repositories through its GitHub App. It writes to
+  them only when an admin turns on one of the three write switches under
+  Rules (auto-merge approved green PRs, keep behind PRs updated, revert
+  from History) — and then only ever as a pull request or the merge of a
+  human-approved one, never a push to main.
 - Hook payloads carry file *paths* and redacted transcript excerpts — never
   file contents. Never paste secrets into tasks, broadcasts, decisions or
   `.brain/` docs.

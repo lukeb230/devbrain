@@ -53,11 +53,26 @@ export async function mintDeviceToken(labelRaw: string, orgId?: string): Promise
   // Which team this Mac joins is explicit: the app window's idea of the
   // "active" team can lag the browser where the person just created or
   // switched one, and silently attaching a Mac to the wrong team is worse
-  // than asking. Anything passed must still be a team they belong to.
-  const wanted = orgId && ctx.orgs.some((o) => o.id === orgId) ? orgId : ctx.orgId;
+  // than asking. Anything passed must be a team they belong to — the copy
+  // that led here named that team, so a mismatch is an error, not a fallback.
+  if (orgId && !ctx.orgs.some((o) => o.id === orgId)) return { error: "you are not a member of that team" };
+  const wanted = orgId || ctx.orgId;
   const membership = { org_id: wanted };
   const teamName = ctx.orgs.find((o) => o.id === wanted)?.name ?? ctx.orgName;
   const label = String(labelRaw || "").trim().slice(0, 60) || "devbrain-app";
+  // "This Mac" wears one token, named after the machine. Live labels are
+  // unique per user across teams (dev_tokens_live_label_per_user), so a
+  // re-run — same team after a lost config, or a switch to another team —
+  // must replace the Mac's previous token, not fail on its name. The old
+  // token is dead anyway: the CLI overwrites config.json with the new one.
+  // Only this user's own top-level tokens are touched.
+  await admin
+    .from("dev_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+    .is("revoked_at", null)
+    .is("parent_token_id", null)
+    .ilike("label", label.replace(/[%_\\]/g, "\\$&"));
   const token = "dbk_" + randomBytes(24).toString("hex");
   const { error } = await admin.from("dev_tokens").insert({
     org_id: membership.org_id,

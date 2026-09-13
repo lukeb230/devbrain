@@ -42,7 +42,10 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
   const isAdmin = hasRole(org.role, "admin");
   const installUrl = `https://github.com/apps/${appSlug}/installations/new`;
   const requestLink = `https://github.com/apps/${appSlug}`;
-  const pendingOrWorking = state.repoState === "requested" || (!state.steps.find((s) => s.id === "working")!.done && repos.length > 0);
+  // Every step after "team" is completed by something OUTSIDE this window —
+  // GitHub's redirect in the browser, the app's bootstrap, an editor start.
+  // Poll until everything is green so the wall never shows a stale step.
+  const pendingOrWorking = !state.complete;
 
   return (
     <main className="min-w-0 flex-1 overflow-y-auto px-10 pb-12 pt-10">

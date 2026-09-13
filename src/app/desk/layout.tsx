@@ -16,6 +16,7 @@ import { COOKIE } from "@/lib/cookies";
 import { loadOnboarding, loadPolicyMap } from "@/lib/onboarding-load";
 import { NOTICES } from "@/lib/onboarding-notices";
 import { OnboardingWall } from "./onboarding/wall";
+import { RefreshWhile } from "./onboarding/refresh-while";
 
 // ============================================================================
 // /desk — the app's full window (option B: menu-bar panel + this Desk in one
@@ -101,7 +102,10 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
             <div className="flex-shrink-0 border-b border-[var(--wg-stop-line)] bg-[var(--wg-stop-bg)] px-4 py-2 text-[12.5px] text-stop">{NOTICES[notice]}</div>
           )}
           {pendingBanner && (
-            <div className="flex-shrink-0 border-b border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-4 py-2 text-[12.5px] text-wait">{pendingBanner}</div>
+            <>
+              <RefreshWhile active />
+              <div className="flex-shrink-0 border-b border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-4 py-2 text-[12.5px] text-wait">{pendingBanner}</div>
+            </>
           )}
           <div className="flex min-h-0 flex-1">
             {walled && billing

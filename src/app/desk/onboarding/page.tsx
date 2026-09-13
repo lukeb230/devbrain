@@ -14,5 +14,5 @@ export default async function OnboardingPage() {
   const repos = await teamRepos(org.orgId);
   const state = await loadOnboarding(org, repos);
   const policies = await loadPolicyMap(repos);
-  return <OnboardingWall org={org} repos={repos} state={state} appSlug={process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain"} openRequestBy={state.openRequestBy} policies={policies} notice={null} />;
+  return <OnboardingWall org={org} repos={repos} state={state} appSlug={process.env.NEXT_PUBLIC_GH_APP_SLUG || "devbrain"} openRequestBy={state.openRequestBy} policies={policies} />;
 }

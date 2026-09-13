@@ -28,11 +28,7 @@ const TITLES: Record<StepId, string> = {
 
 const PRESET_RULE_IDS = new Set(["collision_check", "pr_only_main", "no_conflict_pr", "journals", "no_self_approve", "solo_green", "brain_updates_required"]);
 
-const NOTICES: Record<string, string> = {
-  install_owned: "That repository's GitHub App installation already belongs to another DevBrain team. Pick a different repository, or ask that team to unlink it first.",
-};
-
-export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, policies, notice }: {
+export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, policies }: {
   org: OrgContext;
   repos: TeamRepo[];
   state: OnboardingState;
@@ -40,8 +36,6 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
   openRequestBy: string | null;
   /** Current values for Customise; keyed `${repo_id}:${rule}`. */
   policies: Record<string, boolean>;
-  /** One-shot code from COOKIE.notice (Task 5), e.g. "install_owned". */
-  notice: string | null;
 }) {
   const isOwner = org.role === "owner";
   const isAdmin = hasRole(org.role, "admin");
@@ -62,10 +56,6 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
             ? "Two things only you can do — link a repository and choose its rules — then the rest is your Mac and your editor."
             : "Your admin has the team side covered. What's left is your Mac and your editor."}
         </p>
-
-        {notice && NOTICES[notice] && (
-          <p className="mt-6 rounded-[10px] border border-[var(--wg-stop-line)] bg-[var(--wg-stop-bg)] px-4 py-3 text-[13px] text-stop">{NOTICES[notice]}</p>
-        )}
 
         {state.repoState === "requested" && (
           <div className="mt-6 rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-4 py-3 text-[13px] text-wait">

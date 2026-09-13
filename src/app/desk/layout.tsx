@@ -14,6 +14,7 @@ import { PlanWall } from "./(team)/plan/page";
 import { cookies } from "next/headers";
 import { COOKIE } from "@/lib/cookies";
 import { loadOnboarding, loadPolicyMap } from "@/lib/onboarding-load";
+import { NOTICES } from "@/lib/onboarding-notices";
 import { OnboardingWall } from "./onboarding/wall";
 
 // ============================================================================
@@ -94,6 +95,9 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
               <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>
             </span>
           </div>
+          {notice && NOTICES[notice] && (
+            <div className="flex-shrink-0 border-b border-[var(--wg-stop-line)] bg-[var(--wg-stop-bg)] px-4 py-2 text-[12.5px] text-stop">{NOTICES[notice]}</div>
+          )}
           {pendingBanner && (
             <div className="flex-shrink-0 border-b border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-4 py-2 text-[12.5px] text-wait">{pendingBanner}</div>
           )}
@@ -101,7 +105,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
             {walled && billing
               ? <PlanWall billing={billing} isAdmin={hasRole(org.role, "admin")} />
               : showOnboardingWall
-                ? <OnboardingWall org={org} repos={repos} state={onboarding} appSlug={appSlug} openRequestBy={onboarding.openRequestBy} policies={policyMap} notice={notice} />
+                ? <OnboardingWall org={org} repos={repos} state={onboarding} appSlug={appSlug} openRequestBy={onboarding.openRequestBy} policies={policyMap} />
                 : children}
           </div>
         </div>

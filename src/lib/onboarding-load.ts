@@ -47,3 +47,12 @@ export const loadOnboarding = cache(async (org: OrgContext, repos: TeamRepo[]): 
   });
   return { ...state, openRequestBy: open?.payload.by ?? null };
 });
+
+/** Current rule values for the wall's Customise list, keyed `${repo_id}:${rule}`. */
+export const loadPolicyMap = cache(async (repos: TeamRepo[]): Promise<Record<string, boolean>> => {
+  if (!repos.length) return {};
+  const { data: pol } = await supabaseAdmin().from("policies").select("repo_id, rule, enabled").in("repo_id", repos.map((r) => r.id));
+  const policyMap: Record<string, boolean> = {};
+  for (const p of pol ?? []) policyMap[`${p.repo_id}:${p.rule}`] = Boolean(p.enabled);
+  return policyMap;
+});

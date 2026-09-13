@@ -1,7 +1,7 @@
 import { FONT_VARS } from "@/app/fonts";
 import { redirect } from "next/navigation";
 import { currentOrg, hasRole } from "@/lib/org";
-import { currentUser, supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
+import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { switchOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
 import { teamRepos } from "@/lib/desk/repos";
@@ -13,7 +13,7 @@ import { wallReason } from "@/lib/billing/wall";
 import { PlanWall } from "./(team)/plan/page";
 import { cookies } from "next/headers";
 import { COOKIE } from "@/lib/cookies";
-import { loadOnboarding } from "@/lib/onboarding-load";
+import { loadOnboarding, loadPolicyMap } from "@/lib/onboarding-load";
 import { OnboardingWall } from "./onboarding/wall";
 
 // ============================================================================
@@ -43,12 +43,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const walled = billing ? wallReason({ status: billing.status, hasSubscription: billing.hasSubscription, trialEndsAt: billing.trialEndsAt, periodEnd: billing.periodEnd }) !== null : false;
 
   const onboarding = await loadOnboarding(org, repos);
-  // Current rule values for the wall's Customise list.
-  const policyMap: Record<string, boolean> = {};
-  if (repos.length) {
-    const { data: pol } = await supabaseAdmin().from("policies").select("repo_id, rule, enabled").in("repo_id", repos.map((r) => r.id));
-    for (const p of pol ?? []) policyMap[`${p.repo_id}:${p.rule}`] = Boolean(p.enabled);
-  }
+  const policyMap = await loadPolicyMap(repos);
   const showOnboardingWall = !walled && onboarding.blocking;
   const onboardingNudge = onboarding.complete ? null : onboarding.repoState === "requested" ? "Waiting on GitHub approval" : "Finish setup";
   // One-shot message from the GitHub setup route (e.g. install_owned); the
@@ -56,8 +51,10 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const notice = (await cookies()).get(COOKIE.notice)?.value ?? null;
   // "Requested" does not block, so the owner reaches a Console with no repo.
   // That state must explain itself on every page — not look like a broken
-  // product — so the banner lives here, above the panes.
-  const pendingBanner = !showOnboardingWall && onboarding.repoState === "requested"
+  // product — so the banner lives here, above the panes. Gated on !walled so
+  // a lapsed-billing team never sees this stacked above PlanWall, and on
+  // !showOnboardingWall so it never duplicates the wall's own banner.
+  const pendingBanner = !walled && !showOnboardingWall && onboarding.repoState === "requested"
     ? `Waiting on your GitHub org owner to approve DevBrain${onboarding.openRequestBy ? ` (requested by ${onboarding.openRequestBy})` : ""}. Nothing here until they do — this page updates itself.`
     : null;
 

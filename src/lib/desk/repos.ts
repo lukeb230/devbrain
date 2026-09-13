@@ -11,12 +11,13 @@ export interface TeamRepo {
   full_name: string;
   default_branch: string | null;
   installation_id: number | null;
+  created_at: string;
 }
 
 export const teamRepos = cache(async (orgId: string): Promise<TeamRepo[]> => {
   const { data } = await supabaseAdmin()
     .from("linked_repos")
-    .select("id, full_name, default_branch, installation_id")
+    .select("id, full_name, default_branch, installation_id, created_at")
     .eq("org_id", orgId)
     .is("unlinked_at", null)
     .order("created_at");

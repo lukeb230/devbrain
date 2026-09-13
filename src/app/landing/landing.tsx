@@ -104,6 +104,38 @@ export function LandingBody({ spotsLeft, maxTeams, free, full }: { spotsLeft: nu
   );
 }
 
+export function SiteHeader({ current }: { current?: "faq" } = {}) {
+  return (
+    <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
+      <Section className="flex min-h-[58px] items-center gap-5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brain.png" width={26} height={21} alt="" />
+        <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
+        <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
+          {current === "faq" ? <span className="text-txt">FAQ</span> : <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>}
+          <DownloadButton size="nav" />
+        </nav>
+      </Section>
+    </header>
+  );
+}
+
+export function SiteFooter() {
+  return (
+    <Section className="pt-14">
+      <Reveal as="footer" fx="fade" duration={400} className="border-t border-line2 pt-6">
+        <div className="flex flex-wrap items-center gap-5 text-[13px] text-muted">
+          <span>DevBrain</span>
+          <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>
+          <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
+          <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
+        </div>
+        <p className="mt-5 max-w-[86ch] text-[12px] leading-[1.6] text-muted">{LEGAL.trademarks}</p>
+      </Reveal>
+    </Section>
+  );
+}
+
 export async function Landing({ nextParam, from, notice }: { nextParam?: string; from?: string; notice?: React.ReactNode }) {
   // Kept for signature compatibility with src/app/page.tsx (the sign-in
   // destination they used to carry); the body no longer needs them.
@@ -120,31 +152,11 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
 
       {notice && <Section className="pt-5">{notice}</Section>}
 
-      <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
-        <Section className="flex min-h-[58px] items-center gap-5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brain.png" width={26} height={21} alt="" />
-          <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
-          <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
-            <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>
-            <DownloadButton size="nav" />
-          </nav>
-        </Section>
-      </header>
+      <SiteHeader />
 
       <LandingBody spotsLeft={spotsLeft} maxTeams={beta.maxTeams} free={beta.free} full={full} />
 
-      <Section className="pt-14">
-        <Reveal as="footer" fx="fade" duration={400} className="border-t border-line2 pt-6">
-          <div className="flex flex-wrap items-center gap-5 text-[13px] text-muted">
-            <span>DevBrain</span>
-            <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>
-            <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
-            <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
-          </div>
-          <p className="mt-5 max-w-[86ch] text-[12px] leading-[1.6] text-muted">{LEGAL.trademarks}</p>
-        </Reveal>
-      </Section>
+      <SiteFooter />
 
       {beta.free && spotsLeft !== null && !full && <IncentiveModal spotsLeft={spotsLeft} maxTeams={beta.maxTeams ?? 0} />}
     </main>

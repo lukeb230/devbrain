@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { mintDeviceToken } from "@/app/widget/actions";
-import { setupMacCopy, shouldMint } from "@/lib/setup-mac-copy";
+import { setupMacCopy } from "@/lib/setup-mac-copy";
 
 type Core = { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> };
 type Setup = { has_token?: boolean; hostname?: string; bootstrap_ok?: boolean | null; bootstrap_failed?: string[]; bootstrap_at?: string | null; configured?: boolean };
@@ -15,9 +15,9 @@ const core = (): Core | null => (window as unknown as { __TAURI__?: { core?: Cor
 // widget/src-tauri/src/setup.rs). `done` is the server's view — a live token
 // for this user in this team; `has_token`/`bootstrap_ok` are the Mac's view.
 // We mint unless the Mac already holds a usable token for this team — done,
-// has_token, and the last bootstrap didn't fail (see shouldMint). Otherwise
-// the CLI would be asked to reuse a token that is missing, stale, or for
-// another team. The CLI overwrites config.json's token when one is passed
+// has_token, and the last bootstrap didn't fail. Otherwise the CLI would be
+// asked to reuse a token that is missing, stale, or for another team. The
+// CLI overwrites config.json's token when one is passed
 // (devbrain bootstrap --token); when we don't mint, no token is passed and
 // the CLI keeps the current one.
 export function SetupMac({ done, orgId, orgName }: { done: boolean; orgId: string; orgName: string }) {
@@ -39,7 +39,7 @@ export function SetupMac({ done, orgId, orgName }: { done: boolean; orgId: strin
     setBusy(true); setErr(null);
     try {
       let token: string | null = null;
-      if (shouldMint({ done, hasToken: Boolean(setup?.has_token), bootstrapOk: setup?.bootstrap_ok })) {
+      if (!done || !setup?.has_token || setup?.bootstrap_ok === false) {
         const label = (setup?.hostname ?? "").trim().slice(0, 60) || "my-mac";
         const minted = await mintDeviceToken(label, orgId);
         if ("error" in minted) throw new Error(minted.error);

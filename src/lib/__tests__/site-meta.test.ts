@@ -1,0 +1,28 @@
+// src/lib/__tests__/site-meta.test.ts
+import { describe, expect, it } from "vitest";
+import robots from "@/app/robots";
+import sitemap, { SITE_PAGES, SITE_URL } from "@/app/sitemap";
+import { metadata } from "@/app/layout";
+
+describe("site metadata", () => {
+  it("lists exactly the public pages in the sitemap, on the canonical host", () => {
+    expect(SITE_PAGES).toEqual(["/", "/faq", "/start", "/terms", "/privacy"]);
+    const urls = sitemap().map((e) => e.url);
+    expect(urls).toEqual(SITE_PAGES.map((p) => `${SITE_URL}${p}`));
+    for (const u of urls) expect(u.startsWith("https://")).toBe(true);
+    expect(SITE_URL.endsWith("/")).toBe(false);
+  });
+  it("robots allows the site and blocks the app and API, and names the sitemap", () => {
+    const r = robots();
+    const rules = Array.isArray(r.rules) ? r.rules : [r.rules];
+    const allow = rules.flatMap((x) => [x.allow ?? []].flat());
+    const disallow = rules.flatMap((x) => [x.disallow ?? []].flat());
+    expect(allow).toContain("/");
+    for (const p of ["/api/", "/desk/", "/auth/", "/widget/", "/open", "/download", "/join/", "/welcome", "/settings/", "/dashboard/", "/billing/"]) expect(disallow).toContain(p);
+    expect(r.sitemap).toBe(`${SITE_URL}/sitemap.xml`);
+  });
+  it("every page gets a canonical of its own path", () => {
+    expect(metadata.alternates?.canonical).toBe("./");
+    expect(String(metadata.metadataBase)).toBe(`${SITE_URL}/`);
+  });
+});

@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://getdevbrain.com"),
   title: { default: "DevBrain: shared awareness for teams running coding agents", template: "%s · DevBrain" },
   description: DESCRIPTION,
+  alternates: { canonical: "./" },
   openGraph: {
     type: "website",
     siteName: "DevBrain",

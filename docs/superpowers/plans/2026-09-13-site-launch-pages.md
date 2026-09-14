@@ -30,7 +30,8 @@
 
 | File | Responsibility |
 |---|---|
-| `src/app/start/page.tsx` | The after-download page: metadata, five install steps, the download-again link, optional auto-download. Dynamic (reads `?dl`). |
+| `src/app/start/page.tsx` | The after-download page's metadata and default export; reads `?dl` and renders `StartBody`. Dynamic. |
+| `src/app/start/start-body.tsx` | `StartBody` and `START_STEPS`: five install steps, the download-again link, optional auto-download. Split out of `page.tsx` so the page file has only metadata and the default export (the build's page type check rejects other exports there). |
 | `src/app/start/auto-download.tsx` | Client component: when mounted with `dl` true, starts the DMG download once by assigning `location.href = "/download"`. |
 | `src/app/landing/download-button.tsx` | Existing. `href` changes from `/download` to `/start?dl=1`. |
 | `src/app/not-found.tsx` | Root custom 404 in the site style. Applies to every unmatched route. |
@@ -55,7 +56,7 @@
 
 **Interfaces:**
 - Consumes: `BrowserShell` (`@/app/browser-shell`), `MotionGate`, `Mount`, `Reveal` (`@/app/landing/reveal`), `SiteHeader`, `SiteFooter` (`@/app/landing/landing`), `siteDisplay` (`@/app/fonts`).
-- Produces: `export function StartBody({ dl }: { dl: boolean })` in `src/app/start/page.tsx` (rendered by the default export; tests render `StartBody` directly). `export const START_STEPS: readonly { title: string; body: string }[]` in the same file. `export function AutoDownload({ enabled }: { enabled: boolean })` in `auto-download.tsx`.
+- Produces: `export function StartBody({ dl }: { dl: boolean })` in `src/app/start/start-body.tsx` (imported and rendered by `page.tsx`'s default export; tests render `StartBody` directly). `export const START_STEPS: readonly { title: string; body: string }[]` in the same file. `export function AutoDownload({ enabled }: { enabled: boolean })` in `auto-download.tsx`.
 
 - [ ] **Step 1: Write the failing tests**
 

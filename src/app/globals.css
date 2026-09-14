@@ -195,7 +195,7 @@ html[data-wg-theme="dark"] .wg { @apply wg-dark; }
 .lp-interrupt{animation:lp-interrupt 1.6s cubic-bezier(.16,1,.3,1) .7s 2 both}
 html.lp-js .lp-interrupt:not([data-in]){animation:none}
 html.lp-js .lp-interrupt[data-in]{animation:lp-interrupt 1.6s cubic-bezier(.16,1,.3,1) .7s 2 both}
-@media (prefers-reduced-motion: reduce){.lp-interrupt{animation:none}}
+@media (prefers-reduced-motion: reduce){.lp-interrupt,html.lp-js .lp-interrupt[data-in]{animation:none}}
 
 /* ── Landing motion, play once ──────────────────────────────────────────
    Server output is the final state. html.lp-js is added by an inline script

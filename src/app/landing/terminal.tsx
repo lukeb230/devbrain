@@ -33,7 +33,7 @@ const len = (lines: Line[]) => lines.reduce((n, l) => n + l.text.length + 1, 0);
 /**
  * The typing mechanics on their own: reveals `lines` at a human cadence once
  * scrolled into view, with the same line rendering and blinking cursor
- * `Terminal` has always shown. No window chrome — callers supply their own.
+ * `Transcript` has always shown. No window chrome — callers supply their own.
  */
 export function Transcript({ lines, className = "" }: { lines: Line[]; className?: string }) {
   const total = len(lines);

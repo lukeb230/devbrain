@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LandingBody, SiteHeader } from "@/app/landing/landing";
+import { START_STEPS, StartBody } from "@/app/start/page";
 import { FAQ_ITEMS } from "@/app/faq/faq-items";
 import { WRITER_CATALOG } from "@/lib/rules-catalog";
 
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(p) ? [p] : []; });
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-const SITE_FILES = [...walk("src/app/landing"), ...walk("src/app/faq")].filter((p) => !p.includes("__tests__"));
+const SITE_FILES = [...walk("src/app/landing"), ...walk("src/app/faq"), ...walk("src/app/start")].filter((p) => !p.includes("__tests__"));
 const source = SITE_FILES.map((p) => strip(readFileSync(p, "utf8"))).join("\n");
 
 const html = renderToStaticMarkup(<LandingBody spotsLeft={148} maxTeams={200} free full={false} />);
@@ -38,11 +39,11 @@ describe("the site's copy", () => {
     expect(text.replace(/\s+/g, " ")).toContain("Editing it anyway risks a collision — coordinate first, or approve to proceed deliberately.");
     expect(text).toContain("17"); expect(text).toContain("PRs merged");
   });
-  it("every Download for Mac points at /download and nothing points at the retired pages", () => {
+  it("every Download for Mac points at /start?dl=1 and nothing points at the retired pages", () => {
     const links = [...html.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]*(?:<[^a][^>]*>[^<]*)*)<\/a>/g)];
     const downloads = links.filter((m) => m[2].includes("Download for Mac"));
     expect(downloads.length).toBeGreaterThanOrEqual(2);
-    for (const m of downloads) expect(m[1]).toBe("/download");
+    for (const m of downloads) expect(m[1]).toBe("/start?dl=1");
     expect(html).not.toMatch(/href="\/(pricing|how-it-works)/);
     expect(html).not.toContain("Sign in with GitHub");
   });
@@ -76,7 +77,7 @@ describe("the site's copy", () => {
     const fullHtml = renderToStaticMarkup(<LandingBody spotsLeft={0} maxTeams={150} free full />);
     const fullText = fullHtml.replace(/<[^>]+>/g, " ");
     expect(fullText).toContain("The beta is full. Get the next place.");
-    expect(fullHtml).not.toMatch(/href="\/download"/);
+    expect(fullHtml).not.toMatch(/href="\/(download|start)/);
     expect(fullHtml).not.toContain("Sign in with GitHub");
   });
   it("the header mark links home on every page", () => {
@@ -96,5 +97,17 @@ describe("the site's copy", () => {
     expect(html).toContain('role="tabpanel"');
     expect(html).toContain("$ devbrain spawn --auto");
     expect(html).toContain("~/.devbrain/clones/api-2");
+  });
+  it("the start page lists the install steps and can download again", () => {
+    const start = renderToStaticMarkup(<StartBody dl={false} />);
+    const startText = start.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(START_STEPS).toHaveLength(5);
+    for (const s of START_STEPS) expect(startText).toContain(s.title);
+    expect(startText).toContain("menu bar");
+    expect(startText).toContain("Sign in with GitHub");
+    expect(start).toMatch(/href="\/download"/);
+    expect(start).not.toContain('data-autodownload="1"');
+    const withDl = renderToStaticMarkup(<StartBody dl />);
+    expect(withDl).toContain('data-autodownload="1"');
   });
 });

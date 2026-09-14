@@ -6,7 +6,10 @@ import type { supabaseAdmin } from "@/lib/supabase/server";
 // second start from the same host already makes the first untrackable there.
 // Ending it here keeps the digest honest — Cursor opens a new conversation per
 // chat and never formally ends the old one; Codex restarts around its hook
-// trust prompt. Ownership is org + label, never user_id (see ingest/route.ts).
+// trust prompt. Ownership for the supersede is org + user + label + agent —
+// the dev-token unique index is per (user_id, lower(label)), so two members of
+// one org can hold live tokens with the same label; scoping by user_id keeps
+// one teammate's session start from ending another's (see ingest/route.ts).
 // ============================================================================
 
 export type SessionStart = {
@@ -32,6 +35,7 @@ export async function openSession(admin: ReturnType<typeof supabaseAdmin>, s: Se
     .update({ ended_at: now.toISOString() })
     .eq("org_id", s.org_id)
     .eq("repo_id", s.repo_id)
+    .eq("user_id", s.user_id)
     .ilike("dev_label", labelPattern(s.dev_label))
     .eq("agent_kind", s.agent_kind)
     .is("ended_at", null);

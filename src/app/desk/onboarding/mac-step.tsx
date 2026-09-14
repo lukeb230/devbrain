@@ -37,7 +37,7 @@ export function MacStep({ n, liveLabels, orgId, orgName }: { n: number; liveLabe
   // must compare that same short label — a Mac named longer than 60 chars
   // would otherwise never match its own token, so the row could never turn
   // green and the copy would keep claiming another team owns it.
-  const label = (setup?.hostname ?? "").trim().slice(0, 60);
+  const label = ((setup?.hostname ?? "").trim().slice(0, 60)) || "my-mac";
   const { doneHere } = macSetupState({ liveLabels, hostname: label, hasToken: Boolean(setup?.has_token), bootstrapOk: setup?.bootstrap_ok });
   const copy = setupMacCopy({ done: doneHere, hasToken: Boolean(setup?.has_token), orgName });
   const failed = setup?.bootstrap_failed ?? [];
@@ -47,7 +47,7 @@ export function MacStep({ n, liveLabels, orgId, orgName }: { n: number; liveLabe
     if (!c) return;
     setBusy(true); setErr(null);
     try {
-      const minted = await mintDeviceToken(label || "my-mac", orgId);
+      const minted = await mintDeviceToken(label, orgId);
       if ("error" in minted) throw new Error(minted.error);
       await c.invoke("bootstrap", { server: window.location.origin, token: minted.token, remindersList: null, remindersRepo: null });
       setSetup((await c.invoke("setup_state")) as Setup);

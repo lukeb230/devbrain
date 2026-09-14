@@ -32,6 +32,7 @@ describe("openSession", () => {
       ["update", { ended_at: "2026-09-14T15:00:00.000Z" }],
       ["eq", "org_id", "org-1"],
       ["eq", "repo_id", "r-1"],
+      ["eq", "user_id", "u-1"],
       ["ilike", "dev_label", "cursor-mac"],
       ["eq", "agent_kind", "cursor"],
       ["is", "ended_at", null],

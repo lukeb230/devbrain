@@ -4,6 +4,6 @@
 export const NOTICES: Record<string, string> = {
   install_owned: "That repository's GitHub App installation already belongs to another DevBrain team. Pick a different repository, or ask that team to unlink it first.",
   preset_failed: "Saving the rules didn't go through. Try the preset again; if it keeps failing, open Rules and set them one by one.",
-  token_label_taken: "A live token with that label already exists. Revoke it first, or pick another label. Nothing was created.",
+  token_label_taken: "A live token with that label already exists on one of your teams. Revoke it there, or pick another label — nothing was created.",
   token_failed: "The token could not be created. Try again; if it keeps failing, check Team settings.",
 };

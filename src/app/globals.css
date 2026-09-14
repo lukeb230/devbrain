@@ -159,6 +159,7 @@ html[data-wg-theme="dark"] .wg { @apply wg-dark; }
    with defaults that belong to no design system. Theming them is what makes a
    page feel built rather than assembled. */
 .lp{
+  --font-display:var(--font-site-display);
   --wg-ink:#f4f1ea; --wg-row:#fbfaf6; --wg-pane:#f8f6f0; --wg-row2:#ebe6da;
   --wg-line:#e3ded2; --wg-line2:#d6d0c2; --wg-line3:#c8c2b4;
   --wg-txt:#1d1b17; --wg-body:#3a3630; --wg-muted:#625e56; --wg-faint:#6e6963;

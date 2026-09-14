@@ -49,7 +49,7 @@ export function LandingBody({ spotsLeft, maxTeams, free, full }: { spotsLeft: nu
     <>
       {/* hero */}
       <Section className="pt-14 text-center sm:pt-[70px]">
-        <Mount as="h1" duration={700} y={24} className="mx-auto max-w-[16ch] font-display text-[40px] font-medium leading-[1.0] tracking-[-.035em] text-txt text-balance sm:text-[48px] lg:text-[68px]">
+        <Mount as="h1" duration={700} y={24} className="mx-auto max-w-[16ch] font-display text-[40px] font-semibold leading-[1.0] tracking-[-.03em] text-txt text-balance sm:text-[48px] lg:text-[68px]">
           Work like you&apos;re the <span className="text-accenttext">only one</span> in the repo.
         </Mount>
         <Mount as="p" delay={150} className="mx-auto mt-5 max-w-[60ch] text-[15.5px] leading-[1.6] text-body sm:text-[17.5px]">

@@ -5,12 +5,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LandingBody, SiteHeader } from "@/app/landing/landing";
 import { START_STEPS, StartBody } from "@/app/start/page";
+import NotFound from "@/app/not-found";
 import { FAQ_ITEMS } from "@/app/faq/faq-items";
 import { WRITER_CATALOG } from "@/lib/rules-catalog";
 
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(p) ? [p] : []; });
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-const SITE_FILES = [...walk("src/app/landing"), ...walk("src/app/faq"), ...walk("src/app/start")].filter((p) => !p.includes("__tests__"));
+const SITE_FILES = [...walk("src/app/landing"), ...walk("src/app/faq"), ...walk("src/app/start"), "src/app/not-found.tsx"].filter((p) => !p.includes("__tests__"));
 const source = SITE_FILES.map((p) => strip(readFileSync(p, "utf8"))).join("\n");
 
 const html = renderToStaticMarkup(<LandingBody spotsLeft={148} maxTeams={200} free full={false} />);
@@ -67,6 +68,19 @@ describe("the site's copy", () => {
     const own = textWithoutIllustrations.replace(/[^.?!]*\?/g, ""); // drop FAQ-style questions (the visitor speaking)
     expect(own).not.toMatch(/\b(I|me|my)\b/);
     expect(FAQ_ITEMS).toHaveLength(11);
+    const startHtml = renderToStaticMarkup(<StartBody dl={false} />);
+    const startOwn = dropIllustrations(startHtml).replace(/<[^>]+>/g, " ").replace(/[^.?!]*\?/g, "");
+    expect(startOwn).not.toMatch(/\b(I|me|my)\b/);
+    const nfHtml = renderToStaticMarkup(<NotFound />);
+    const nfOwn = dropIllustrations(nfHtml).replace(/<[^>]+>/g, " ").replace(/[^.?!]*\?/g, "");
+    expect(nfOwn).not.toMatch(/\b(I|me|my)\b/);
+  });
+  it("the 404 page is in the site style and links home and to the FAQ", () => {
+    const nf = renderToStaticMarkup(<NotFound />);
+    expect(nf).toContain("404");
+    expect(nf).toContain("There is nothing at this address.");
+    expect(nf).toMatch(/<a\b[^>]*href="\/"[^>]*>/);
+    expect(nf).toMatch(/<a\b[^>]*href="\/faq"[^>]*>/);
   });
   it("the writer_auto_merge rule still exists in the catalogue", () => {
     // switch-band.tsx falls back to a hardcoded label if this rule is ever

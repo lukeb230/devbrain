@@ -35,7 +35,7 @@ export type OnboardingInput = {
   /** Live linked repos for the org. */
   repos: (LinkRow & { id: string; full_name: string; installation_id: number | null })[];
   /** THIS user's dev tokens. */
-  tokens: { revoked_at: string | null }[];
+  tokens: { label: string; revoked_at: string | null; parent_token_id: string | null }[];
   /** THIS user's sessions and activity (any repo). */
   sessions: { repo_id: string | null }[];
   activity: { repo_id: string | null }[];
@@ -57,6 +57,9 @@ export type OnboardingState = {
   nextStep: StepId | null;
   /** Every step done — the nudge disappears. */
   complete: boolean;
+  /** Labels of this user's live, top-level tokens in this team — the wall
+   *  compares them with the Mac's hostname to say whether THIS Mac is set up. */
+  macLabels: string[];
 };
 
 const ORDER: StepId[] = ["team", "repo", "mac", "rules", "working"];
@@ -66,7 +69,9 @@ export function onboardingState(i: OnboardingInput): OnboardingState {
   const repoIds = new Set(i.repos.map((r) => r.id));
 
   const repoState: RepoState = i.repos.length > 0 ? "linked" : openRequest(i.requestEvents, i.repos, now) ? "requested" : "none";
-  const macDone = i.tokens.some((t) => t.revoked_at === null);
+  const liveTop = i.tokens.filter((t) => t.revoked_at === null && t.parent_token_id === null);
+  const macDone = liveTop.length > 0;
+  const macLabels = liveTop.map((t) => t.label);
   const rulesDone = i.repos.length > 0 && i.repos.every((r) => i.policies.some((p) => p.repo_id === r.id));
   const workingDone = [...i.sessions, ...i.activity].some((a) => a.repo_id !== null && repoIds.has(a.repo_id));
 
@@ -92,5 +97,5 @@ export function onboardingState(i: OnboardingInput): OnboardingState {
   } else {
     nextStep = ORDER.find((id) => !steps.find((s) => s.id === id)!.done) ?? null;
   }
-  return { steps, repoState, blocking, dismissed, nextStep, complete: nextStep === null };
+  return { steps, repoState, blocking, dismissed, nextStep, complete: nextStep === null, macLabels };
 }

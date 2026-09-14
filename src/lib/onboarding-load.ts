@@ -17,7 +17,7 @@ export const loadOnboarding = cache(async (org: OrgContext, repos: TeamRepo[]): 
   const admin = supabaseAdmin();
   const repoIds = repos.map((r) => r.id);
   const [{ data: tokens }, { data: sessions }, { data: activity }, { data: policies }, { data: events }, { data: me }, { data: linkEvents }] = await Promise.all([
-    admin.from("dev_tokens").select("revoked_at").eq("org_id", org.orgId).eq("user_id", org.userId),
+    admin.from("dev_tokens").select("label, revoked_at, parent_token_id").eq("org_id", org.orgId).eq("user_id", org.userId),
     repoIds.length ? admin.from("sessions").select("repo_id").eq("org_id", org.orgId).eq("user_id", org.userId).in("repo_id", repoIds).limit(1) : Promise.resolve({ data: [] as { repo_id: string | null }[] }),
     repoIds.length ? admin.from("activity").select("repo_id").eq("org_id", org.orgId).eq("user_id", org.userId).in("repo_id", repoIds).limit(1) : Promise.resolve({ data: [] as { repo_id: string | null }[] }),
     repoIds.length ? admin.from("policies").select("repo_id, rule").in("repo_id", repoIds) : Promise.resolve({ data: [] as { repo_id: string; rule: string }[] }),
@@ -34,7 +34,7 @@ export const loadOnboarding = cache(async (org: OrgContext, repos: TeamRepo[]): 
     role: org.role,
     userId: org.userId,
     repos: repos.map((r) => ({ id: r.id, full_name: r.full_name, installation_id: r.installation_id, created_at: r.created_at, unlinked_at: null })),
-    tokens: (tokens ?? []) as { revoked_at: string | null }[],
+    tokens: (tokens ?? []) as { label: string; revoked_at: string | null; parent_token_id: string | null }[],
     sessions: (sessions ?? []) as { repo_id: string | null }[],
     activity: (activity ?? []) as { repo_id: string | null }[],
     policies: (policies ?? []) as { repo_id: string; rule: string }[],

@@ -66,12 +66,12 @@ describe("onboardingState — blocking is owner-only and narrow", () => {
 
 describe("onboardingState — step evidence", () => {
   it("the token alone completes 'mac'; a session is not required", () => {
-    const s = onboardingState(base({ tokens: [{ revoked_at: null }] }));
+    const s = onboardingState(base({ tokens: [{ label: "mac", revoked_at: null, parent_token_id: null }] }));
     expect(step(s, "mac").done).toBe(true);
     expect(step(s, "working").done).toBe(false);
   });
   it("a revoked token does not count", () => {
-    expect(step(onboardingState(base({ tokens: [{ revoked_at: ago(1) }] })), "mac").done).toBe(false);
+    expect(step(onboardingState(base({ tokens: [{ label: "mac", revoked_at: ago(1), parent_token_id: null }] })), "mac").done).toBe(false);
   });
   it("rules needs EVERY linked repo to have policy rows", () => {
     const one = onboardingState(base({ repos: [repo("r1"), repo("r2")], policies: [{ repo_id: "r1", rule: "journals" }] }));
@@ -97,5 +97,23 @@ describe("onboardingState — the teammate view", () => {
     const s = onboardingState(base({ role: "member", repos: [repo("r1")], policies: [{ repo_id: "r1", rule: "journals" }], attribution: { linked: "luke", rules: "luke" } }));
     expect(step(s, "repo").by).toBe("luke");
     expect(step(s, "rules").by).toBe("luke");
+  });
+});
+
+describe("onboardingState — macLabels", () => {
+  it("lists live, top-level labels only, in order", () => {
+    const s = onboardingState(base({ tokens: [
+      { label: "codex-mac", revoked_at: null, parent_token_id: null },
+      { label: "old-mac", revoked_at: ago(60_000), parent_token_id: null },
+      { label: "codex-mac · 2", revoked_at: null, parent_token_id: "t-1" },
+      { label: "cursor-mac", revoked_at: null, parent_token_id: null },
+    ] }));
+    expect(s.macLabels).toEqual(["codex-mac", "cursor-mac"]);
+    expect(step(s, "mac").done).toBe(true);
+  });
+  it("is empty with no live token, and the mac step is not done", () => {
+    const s = onboardingState(base({ tokens: [{ label: "gone", revoked_at: ago(60_000), parent_token_id: null }] }));
+    expect(s.macLabels).toEqual([]);
+    expect(step(s, "mac").done).toBe(false);
   });
 });

@@ -169,6 +169,26 @@ fn work_area(app: &AppHandle) -> (f64, f64, f64, f64) {
     }
 }
 
+/// Size and place the Desk so it sits inside the work area (the screen minus
+/// the menu bar and the Dock). Remembered bounds from a bigger display, or the
+/// 1180×760 default on a small one, otherwise leave the bottom of the window
+/// under the Dock — the onboarding wall's last row was unreachable at 1024×768.
+/// Never smaller than DESK_MIN_*: if the work area is smaller still, the
+/// window keeps the minimum and sits at the work area's top-left.
+fn fit_desk(want: Option<Bounds>, wa: (f64, f64, f64, f64)) -> Bounds {
+    let (wx, wy, ww, wh) = wa;
+    let w = want.map(|b| b.w).unwrap_or(DESK_W).max(DESK_MIN_W).min(ww.max(DESK_MIN_W));
+    let h = want.map(|b| b.h).unwrap_or(DESK_H).max(DESK_MIN_H).min(wh.max(DESK_MIN_H));
+    let (x, y) = match want {
+        Some(b) => (
+            b.x.max(wx).min((wx + ww - w).max(wx)),
+            b.y.max(wy).min((wy + wh - h).max(wy)),
+        ),
+        None => (wx + ((ww - w) / 2.0).max(0.0), wy + ((wh - h) / 2.0).max(0.0)),
+    };
+    Bounds { x, y, w, h }
+}
+
 const PANEL_RADIUS: f64 = 14.0;
 
 /// Round the panel's corners at the native layer. The panel shows a remote
@@ -396,8 +416,9 @@ pub fn show_desk(app: AppHandle, route: Option<String>) {
 pub fn raise_desk(app: AppHandle) {
     let Some(desk) = app.get_webview_window("desk") else { return };
     if let Some(b) = *app.state::<State>().desk.lock().unwrap() {
-        let _ = desk.set_size(LogicalSize::new(b.w.max(DESK_MIN_W), b.h.max(DESK_MIN_H)));
-        let _ = desk.set_position(LogicalPosition::new(b.x, b.y));
+        let fit = fit_desk(Some(b), work_area(&app));
+        let _ = desk.set_size(LogicalSize::new(fit.w, fit.h));
+        let _ = desk.set_position(LogicalPosition::new(fit.x, fit.y));
     }
     // While the Desk is open the app is a regular app: Dock icon, Cmd-Tab,
     // menu bar (Cmd-W, copy/paste). Closing the Desk returns to menu-bar-only
@@ -656,7 +677,7 @@ fn main() {
             // the panel, scoped to /desk. Loads /desk at launch (hidden) so
             // the first open is instant and in-page navigation always works.
             let desk_nav = app.handle().clone();
-            let desk_bounds = settings.desk;
+            let desk_fit = fit_desk(settings.desk, work_area(app.handle()));
             let desk = WebviewWindowBuilder::new(app, "desk", WebviewUrl::External(site_desk(None).parse().unwrap()))
                 .on_navigation(move |url| {
                     let host = url.host_str().unwrap_or("");
@@ -696,15 +717,11 @@ fn main() {
                 .background_color(tauri::window::Color(0xf4, 0xf1, 0xea, 0xff))
                 .resizable(true)
                 .visible(false)
-                .inner_size(desk_bounds.map(|b| b.w.max(DESK_MIN_W)).unwrap_or(DESK_W), desk_bounds.map(|b| b.h.max(DESK_MIN_H)).unwrap_or(DESK_H))
+                .inner_size(desk_fit.w, desk_fit.h)
                 .min_inner_size(DESK_MIN_W, DESK_MIN_H)
                 .user_agent(APP_USER_AGENT)
                 .build()?;
-            if let Some(b) = desk_bounds {
-                let _ = desk.set_position(LogicalPosition::new(b.x, b.y));
-            } else {
-                let _ = desk.center();
-            }
+            let _ = desk.set_position(LogicalPosition::new(desk_fit.x, desk_fit.y));
             {
                 let h = app.handle().clone();
                 desk.on_window_event(move |ev| match ev {
@@ -866,4 +883,44 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running DevBrain widget");
+}
+
+#[cfg(test)]
+mod desk_fit_tests {
+    use super::*;
+    /// 1024×768 with the menu bar (25 pt) and a 70 pt Dock.
+    const SMALL: (f64, f64, f64, f64) = (0.0, 25.0, 1024.0, 673.0);
+
+    #[test]
+    fn default_size_shrinks_to_a_small_work_area() {
+        let b = fit_desk(None, SMALL);
+        assert_eq!((b.w, b.h), (1024.0, 673.0));
+        assert_eq!((b.x, b.y), (0.0, 25.0));
+    }
+
+    #[test]
+    fn remembered_bounds_from_a_bigger_display_are_pulled_inside() {
+        let b = fit_desk(Some(Bounds { x: 300.0, y: 200.0, w: 1400.0, h: 900.0 }), SMALL);
+        assert_eq!((b.x, b.y, b.w, b.h), (0.0, 25.0, 1024.0, 673.0));
+    }
+
+    #[test]
+    fn a_window_that_already_fits_is_left_alone() {
+        let b = fit_desk(Some(Bounds { x: 10.0, y: 40.0, w: 900.0, h: 600.0 }), SMALL);
+        assert_eq!((b.x, b.y, b.w, b.h), (10.0, 40.0, 900.0, 600.0));
+    }
+
+    #[test]
+    fn a_big_display_centres_the_default() {
+        let b = fit_desk(None, (0.0, 25.0, 1728.0, 1030.0));
+        assert_eq!((b.w, b.h), (DESK_W, DESK_H));
+        assert_eq!((b.x, b.y), (274.0, 160.0));
+    }
+
+    #[test]
+    fn never_below_the_minimum() {
+        let b = fit_desk(None, (0.0, 25.0, 800.0, 500.0));
+        assert_eq!((b.w, b.h), (DESK_MIN_W, DESK_MIN_H));
+        assert_eq!((b.x, b.y), (0.0, 25.0));
+    }
 }

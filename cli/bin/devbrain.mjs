@@ -428,7 +428,10 @@ function wireCodex(on) {
   mkdirSync(CODEX_DIR, { recursive: true });
   if (t1 !== t0) writeFileSync(tomlPath, t1);
   writeJsonFile(hooksPath, h1);
-  return t1 !== t0 || JSON.stringify(h0) !== JSON.stringify(h1) ? "config.toml + hooks written (applies to new Codex sessions)" : "ok";
+  const changed = t1 !== t0 || JSON.stringify(h0) !== JSON.stringify(h1);
+  return changed
+    ? "config.toml + hooks written — Codex reviews new hooks: start codex once in a repo and approve the DevBrain hooks when it asks"
+    : "ok";
 }
 /** Reconcile every host: wire the wanted ones, unwire the rest that carry our entries. */
 function updateHosts(cfg) {
@@ -936,6 +939,7 @@ if (cmd === "doctor") {
     const others = detectHosts();
     if (others.length) note("claude CLI", `not installed — ${others.join(" + ")} wired instead (install Claude Code and re-run to add it)`);
     else bad("agent host", `none found — install Claude Code, Cursor or Codex, then run: ${CH.cmd} update`);
+    if (existsSync(CODEX_DIR)) note("codex hooks", "run only after you approve them once in an interactive codex session (codex exec needs --dangerously-bypass-hook-trust); for codex exec, pass --approve-for-me so DevBrain's tools can run");
   }
   else {
     const m = pl.stdout.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));

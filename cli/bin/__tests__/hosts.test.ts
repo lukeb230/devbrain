@@ -117,6 +117,12 @@ describe("Codex hooks.json", () => {
     expect(mergeCodexHooks(out, { node, hooksDir })).toEqual(out);
     expect(stripCodexHooks(out, hooksDir)).toEqual(existing);
   });
+  it("writes the SessionEnd timeout Codex actually allows (3 s), and keeps the others", () => {
+    const out = mergeCodexHooks({}, { node, hooksDir });
+    expect(out.hooks.SessionEnd[0].hooks[0].timeout).toBe(3);
+    expect(out.hooks.SessionStart[0].hooks[0].timeout).toBe(12);
+    expect(out.hooks.PreToolUse[0].hooks[0].timeout).toBe(10);
+  });
 });
 
 describe("AGENTS.md", () => {

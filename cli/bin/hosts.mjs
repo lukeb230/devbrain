@@ -163,7 +163,7 @@ export function mergeCodexHooks(existing, { node, hooksDir }) {
   const entry = (command, timeout) => ({ hooks: [{ type: "command", command, timeout }] });
   const wanted = {
     SessionStart: entry(c.sessionStart, 12),
-    SessionEnd: entry(c.sessionEnd, 8),
+    SessionEnd: entry(c.sessionEnd, 3), // Codex clamps SessionEnd to 3 s and warns on every run above that
     PostToolUse: entry(c.activity, 8),
     PreToolUse: entry(c.guard, 10),
     UserPromptSubmit: entry(c.prompt, 8),

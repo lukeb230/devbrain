@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { siteDisplay } from "@/app/fonts";
 import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
 import { ConsoleWindow, Dot } from "./app-shots";
@@ -49,7 +50,7 @@ export function LandingBody({ spotsLeft, maxTeams, free, full }: { spotsLeft: nu
     <>
       {/* hero */}
       <Section className="pt-14 text-center sm:pt-[70px]">
-        <Mount as="h1" duration={700} y={24} className="mx-auto max-w-[16ch] font-display text-[40px] font-medium leading-[1.0] tracking-[-.035em] text-txt text-balance sm:text-[48px] lg:text-[68px]">
+        <Mount as="h1" duration={700} y={24} className="mx-auto max-w-[16ch] font-display text-[40px] font-semibold leading-[1.0] tracking-[-.03em] text-txt text-balance sm:text-[48px] lg:text-[68px]">
           Work like you&apos;re the <span className="text-accenttext">only one</span> in the repo.
         </Mount>
         <Mount as="p" delay={150} className="mx-auto mt-5 max-w-[60ch] text-[15.5px] leading-[1.6] text-body sm:text-[17.5px]">
@@ -108,9 +109,11 @@ export function SiteHeader({ current }: { current?: "faq" } = {}) {
   return (
     <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
       <Section className="flex min-h-[58px] items-center gap-5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brain.png" width={26} height={21} alt="" />
-        <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
+        <Link href="/" aria-label="DevBrain home" className="-my-2 flex items-center gap-5 py-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brain.png" width={26} height={21} alt="" />
+          <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
+        </Link>
         <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
           {current === "faq" ? <span className="text-txt">FAQ</span> : <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>}
           <DownloadButton size="nav" />
@@ -147,7 +150,7 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
   const full = spotsLeft === 0;
 
   return (
-    <main className="lp min-h-screen pb-24">
+    <main className={`lp ${siteDisplay.variable} min-h-screen pb-24`}>
       <MotionGate />
 
       {notice && <Section className="pt-5">{notice}</Section>}

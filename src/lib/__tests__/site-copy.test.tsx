@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LandingBody } from "@/app/landing/landing";
+import { LandingBody, SiteHeader } from "@/app/landing/landing";
 import { FAQ_ITEMS } from "@/app/faq/faq-items";
 import { WRITER_CATALOG } from "@/lib/rules-catalog";
 
@@ -78,5 +78,23 @@ describe("the site's copy", () => {
     expect(fullText).toContain("The beta is full. Get the next place.");
     expect(fullHtml).not.toMatch(/href="\/download"/);
     expect(fullHtml).not.toContain("Sign in with GitHub");
+  });
+  it("the header mark links home on every page", () => {
+    const header = renderToStaticMarkup(<SiteHeader current="faq" />);
+    // next/link's <a> always re-appends href after spreading the other props
+    // (see node_modules/next/dist/client/link.js), so aria-label lands before
+    // href in the markup; match both regardless of attribute order.
+    expect(header).toMatch(/<a\b(?=[^>]*\bhref="\/")(?=[^>]*\baria-label="DevBrain home")[^>]*>/);
+    expect(header).toContain("DevBrain</span>");
+  });
+  it("the spawn window has three real tabs and starts on the second", () => {
+    const tabButtons = [...html.matchAll(/<button [^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
+    const tabs = tabButtons.map((b) => b.match(/aria-selected="(true|false)"/)?.[1]);
+    expect(tabs).toEqual(["false", "true", "false"]);
+    expect(html).toContain("Sam · 2 · src/api/limits/**");
+    for (const b of tabButtons) expect(b).toContain('aria-controls="spawn-panel"');
+    expect(html).toContain('role="tabpanel"');
+    expect(html).toContain("$ devbrain spawn --auto");
+    expect(html).toContain("~/.devbrain/clones/api-2");
   });
 });

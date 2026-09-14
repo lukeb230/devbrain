@@ -108,9 +108,11 @@ export function SiteHeader({ current }: { current?: "faq" } = {}) {
   return (
     <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
       <Section className="flex min-h-[58px] items-center gap-5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brain.png" width={26} height={21} alt="" />
-        <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
+        <Link href="/" aria-label="DevBrain home" className="-my-2 flex items-center gap-5 py-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brain.png" width={26} height={21} alt="" />
+          <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
+        </Link>
         <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
           {current === "faq" ? <span className="text-txt">FAQ</span> : <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>}
           <DownloadButton size="nav" />

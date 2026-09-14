@@ -106,28 +106,3 @@ export function Transcript({ lines, className = "" }: { lines: Line[]; className
     </div>
   );
 }
-
-export function Terminal({
-  title,
-  lines,
-  caption,
-  className = "",
-}: {
-  title: string;
-  lines: Line[];
-  caption?: string;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <figure className="lp-win overflow-hidden bg-codebg">
-        <div className="flex h-[34px] items-center gap-2.5 border-b border-black/30 bg-[#242019] px-4">
-          <span className="h-[6px] w-[6px] rounded-full bg-[#f0b35b]" />
-          <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-white/65">{title}</span>
-        </div>
-        <Transcript lines={lines} className="overflow-x-auto px-5 py-5 font-mono text-[12px] leading-[1.8] text-codefg sm:text-[12.5px]" />
-      </figure>
-      {caption && <figcaption className="mt-3 font-mono text-[12px] text-muted">{caption}</figcaption>}
-    </div>
-  );
-}

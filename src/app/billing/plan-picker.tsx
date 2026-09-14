@@ -2,8 +2,8 @@ import { PLANS, dollars } from "@/lib/billing/plans";
 import { checkoutFromSite } from "./actions";
 
 // The two plans as a site-side picker: each card's button posts to Stripe
-// Checkout. Used on /welcome/plan (new team), /open (walled team) and /pricing
-// (signed in). `back` is where Stripe's cancel returns.
+// Checkout. Used on /welcome/plan (new team) and /open (walled team). `back`
+// is where Stripe's cancel returns.
 export function PlanPicker({ back, canBuy, error }: { back: string; canBuy: boolean; error?: string | null }) {
   return (
     <div>

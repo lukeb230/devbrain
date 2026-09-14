@@ -4,7 +4,7 @@ import { Count, Reveal } from "./reveal";
 // The label is the real rule from the catalogue; the paragraph is its detail
 // text without the em dashes. The four numbers are illustrative (decision D1,
 // option a) and say so.
-const RULE = WRITER_CATALOG.find((r) => r.rule === "writer_auto_merge")!;
+const RULE = WRITER_CATALOG.find((r) => r.rule === "writer_auto_merge") ?? { label: "Auto-merge approved green PRs" };
 const NUMBERS = [
   { n: 23, tone: "text-go", label: "PRs merged by DevBrain" },
   { n: 9, tone: "text-wait", label: "branches updated from main" },

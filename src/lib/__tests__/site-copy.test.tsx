@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LandingBody } from "@/app/landing/landing";
 import { FAQ_ITEMS } from "@/app/faq/faq-items";
+import { WRITER_CATALOG } from "@/lib/rules-catalog";
 
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(p) ? [p] : []; });
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -65,5 +66,17 @@ describe("the site's copy", () => {
     const own = textWithoutIllustrations.replace(/[^.?!]*\?/g, ""); // drop FAQ-style questions (the visitor speaking)
     expect(own).not.toMatch(/\b(I|me|my)\b/);
     expect(FAQ_ITEMS).toHaveLength(11);
+  });
+  it("the writer_auto_merge rule still exists in the catalogue", () => {
+    // switch-band.tsx falls back to a hardcoded label if this rule is ever
+    // renamed; this keeps the fallback from silently going stale too.
+    expect(WRITER_CATALOG.some((r) => r.rule === "writer_auto_merge")).toBe(true);
+  });
+  it("beta-full: no download link in the hero, and no sign-in copy", () => {
+    const fullHtml = renderToStaticMarkup(<LandingBody spotsLeft={0} maxTeams={150} free full />);
+    const fullText = fullHtml.replace(/<[^>]+>/g, " ");
+    expect(fullText).toContain("The beta is full. Get the next place.");
+    expect(fullHtml).not.toMatch(/href="\/download"/);
+    expect(fullHtml).not.toContain("Sign in with GitHub");
   });
 });

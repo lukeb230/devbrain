@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     if (res.ok) {
       const rel = (await res.json()) as { assets?: Asset[] };
       const url = pickDmg(rel.assets ?? [], channel);
-      if (url) return NextResponse.redirect(url, 302);
+      if (url && url.startsWith("https://github.com/")) return NextResponse.redirect(url, 302);
     }
   } catch { /* fall through to the releases page */ }
   return NextResponse.redirect(RELEASES, 302);

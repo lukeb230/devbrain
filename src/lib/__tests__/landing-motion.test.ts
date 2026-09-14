@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { countAt, EASE_OUT } from "../landing-motion";
 
@@ -21,5 +22,9 @@ describe("countAt", () => {
   });
   it("exports the enter curve the app uses", () => {
     expect(EASE_OUT).toBe("cubic-bezier(.16,1,.3,1)");
+  });
+  it("the CSS actually uses that curve, not a copy that can drift", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+    expect(css).toContain("cubic-bezier(.16,1,.3,1)");
   });
 });

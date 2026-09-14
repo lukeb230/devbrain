@@ -12,7 +12,7 @@ const cut = (s: string) => (s.length > 12 ? `${s.slice(0, 11)}…` : s);
 
 export function PanelWindow({ team = TEAM, className = "" }: { team?: typeof TEAM; className?: string }) {
   return (
-    <figure role="img" aria-label="Illustration: the DevBrain panel's Home tab" className={`lp-win w-[440px] bg-ink ${className}`}>
+    <figure role="img" aria-label="Illustration: the DevBrain panel's Home tab" className={`lp-win w-full lg:w-[440px] bg-ink ${className}`}>
       {/* header: brain mark 20 with glow · DevBrain 15/700 · live dot · team · repo picker · gear */}
       <div className="flex items-center gap-2 bg-row px-4 pb-2 pt-3.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}

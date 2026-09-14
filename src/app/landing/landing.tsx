@@ -16,7 +16,7 @@ import { SpawnWindow } from "./spawn-window";
 import { SwitchBand } from "./switch-band";
 
 // ============================================================================
-// The landing page. Five beats and nothing else:
+// The landing page. Five beats and the download card:
 //
 //   the hook      work like you're the only one in the repo
 //   1 catch up    every session opens already knowing what happened

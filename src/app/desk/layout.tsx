@@ -18,6 +18,8 @@ import { NOTICES } from "@/lib/onboarding-notices";
 import { OnboardingWall } from "./onboarding/wall";
 import { RefreshWhile } from "./onboarding/refresh-while";
 import { NoticeOnce } from "./notice-once";
+import { TeamWall } from "./team-wall";
+import { signupBlock } from "@/lib/beta";
 
 // ============================================================================
 // /desk — the app's full window (option B: menu-bar panel + this Desk in one
@@ -25,8 +27,9 @@ import { NoticeOnce } from "./notice-once";
 // renders its own list pane (272px) and reading pane (see panes.tsx).
 //
 // Guard mirrors /widget: signed out → landing with ?from=desk (sign-in
-// returns here); no team → /welcome. The Desk window shares the panel's
-// cookie jar, so a signed-in panel means a signed-in Desk.
+// returns here); no team → the TeamWall below, in this window. The Desk
+// window shares the panel's cookie jar, so a signed-in panel means a
+// signed-in Desk.
 // ============================================================================
 
 
@@ -37,7 +40,11 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
   const user = await currentUser();
   if (!user) redirect("/?from=desk");
   const org = await currentOrg();
-  if (!org) redirect("/welcome?from=desk");
+  if (!org) {
+    const m = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "there");
+    return <TeamWall login={login} full={await signupBlock("team")} />;
+  }
 
   const [repos, billing] = await Promise.all([teamRepos(org.orgId), loadBilling(org.orgId)]);
 

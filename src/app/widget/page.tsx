@@ -4,6 +4,7 @@ import { COOKIE } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { WidgetApp } from "./app";
+import { NoTeamPanel } from "./no-team";
 import { loadTeamSnapshot } from "@/lib/desk/load";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function WidgetPage({ searchParams }: { searchParams: Promi
   const user = await currentUser();
   if (!user) redirect("/?from=widget");
   const org = await currentOrg();
-  if (!org) redirect("/welcome?from=widget");
+  if (!org) return <NoTeamPanel />;
 
   const lastRepoId = (await cookies()).get(COOKIE.lastRepo)?.value ?? null;
   const data = await loadTeamSnapshot({ supabase, user, org, lastRepoId, notice });

@@ -4,6 +4,7 @@ import { currentOrg } from "@/lib/org";
 import { supabaseServer } from "@/lib/supabase/server";
 import { BrowserShell } from "../browser-shell";
 import { createTeam, useInvite } from "./actions";
+import { TeamForms } from "./team-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,6 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
   const full = await signupBlock("team");
   const m = (user.user_metadata ?? {}) as Record<string, unknown>;
   const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "there");
-  const input = "min-w-0 flex-1 rounded-lg border border-line2 bg-ink px-3 py-[9px] text-[13px] text-txt placeholder:text-faint focus:border-accent focus:outline-none";
-  const row = inPanel ? "flex flex-col gap-2" : "flex gap-2";
 
   return (
     <BrowserShell>
@@ -35,33 +34,7 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
         <h1 className={`font-display font-medium tracking-[-.02em] text-txt ${inPanel ? "text-[22px]" : "text-[34px]"}`}>Hi {login}</h1>
         <p className="mt-2 text-[13.5px] leading-[1.6] text-muted">{ctx ? "Create another team, or join one with an invite link." : "You're signed in. Now you need a team — create one, or join with an invite link from a teammate."}</p>
 
-        {invite_error && <p className="mt-4 rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3.5 py-2.5 text-[13px] text-wait">{invite_error}</p>}
-
-        <section className="mt-6 rounded-xl border border-line bg-row p-4">
-          <div className="font-display text-[17px] font-medium text-txt">Create a team</div>
-          {full ? (
-            <p className="mt-1 text-[12.5px] leading-[1.6] text-muted">{full} An invite link from someone already on DevBrain still works.</p>
-          ) : (
-            <>
-              <p className="mb-2.5 mt-1 text-[12.5px] text-muted">You&apos;ll be its owner. Link repos and invite people next.</p>
-              <form action={createTeam} className={row}>
-                {appNext && <input type="hidden" name="next" value={appNext} />}
-                <input name="name" required maxLength={60} placeholder="Team name" className={input} />
-                <button className="whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-[9px] text-[12.5px] font-semibold text-white">Create team</button>
-              </form>
-            </>
-          )}
-        </section>
-
-        <section className="mt-3 rounded-xl border border-line bg-row p-4">
-          <div className="font-display text-[17px] font-medium text-txt">Join with an invite</div>
-          <p className="mb-2.5 mt-1 text-[12.5px] text-muted">Paste the link a teammate sent you.</p>
-          <form action={useInvite} className={row}>
-            {appNext && <input type="hidden" name="next" value={appNext} />}
-            <input name="invite" required placeholder="https://…/join/…" className={input} />
-            <button className="whitespace-nowrap rounded-lg border border-line2 bg-row px-3.5 py-[9px] text-[12.5px] font-medium text-txt hover:border-line3">Join</button>
-          </form>
-        </section>
+        <TeamForms appNext={appNext} full={full} inviteError={invite_error} compact={inPanel} createAction={createTeam} joinAction={useInvite} />
 
         <div className="mt-8 flex items-center gap-4 text-[12px] text-faint">
           {ctx && <a href={appNext ?? "/open"} className="text-accent hover:underline">Back to {ctx.orgName}</a>}

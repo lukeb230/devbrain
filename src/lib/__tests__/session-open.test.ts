@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { labelPattern, openSession } from "@/lib/session-open";
 import type { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -41,6 +41,35 @@ describe("openSession", () => {
 
   it("returns null when the insert stores nothing", async () => {
     expect(await openSession(fakeAdmin([], null), START)).toBeNull();
+  });
+
+  it("escapes wildcards in the teammate's label before matching", async () => {
+    const calls: unknown[][][] = [];
+    await openSession(fakeAdmin(calls), { ...START, dev_label: "a_b%c" }, new Date("2026-09-14T15:00:00Z"));
+    expect(calls[0]).toContainEqual(["ilike", "dev_label", "a\\_b\\%c"]);
+  });
+
+  it("logs and continues when the supersede update fails", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let calls = 0;
+    const admin = {
+      from(_table: string) {
+        calls++;
+        const isUpdate = calls === 1;
+        const api: Record<string, unknown> = {};
+        for (const m of ["update", "insert", "select", "eq", "ilike", "is", "single"]) {
+          api[m] = () => api;
+        }
+        api.then = (resolve: (v: unknown) => void) =>
+          resolve(isUpdate ? { data: null, error: { message: "boom" } } : { data: { id: "s-new" }, error: null });
+        return api;
+      },
+    } as unknown as ReturnType<typeof supabaseAdmin>;
+
+    const id = await openSession(admin, START);
+    expect(id).toBe("s-new");
+    expect(spy).toHaveBeenCalledWith("session-open: could not end superseded sessions", "boom");
+    spy.mockRestore();
   });
 });
 

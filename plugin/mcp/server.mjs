@@ -526,7 +526,19 @@ async function lifecycleStart() {
   lifecycle.session = out.session_id;
   lifecycle.repo = repo;
   try { writeFileSync(sessionFile(repo), out.session_id); } catch { /* best effort */ }
-  lifecycle.timer = setInterval(() => ingest(cfg, { repo, kind: "heartbeat", session_id: out.session_id }).catch(() => {}), 5 * 60_000);
+  lifecycle.timer = setInterval(() => {
+    ingest(cfg, { repo, kind: "heartbeat", session_id: out.session_id })
+      .then((r) => {
+        // A hook's session_start superseded this session server-side (e.g. a
+        // Codex restart around its hook-trust prompt) — it's ended for good,
+        // so stop heartbeating it and don't let lifecycleEnd try to end it.
+        if (!r?.ok) {
+          clearInterval(lifecycle.timer);
+          lifecycle.session = null;
+        }
+      })
+      .catch(() => {});
+  }, 5 * 60_000);
   lifecycle.timer.unref?.();
 }
 async function lifecycleEnd() {

@@ -27,7 +27,7 @@ export function labelPattern(label: string): string {
 /** Ends this teammate's other open sessions for the same agent and repo, then
  *  opens the new one. Returns the new session id, or null if nothing was stored. */
 export async function openSession(admin: ReturnType<typeof supabaseAdmin>, s: SessionStart, now = new Date()): Promise<string | null> {
-  await admin
+  const { error } = await admin
     .from("sessions")
     .update({ ended_at: now.toISOString() })
     .eq("org_id", s.org_id)
@@ -35,6 +35,7 @@ export async function openSession(admin: ReturnType<typeof supabaseAdmin>, s: Se
     .ilike("dev_label", labelPattern(s.dev_label))
     .eq("agent_kind", s.agent_kind)
     .is("ended_at", null);
+  if (error) console.error("session-open: could not end superseded sessions", error.message);
   const { data } = await admin.from("sessions").insert(s).select("id").single();
   return data?.id ?? null;
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { ingestLimiter } from "@/lib/ratelimit";
-import { openSession } from "@/lib/session-open";
+import { labelPattern, openSession } from "@/lib/session-open";
 
 // ============================================================================
 // Presence ingest — called by Claude Code hooks + git hooks via the CLI.
@@ -14,15 +14,16 @@ import { openSession } from "@/lib/session-open";
 // (several tokens may share one user — the sandbox agents do), so ownership is
 // org + label, never user_id alone. Anything else is "not found": a token may
 // neither read another label's status phrase nor end its session.
-async function ownSession(admin: ReturnType<typeof supabaseAdmin>, id: unknown, orgId: string, label: string) {
+async function ownSession(admin: ReturnType<typeof supabaseAdmin>, id: unknown, orgId: string, label: string, opts?: { openOnly?: boolean }) {
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const { data } = await admin
+  let query = admin
     .from("sessions")
     .select("id, summary")
     .eq("id", id)
     .eq("org_id", orgId)
-    .ilike("dev_label", label.replace(/[%_\\]/g, "\\$&"))
-    .maybeSingle();
+    .ilike("dev_label", labelPattern(label));
+  if (opts?.openOnly) query = query.is("ended_at", null);
+  const { data } = await query.maybeSingle();
   return data;
 }
 
@@ -89,7 +90,10 @@ export async function POST(request: Request) {
 
   if (kind === "heartbeat") {
     // A host without hooks (MCP lifecycle presence) keeping its session alive.
-    const own = await ownSession(admin, body.session_id, repo.org_id, auth.label);
+    // A session that was superseded (ended_at set) by a hook's session_start
+    // stays ended: treat it as not found so the caller stands down instead of
+    // reviving a session that no longer tracks the live conversation.
+    const own = await ownSession(admin, body.session_id, repo.org_id, auth.label, { openOnly: true });
     if (!own) return NextResponse.json({ error: "session not found" }, { status: 404 });
     await admin.from("sessions").update({ last_seen: new Date().toISOString(), ended_at: null }).eq("id", own.id);
     return NextResponse.json({ ok: true });

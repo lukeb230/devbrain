@@ -261,3 +261,21 @@ Luke typed in the VM windows for the first steps; the assistant drove the rest (
 
 ### Updated verdict
 Both editors communicate through DevBrain with real sessions: presence, claims, tasks, handoffs and MCP tools in both directions, and the Cursor-side guard denial inside the editor. The one enforcement gap is Codex's patch tool (Task 14); until it lands, Codex is context-only.
+
+## Fix verification (2026-09-14, after merge + deploy)
+
+Branch `fix/app-testing-findings` merged to `main` (fast-forward, `0769cd7`) and pushed; production deploy Ready; both VMs updated (`devbrain update`: source `7efa30d → 0769cd7`, widget `0.4.11 → 0.4.12` installed and relaunched). CI note: the pushed commit failed the "plugin-beta is in sync with plugin" check; fixed by `tools/sync-beta-plugin.sh` in local commit `9eb1a64` (unpushed — needs `git push`).
+
+Verified over ssh against the two VMs (`cursor-mac` .8, `codex-mac` .9) and `sandbox240/neap`:
+
+- **Task 7 (Codex hooks):** `~/.codex/hooks.json` SessionEnd `timeout: 3`; `devbrain doctor` prints the `codex hooks` line including "for codex exec, pass --approve-for-me"; `codex exec` runs the hooks with no timeout-clamping warning. PASS.
+- **Task 8 (server host):** both Macs already point at `https://getdevbrain.com`; `devbrain update` ran clean. PASS.
+- **Task 14 (Codex `apply_patch` guard):** `check-collision.mjs` fed a Codex `apply_patch` body (`*** Update File: README.md`, no `file_path`) returns `permissionDecision: "ask"` — "README.md is being worked on right now by cursor-mac … risks a collision". Direct `POST /api/v1/guard` returns `warn: true`. Before the fix `editedFile` returned null and the hook exited silently. PASS.
+- **Task 15 (one session per teammate):** after three consecutive Cursor chats in the linked repo, exactly one live `cursor-mac/cursor` session in `active_sessions` (not three); two `codex exec` runs end cleanly and leave no stale Codex session. PASS.
+- **Task 17 (Console fits the work area):** on the 1024×768 VM display the Console window (0.4.12) reads position (0, 30), size 1024×681 — bottom edge 711, ~57 px of Dock clearance. Pre-fix it was 1180×760 (wider than the screen, bottom under the Dock). PASS.
+
+Not yet run (need the Console UI driven at the screen, or a fresh GitHub account only Luke can sign in with):
+- **Tasks 1–2 (tokens page):** mint → Copy → curl 200; re-mint shows "already exists" with no token banner; switching teams changes the list.
+- **Task 6 (Set up this Mac across teams):** the row shows step 3 (not a check) on a team where the Mac isn't set up; pressing it re-points `~/.devbrain/config.json`.
+- **Task 16 (team switcher):** five clicks in a row each land on `/desk` under the clicked team; the ✓ is visible in the popover.
+- **Tasks 9–10 (fresh-account sign-in):** signing in as a brand-new account lands on the Console's team forms and the onboarding wall, with Safari untouched after the GitHub page.

@@ -264,3 +264,4 @@ html.lp-js .lp-cursor-sam[data-in]{animation:lp-wander-b 5s ease-in-out 1.6s inf
 .lp .legal code{font-family:var(--font-mono),ui-monospace,monospace;font-size:14px;color:var(--wg-txt)}
 .lp .legal a{color:var(--wg-accent-text);text-decoration:underline}
 .lp .legal h1+p{font-size:13.5px;color:var(--wg-muted);margin-bottom:22px}
+.lp .legal h1+p strong{color:inherit;font-weight:500}

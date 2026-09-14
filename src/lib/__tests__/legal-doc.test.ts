@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { COOKIE } from "../cookies";
 import { LEGAL } from "../legal";
+import { WRITE_RULES } from "../writer-gates";
 import { fillTokens, legalHtml, legalMarkdown, placeholders } from "../legal-doc";
 
 describe("legal documents", () => {
@@ -38,6 +40,15 @@ describe("legal documents", () => {
     ]) expect(privacy).toContain(fact);
     const terms = legalMarkdown("terms");
     for (const fact of [LEGAL.law, LEGAL.venue, LEGAL.repo, LEGAL.trademarks, "one hundred US dollars", "at least 18 years old"]) expect(terms).toContain(fact);
+  });
+
+  it("describe every cookie and the real number of write rules", () => {
+    const privacy = legalMarkdown("privacy");
+    // One purpose per cookie in src/lib/cookies.ts, in the order they are declared.
+    const purposes: Record<keyof typeof COOKIE, string> = { org: "active team", lastRepo: "last repository", next: "where to return after sign-in", newToken: "the token itself", notice: "one-time notice", channel: "which app build you use" };
+    for (const key of Object.keys(COOKIE) as (keyof typeof COOKIE)[]) expect(privacy).toContain(purposes[key]);
+    expect(WRITE_RULES).toHaveLength(3);
+    expect(privacy).toContain("There are exactly three");
   });
 
   it("render to HTML with headings, lists and the privacy link", () => {

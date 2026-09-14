@@ -109,7 +109,7 @@ export default async function DeskPlan({ searchParams }: { searchParams: Promise
                   );
                 })}
               </div>
-              {billing.status !== "comped" && <BillingButtons plan={billing.plan.id} hasSubscription={billing.hasSubscription} canManage={isAdmin} />}
+              {billing.status !== "comped" && !billing.betaFree && <BillingButtons plan={billing.plan.id} hasSubscription={billing.hasSubscription} canManage={isAdmin} />}
               {billing.betaFree && <p className="mt-3 text-[12.5px] leading-[1.6] text-muted">These are the plans DevBrain will charge for when the beta ends. Nothing to do now — there is no card on file and no trial counting down.</p>}
               <p className="mt-3 text-[11.5px] leading-[1.6] text-faint">A seat is any identity with a session in the period — a person on Claude Code or Cursor, or a spawned agent session. Extra seats and actions are metered on the same invoice; nothing is blocked mid-month.</p>
             </Section>

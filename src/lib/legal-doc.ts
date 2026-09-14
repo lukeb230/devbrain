@@ -30,7 +30,8 @@ export function fillTokens(md: string, values: Record<string, string> = LEGAL): 
 /** Anything that still looks like an unfilled placeholder. */
 export function placeholders(text: string): string[] {
   const found = new Set<string>();
-  for (const m of text.matchAll(/\[[A-Z][A-Z /,]+\]|\{\{[^}]*\}\}/g)) found.add(m[0]);
+  // An all-caps bracketed run that is not a markdown link, or an unfilled token.
+  for (const m of text.matchAll(/\[[A-Z][A-Z /,]+\](?!\()|\{\{[^}]*\}\}/g)) found.add(m[0]);
   return [...found];
 }
 

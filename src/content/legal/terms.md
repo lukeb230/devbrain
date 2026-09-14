@@ -50,7 +50,7 @@ You are responsible for the content you and your agents send through the Service
 
 ## 6. Writing to your repositories
 
-By default the Service reads repository metadata and never writes to your repositories. A team admin can enable, per repository and one rule at a time, exactly three write actions: updating an open pull-request branch from its base, merging a pull request that already carries the approval the repository's own branch protection requires, and opening a revert pull request. Nothing in the Service pushes to a default branch or commits outside a pull request.
+By default the Service reads repository metadata and never writes to your repositories. A team admin can enable, per repository and one rule at a time, exactly three write actions: updating an open pull-request branch from its base, merging a pull request that a person has already approved and whose checks are green (your repository's own branch protection remains the final gate), and opening a revert pull request. Nothing in the Service pushes to a default branch or commits outside a pull request.
 
 If your team turns any of these on, you are choosing to let the Service act on your repositories under those rules. You remain responsible for your repositories, your branch-protection settings, and for reviewing what merges. Every write the Service performs is recorded where your team can see it.
 
@@ -76,7 +76,7 @@ You agree not to:
 
 The Service is free during the open beta. We will not charge you, and we will not ask for payment details, for beta use.
 
-If we introduce paid plans after the beta, we will tell you in advance, and no team will be charged without first agreeing to a plan and its price. Any team that does not agree may keep its data for the period set out in section 12 and then lose access to the Service.
+If we introduce paid plans after the beta, we will tell you in advance, and no team will be charged without first agreeing to a plan and its price. Any team that does not agree keeps access to its data for at least 30 days after we tell you, may ask for it to be deleted at any time, and then loses access to the Service.
 
 ## 10. Teams and admins
 
@@ -96,7 +96,7 @@ You may stop using the Service at any time by revoking your device tokens, unlin
 
 When a team is deleted by its owner, or on a verified request from a team owner or admin, we delete the team's data, subject to the retention periods described in the Privacy Policy. If we discontinue the Service or end the beta, we will give you at least 30 days' notice where we can, during which you may ask for your team's data to be deleted; after that period we may delete it ourselves.
 
-Sections 4 (restrictions), 5 (your content, to the extent needed to wind down), 7, 13, 14, 15, 16, 17, and 18 survive the end of these Terms.
+Sections 4 (restrictions), 5 (your content, to the extent needed to wind down), 7, 9 (any fees already due), 12, 13, 14, 15, 16, 17, and 18 survive the end of these Terms.
 
 ## 13. Intellectual property
 

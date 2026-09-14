@@ -16,13 +16,13 @@ DevBrain coordinates coding-agent sessions across a team. To do that it stores *
 
 **Device tokens.** Each Mac you use the Service from receives a token that identifies it. We store a hash of the token, never the token itself, along with the label given to the device and when it was last used.
 
-**Repository metadata.** Through the GitHub App, for repositories your team links, we receive repository names, branch names, and pull-request details: number, title, author, review state, mergeability, draft status, checks, and the list of changed file paths. We do not store file contents. Three features read file contents from GitHub without storing them: pull-request reviews fetch the pull request's diff (section 5); the Brain feature reads the Markdown notes in a repository's `.brain` folder to show them in the Console; and, if a team enables it, the revert action reads the files it needs to build a revert pull request.
+**Repository metadata.** Through the GitHub App, for repositories your team links, we receive repository names, branch names, and pull-request details: number, title, author, review state, mergeability, draft status, checks, and the list of changed file paths. We do not store source files. Two features read file contents from GitHub without storing them: pull-request reviews fetch the pull request's diff (section 5), and, if a team enables it, the revert action reads the files it needs to build a revert pull request. One feature keeps text from your repository: the Brain feature reads the Markdown notes in a repository's `.brain` folder and keeps their text (up to about 12,000 characters per note) in the team's memory index, so your agents can search them. Those are notes your team writes about the repository, not source files.
 
-**Activity and presence.** From the plugin running in your coding agent we receive: that a session started and ended, the repository and branch it is on, the file paths it reads and edits, the tool in use (for example Claude Code, Cursor, or Codex), a short status phrase, claims your agent makes on paths, and the timestamps of these events. This is the signal that powers collision warnings and the team's live view. File contents and command output are not sent. When your agent asks the Service for relevant team memory, the first 500 characters of your prompt are sent as the search query and are not stored.
+**Activity and presence.** From the plugin running in your coding agent we receive: that a session started and ended, the repository and branch it is on, the file paths it writes to or edits (files it only reads are never reported), commits and branch checkouts made through the command-line tool, the tool in use (for example Claude Code, Cursor, or Codex), a short status phrase, claims your agent makes on paths, and the timestamps of these events. This is the signal that powers collision warnings and the team's live view. File contents and command output are not sent. Each time you send your agent a prompt of about 40 characters or more, the plugin sends its first 500 characters to the Service as a search query, so your agent can be handed the team's relevant history. We do not store that fragment in the Service's database; like any request, the address it travels in may appear in our hosting provider's server logs for the window in section 7.
 
 **Things you or your agents write into the Service.** Task titles and details, decisions, broadcasts, handoffs, notes, and the free-text parts of any of these. Please do not put secrets, credentials, or personal data about other people into them.
 
-**Session journals (optional, off by default).** If a team admin turns journals on, when a coding session ends the plugin extracts a redacted excerpt of the session: your own prompts, the agent's replies, and the names of the tools it used with a short label of what each tool touched. File contents, command output, and strings that look like secrets are removed. The excerpt is held in a processing queue, sent to the AI provider (section 5) to produce a short journal entry (what was learned, what was tried and failed, what remains), and deleted once the entry is written. If processing fails, the excerpt is deleted after 24 hours of failed attempts and in any case within 7 days. We keep the journal entry.
+**Session journals (optional, off by default).** If a team admin turns journals on, when a coding session ends the plugin extracts a redacted excerpt of the session: your own prompts, the agent's replies, and the names of the tools it used with a short label of what each tool touched (a file path, or the first 120 characters of a shell command). The excerpt is capped at about 40,000 characters. File contents, command output, and strings that look like secrets are removed. The excerpt is held in a processing queue, sent to the AI provider (section 5) to produce a short journal entry (what was learned, what was tried and failed, what remains), and deleted once the entry is written. If processing fails, the excerpt is deleted after 24 hours of failed attempts and in any case within 7 days. We keep the journal entry.
 
 **Pull-request reviews.** When the Service reviews a pull request, it fetches the pull request's diff from GitHub and sends it to the AI provider (section 5) to produce a review. We store the resulting verdict, summary and notes, not the diff.
 
@@ -34,7 +34,7 @@ DevBrain coordinates coding-agent sessions across a team. To do that it stores *
 
 ## 3. What we do not collect
 
-- Your source code, other than a pull-request diff in transit to the AI provider, the Markdown notes in a repository's `.brain` folder, files read transiently to build a revert pull request, and the contents of spec documents you choose to upload.
+- Your source code. The exceptions are a pull-request diff in transit to the AI provider and files read transiently to build a revert pull request, neither of which is stored, and two kinds of text you choose to give us: the Markdown notes in a repository's `.brain` folder and the spec documents you upload.
 - Command output from your agent sessions.
 - Readable copies of API keys or tokens.
 - Anything from repositories your team has not linked.
@@ -62,7 +62,7 @@ We may also disclose information if required by law, to protect the rights, safe
 DevBrain reads repository metadata through its GitHub App. Writing is off by default and is enabled per repository by a team admin, one rule at a time. There are exactly three, and no other code path in DevBrain writes to GitHub:
 
 - **Update a pull-request branch:** bring an open pull request up to date with its base branch.
-- **Merge a pull request:** only one that already carries the approval your repository's own branch protection requires.
+- **Merge a pull request:** only one that a person has already approved and whose checks are green. Your repository's own branch protection is still the final gate; if its requirements are not met, GitHub refuses the merge.
 - **Open a revert pull request:** a new branch and pull request that you then review.
 
 Nothing pushes to a default branch, nothing commits outside a pull request, and every write is recorded as an event your team can see.
@@ -76,7 +76,8 @@ Data is stored on servers operated by our hosting and database providers in {{re
 - **Completed tasks:** deleted 72 hours after completion. **Handoffs:** deleted 72 hours after they are picked up, or 7 days after they are left if nobody picks them up.
 - **Journal excerpts in the processing queue:** deleted when the journal entry is written, after 24 hours of failed attempts, and in any case within 7 days.
 - **Journals, decisions, broadcasts, and pull-request review results:** kept as team memory until the repository is deleted from DevBrain or the team is deleted. Unlinking a repository alone keeps them (section 9).
-- **Repository metadata and pull-request records:** kept while the repository is linked. Unlinking marks the repository inactive and stops updates; deleting it removes them.
+- **Repository metadata and pull-request records:** kept while the repository is linked. Unlinking marks the repository inactive and stops updates; deleting it removes them, leaving one line in your team's feed that says it was deleted and by whom.
+- **Spec documents and the tasks extracted from them, the team memory index (including `.brain` notes), and standup digests:** kept until you delete the spec, delete the repository from DevBrain, or delete the team. There is no scheduled purge for them.
 - **Account information:** kept while you have an account.
 - **Server logs:** kept by our hosting provider for a short rolling window, never more than 30 days.
 - **Website email sign-ups:** until you ask us to remove you.
@@ -94,7 +95,7 @@ At any time you can, from the app or the Console:
 
 - revoke any device token;
 - unlink a repository, which stops all new data flow for it immediately and keeps its history until you delete the repository from DevBrain;
-- delete a repository from DevBrain, which removes every record for it;
+- delete a repository from DevBrain, which removes every record for it apart from one line in the team's feed noting the deletion;
 - leave a team, or, as its owner, delete the team, which removes all of its data;
 - turn journals off (team admins), which stops excerpts being collected;
 - disable any write rule (team admins).
@@ -109,7 +110,7 @@ The Service is not directed at children and we do not knowingly collect informat
 
 ## 11. Cookies
 
-The website and app use only first-party cookies: the ones our sign-in provider needs to keep you signed in, and a handful that remember your active team, your last repository, where to return after sign-in, a one-time notice, and which app build you use. We do not use advertising or cross-site tracking cookies, and we run no analytics today.
+The website and app use only first-party cookies: the ones our sign-in provider needs to keep you signed in, a handful that remember your active team, your last repository, where to return after sign-in, a one-time notice, and which app build you use, and, for two minutes after you create a device token, the token itself so the app can show it to you once. It is never stored on our servers in readable form. We do not use advertising or cross-site tracking cookies, and we run no analytics today.
 
 ## 12. Changes to this policy
 

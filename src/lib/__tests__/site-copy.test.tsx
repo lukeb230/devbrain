@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LandingBody, SiteHeader } from "@/app/landing/landing";
-import { START_STEPS, StartBody } from "@/app/start/page";
+import { START_STEPS, StartBody } from "@/app/start/start-body";
 import NotFound from "@/app/not-found";
 import { FAQ_ITEMS } from "@/app/faq/faq-items";
 import { WRITER_CATALOG } from "@/lib/rules-catalog";

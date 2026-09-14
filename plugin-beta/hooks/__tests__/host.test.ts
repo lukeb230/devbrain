@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { detectHost, editedFile, hostLabel, isEditTool, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
+import { detectHost, editedFile, endsOwnSession, hostLabel, isEditTool, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
 
 describe("detectHost", () => {
   it("prefers the --host flag, then the env, then the payload shape", () => {
@@ -26,6 +28,18 @@ describe("payload normalization", () => {
     expect(editedFile({ tool_input: { path: "/r/c.ts" } })).toBe("/r/c.ts");
     expect(editedFile({ tool_name: "Shell", tool_input: { command: "ls" } })).toBeNull();
     expect(editedFile({})).toBeNull();
+  });
+  it("reads the file out of a Codex apply_patch body", () => {
+    const patch = "*** Begin Patch\n*** Add File: src/hello.ts\n+// codex\n*** End Patch\n";
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { input: patch } })).toBe("src/hello.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { patch } })).toBe("src/hello.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: patch })).toBe("src/hello.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { input: "*** Begin Patch\n*** Update File: src/b.ts\n@@\n+// x\n*** End Patch" } })).toBe("src/b.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { input: "*** Begin Patch\n*** Delete File: old.ts\n*** End Patch" } })).toBe("old.ts");
+  });
+  it("still prefers an explicit path and ignores non-patch strings", () => {
+    expect(editedFile({ tool_input: { file_path: "/r/a.ts", input: "*** Add File: x.ts" } })).toBe("/r/a.ts");
+    expect(editedFile({ tool_name: "exec_command", tool_input: { cmd: "echo hi >> src/a.ts" } })).toBeNull();
   });
   it("only guards tools that change files", () => {
     expect(isEditTool({ tool_name: "Read", tool_input: { file_path: "/r/a.ts" } })).toBe(false);
@@ -66,5 +80,15 @@ describe("the plugin never assumes Node is on PATH", () => {
     };
     expect(manifest.mcpServers.devbrain.command).toBe("sh");
     expect(manifest.mcpServers.devbrain.args[0]).toContain("node.sh");
+  });
+});
+
+describe("endsOwnSession", () => {
+  it("only the conversation the sidecar tracks ends the session", () => {
+    const f = join(mkdtempSync(join(tmpdir(), "dbk-")), "session-acme_app.convo");
+    expect(endsOwnSession(f, "c1")).toBe(true); // no record (pre-hooks session) → ours
+    writeFileSync(f, "c1\n");
+    expect(endsOwnSession(f, "c1")).toBe(true);
+    expect(endsOwnSession(f, "c2")).toBe(false);
   });
 });

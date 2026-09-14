@@ -9,7 +9,7 @@ import { hasRole, type OrgContext } from "@/lib/org";
 import { FEATURE_CATALOG, RULES_CATALOG, type RuleDef } from "@/lib/rules-catalog";
 import { applyPreset, cancelRequest, dismissOnboarding } from "./actions";
 import { RefreshWhile } from "./refresh-while";
-import { SetupMac } from "./setup-mac";
+import { MacStep } from "./mac-step";
 
 // ============================================================================
 // The first-run walkthrough. Mounted by desk/layout.tsx INSTEAD of children
@@ -80,7 +80,9 @@ export function OnboardingWall({ org, repos, state, appSlug, openRequestBy, poli
         )}
 
         <ol className="mt-8">
-          {state.steps.map((s, n) => (
+          {state.steps.map((s, n) => s.id === "mac" ? (
+            <MacStep key={s.id} n={n + 1} liveLabels={state.macLabels} orgId={org.orgId} orgName={org.orgName} />
+          ) : (
             <li key={s.id} className="grid grid-cols-[32px_1fr] gap-4 border-t border-line py-[18px]">
               <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${s.done ? "bg-go text-white" : "border border-line2 text-txt"}`}>{s.done ? "✓" : n + 1}</span>
               <div className="min-w-0">
@@ -117,12 +119,9 @@ function body(s: Step, c: { isOwner: boolean; isAdmin: boolean; repos: TeamRepo[
         </>
       );
     case "mac":
-      return (
-        <>
-          One click installs the DevBrain command, the editor plugin and its hooks for Claude Code, Cursor and Codex, and keeps them updated. You'll be asked to allow Notifications and Reminders.
-          <div className="mt-2"><SetupMac done={s.done} orgId={c.orgId} orgName={c.orgName} /></div>
-        </>
-      );
+      // The mac row renders itself (MacStep) — only the app knows which
+      // machine it is. Kept so the switch stays exhaustive.
+      return null;
     case "rules":
       if (s.waitingOn) return <>Waiting on {s.waitingOn}.</>;
       if (c.repos.length === 0) return <>Link a repository first.</>;

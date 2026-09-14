@@ -81,11 +81,18 @@ export function repoFromRemote(remote) {
   return m ? m[1] : null;
 }
 
-/** The file an edit tool is about to touch / just touched, across payload shapes. */
+/** The file a tool call is about to change. Claude and Cursor name it
+ *  (file_path / path / filePath). Codex's apply_patch carries a patch body
+ *  instead, so read the first "*** Add|Update|Delete File: <path>" line —
+ *  a repo-relative path, which the guard already accepts as-is. */
+const PATCH_FILE = /^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$/m;
 export function editedFile(input) {
   const ti = input?.tool_input;
   const cand = ti?.file_path ?? ti?.path ?? ti?.filePath ?? input?.file_path ?? input?.path ?? null;
-  return typeof cand === "string" && cand ? cand : null;
+  if (typeof cand === "string" && cand) return cand;
+  const body = typeof ti === "string" ? ti : (typeof ti?.input === "string" ? ti.input : (typeof ti?.patch === "string" ? ti.patch : null));
+  const m = body ? PATCH_FILE.exec(body) : null;
+  return m ? m[1] : null;
 }
 
 /** Is this tool call going to change a file? Claude's hooks.json matcher

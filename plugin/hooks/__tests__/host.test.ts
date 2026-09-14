@@ -27,6 +27,18 @@ describe("payload normalization", () => {
     expect(editedFile({ tool_name: "Shell", tool_input: { command: "ls" } })).toBeNull();
     expect(editedFile({})).toBeNull();
   });
+  it("reads the file out of a Codex apply_patch body", () => {
+    const patch = "*** Begin Patch\n*** Add File: src/hello.ts\n+// codex\n*** End Patch\n";
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { input: patch } })).toBe("src/hello.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { patch } })).toBe("src/hello.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: patch })).toBe("src/hello.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { input: "*** Begin Patch\n*** Update File: src/b.ts\n@@\n+// x\n*** End Patch" } })).toBe("src/b.ts");
+    expect(editedFile({ tool_name: "apply_patch", tool_input: { input: "*** Begin Patch\n*** Delete File: old.ts\n*** End Patch" } })).toBe("old.ts");
+  });
+  it("still prefers an explicit path and ignores non-patch strings", () => {
+    expect(editedFile({ tool_input: { file_path: "/r/a.ts", input: "*** Add File: x.ts" } })).toBe("/r/a.ts");
+    expect(editedFile({ tool_name: "exec_command", tool_input: { cmd: "echo hi >> src/a.ts" } })).toBeNull();
+  });
   it("only guards tools that change files", () => {
     expect(isEditTool({ tool_name: "Read", tool_input: { file_path: "/r/a.ts" } })).toBe(false);
     expect(isEditTool({ tool_name: "Grep" })).toBe(false);

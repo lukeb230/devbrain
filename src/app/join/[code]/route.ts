@@ -15,24 +15,29 @@ import { soloGreenDrift } from "@/lib/onboarding-presets";
 // authorisation, so no allowlist applies). Signed in → validate the code,
 // add the membership with the invite's role, make that org the active one,
 // and land on /open (the Desk hand-off) — or wherever ?next= / devbrain_next points
-// (the desktop panel passes next=/widget; the browser sign-in hand-off sets
-// the cookie so the deep link back to the app still fires).
+// (the desktop panel passes next=/widget, the Console's team step next=/desk;
+// the browser sign-in hand-off sets the cookie so the deep link back to the
+// app still fires).
 // ============================================================================
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const url = new URL(request.url);
   const ip = clientIp(request);
+  const explicitNext = safeNext(url.searchParams.get("next"), "");
+  // Which window sent us here (the panel passes next=/widget, the Console's
+  // team step next=/desk): /welcome needs it to keep its forms pointed back at
+  // that window, so every failure carries it. Mirrors welcome/actions.ts.
+  const backTo = explicitNext === "/widget" ? "&from=widget" : explicitNext === "/desk" ? "&from=desk" : "";
+  const self = `/join/${encodeURIComponent(code)}${explicitNext ? `?next=${encodeURIComponent(explicitNext)}` : ""}`;
+  const fail = (why: string) =>
+    NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent(why)}${backTo}`);
+
   // Two ceilings: this instance's own (free, instant) and the platform-wide
   // one (shared by every instance, so a spread-out flood still trips).
   if (!joinLimiter.take(ip) || (await publicLimit(ip, "join"))) {
-    return NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent("Too many attempts — wait a minute and try again.")}`);
+    return fail("Too many attempts — wait a minute and try again.");
   }
-  const explicitNext = safeNext(url.searchParams.get("next"), "");
-  const inPanel = explicitNext === "/widget";
-  const self = `/join/${encodeURIComponent(code)}${explicitNext ? `?next=${encodeURIComponent(explicitNext)}` : ""}`;
-  const fail = (why: string) =>
-    NextResponse.redirect(`${url.origin}/welcome?invite_error=${encodeURIComponent(why)}${inPanel ? "&from=widget" : ""}`);
 
   const supabase = await supabaseServer();
   const {

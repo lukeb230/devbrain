@@ -2,9 +2,9 @@
 
 **Effective: {{effective}}**
 
-This policy explains what DevBrain ("we", "us") collects when you use the DevBrain website at {{domain}}, the DevBrain macOS application, the command-line tool and agent plugins, and the DevBrain GitHub App (together, the "Service"), why we collect it, who sees it, and what you can do about it. It is written to be read. If anything here is unclear, ask us through {{contact}}.
+This policy explains what DevBrain ("we", "us") collects when you use the DevBrain website at {{domain}}, the DevBrain macOS application, the command-line tool and agent plugins, and the DevBrain GitHub App (together, the "Service"), why we collect it, who sees it, and what you can do about it. It is written to be read. If anything here is unclear, ask us at {{contact}}.
 
-DevBrain is operated by {{operator}}. The legal name and address of the operator are available on request through {{contact}} and appear in our Terms of Use.
+DevBrain is operated by {{operator}}. The legal name and address of the operator are available on request at {{contact}} and appear in our Terms of Use.
 
 ## 1. The short version
 
@@ -86,7 +86,7 @@ Data is stored on servers operated by our hosting and database providers in {{re
 
 Device tokens are stored only as hashes. Every record is scoped to one team and access is checked on every request. Data is encrypted in transit and at rest by our providers. Access to production data is limited to the people who operate the Service and is used only to run and support it. No system is perfectly secure; if we learn of a breach affecting your data we will tell you without undue delay and, where required, notify the relevant authorities.
 
-If you find a security issue, please report it through {{securityContact}} before disclosing it publicly.
+If you find a security issue, please email {{securityContact}} before disclosing it publicly.
 
 ## 9. Your controls and rights
 
@@ -99,7 +99,7 @@ At any time you can, from the app or the Console:
 - turn journals off (team admins), which stops excerpts being collected;
 - disable any write rule (team admins).
 
-You can also ask us to export the data we hold about you or your team, to correct it, or to delete it, through {{contact}}. Export is a manual process today. We will act on a verified request within 30 days. Deleting a team removes its coordination data, memory, and repository records. Some records may be kept where the law requires it or where we need them to resolve a dispute.
+You can also ask us to export the data we hold about you or your team, to correct it, or to delete it, by emailing {{contact}}. Export is a manual process today. We will act on a verified request within 30 days. Deleting a team removes its coordination data, memory, and repository records. Some records may be kept where the law requires it or where we need them to resolve a dispute.
 
 If you are in the European Economic Area, the United Kingdom, or another jurisdiction with data-protection law, you have the rights that law gives you, including to access, correct, delete, restrict, or object to processing, to data portability, to withdraw consent, and to complain to your supervisory authority. Where we rely on consent, withdrawing it does not affect processing before the withdrawal. If you are a California resident, you have the rights under the CCPA/CPRA to know, delete, and correct your personal information and not to be discriminated against for exercising them; we do not sell or share personal information for cross-context behavioural advertising.
 

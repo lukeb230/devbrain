@@ -2,7 +2,7 @@
 
 **Effective: {{effective}}**
 
-These Terms of Use ("Terms") are an agreement between you and the operator of DevBrain, {{operator}} ("DevBrain", "we", "us"). The operator's legal name and address are available on request through {{contact}}. They cover the DevBrain website at {{domain}}, the DevBrain macOS application, the DevBrain command-line tool and agent plugins, the DevBrain GitHub App, and every related service (together, the "Service").
+These Terms of Use ("Terms") are an agreement between you and the operator of DevBrain, {{operator}} ("DevBrain", "we", "us"). The operator's legal name and address are available on request at {{contact}}. They cover the DevBrain website at {{domain}}, the DevBrain macOS application, the DevBrain command-line tool and agent plugins, the DevBrain GitHub App, and every related service (together, the "Service").
 
 By downloading the app, signing in, installing the plugin, or using any part of the Service, you agree to these Terms and to our [Privacy Policy](/privacy). If you are accepting on behalf of a company or another organisation, you confirm you have the authority to bind it, and "you" means that organisation as well as you personally. If you do not agree, do not use the Service.
 
@@ -130,7 +130,7 @@ You will defend, indemnify, and hold us harmless from claims, losses, and expens
 
 These Terms are governed by the laws of {{law}}, without regard to conflict-of-law rules. Any dispute arising out of or relating to these Terms or the Service will be brought exclusively in the state or federal courts located in {{venue}}, and you consent to their jurisdiction, except that either party may seek injunctive relief in any court of competent jurisdiction to protect its intellectual property.
 
-Before starting any formal proceeding, you agree to contact us through {{contact}} and give us 30 days to try to resolve the matter informally.
+Before starting any formal proceeding, you agree to email us at {{contact}} and give us 30 days to try to resolve the matter informally.
 
 ## 18. General
 
@@ -141,4 +141,4 @@ Before starting any formal proceeding, you agree to contact us through {{contact
 - **Assignment.** You may not assign these Terms without our consent. We may assign them to an affiliate or a successor to the Service.
 - **Third-party services.** GitHub, Apple, and the AI and agent providers are not parties to these Terms and have no obligations to you under them.
 - **Export and sanctions.** You may not use the Service where doing so is prohibited by applicable export-control or sanctions law.
-- **Contact.** DevBrain, through {{contact}}. Security reports: {{securityContact}}.
+- **Contact.** DevBrain, {{contact}}. Security reports: {{securityContact}}.

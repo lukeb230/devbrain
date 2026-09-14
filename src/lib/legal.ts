@@ -4,13 +4,10 @@
 export const LEGAL = {
   product: "DevBrain",
   operator: "a sole proprietorship trading as DevBrain",
-  // The host the site answers on today. Swap for the custom domain when it lands.
-  domain: "devbrain-seven.vercel.app",
-  // TODO(luke): replace with a mailbox before launch. Until then the public
-  // issue tracker is the only channel, which is not suitable for deletion or
-  // security requests; the documents say so.
-  contact: "the DevBrain issue tracker at github.com/lukeb230/devbrain/issues",
-  securityContact: "GitHub's private vulnerability reporting for the repository at github.com/lukeb230/devbrain/security/advisories",
+  // The site's domain. The Vercel host keeps answering as well.
+  domain: "getdevbrain.com",
+  contact: "team@getdevbrain.com",
+  securityContact: 'team@getdevbrain.com with "security" in the subject line',
   effective: "September 13, 2026",
   aiProvider: "Anthropic (the Claude API)",
   hosting: "Vercel",

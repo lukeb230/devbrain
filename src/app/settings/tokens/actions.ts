@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { COOKIE, NEW_TOKEN_COOKIE_OPTS, NOTICE_COOKIE_OPTS } from "@/lib/cookies";
+import { COOKIE, NEW_TOKEN_COOKIE_OPTS, noticeCookieOptsFor } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { returnTo, surfaceOf } from "@/lib/surface";
@@ -48,7 +48,7 @@ export async function createToken(formData: FormData): Promise<void> {
     // Never show a token that was not stored: drop any earlier shown-once
     // value on this surface and say why nothing was created.
     jar.set(COOKIE.newToken, "", { ...NEW_TOKEN_COOKIE_OPTS, path, maxAge: 0 });
-    jar.set(COOKIE.notice, outcome.notice, NOTICE_COOKIE_OPTS);
+    jar.set(COOKIE.notice, outcome.notice, noticeCookieOptsFor(path));
   } else {
     // Stash the plaintext once in a short-lived cookie so the page can show it
     // after the redirect, then it exists nowhere server-side except as a hash.

@@ -20,6 +20,12 @@ export const LAST_REPO_COOKIE_OPTS = { ...base, maxAge: 60 * 60 * 24 * 90 };
 export const NEXT_COOKIE_OPTS = { ...base, maxAge: 3600 };
 export const NEW_TOKEN_COOKIE_OPTS = { ...base, path: "/settings", maxAge: 120 };
 export const NOTICE_COOKIE_OPTS = { ...base, path: "/desk", maxAge: 60 };
+/** Same shape as NOTICE_COOKIE_OPTS, scoped to whichever surface is setting
+ *  it — e.g. the /settings/setup by-hand page, which the Desk layout never
+ *  renders for, so a cookie stuck at path /desk would never come back. */
+export function noticeCookieOptsFor(path: string) {
+  return { ...base, path, maxAge: 60 };
+}
 // Set by /auth/device/start when the app opens the browser to sign in; read
 // by /open so its "Open in the app" button uses the scheme of the build the
 // person actually has. Not cleared on sign-out (see ALL_DEVBRAIN_COOKIES).
@@ -33,6 +39,7 @@ export const ALL_DEVBRAIN_COOKIES: { name: string; path: string }[] = [
   { name: COOKIE.newToken, path: "/settings" },
   { name: COOKIE.newToken, path: "/desk" },
   { name: COOKIE.notice, path: "/desk" },
+  { name: COOKIE.notice, path: "/settings" },
 ];
 
 /** Structurally matches both `await cookies()` and `NextResponse.cookies`. */

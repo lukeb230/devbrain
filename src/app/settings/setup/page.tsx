@@ -5,6 +5,9 @@ import { COOKIE } from "@/lib/cookies";
 import { currentOrg, hasRole } from "@/lib/org";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { BrowserShell } from "@/app/browser-shell";
+import { NoticeOnce } from "@/app/desk/notice-once";
+import { SubmitButton } from "@/app/desk/submit-button";
+import { NOTICES } from "@/lib/onboarding-notices";
 import { createToken } from "../tokens/actions";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +55,13 @@ export default async function SetupPage() {
   const hasToken = (tokens ?? []).some((t) => !t.revoked_at);
   const hasSession = (mySessions ?? []).length > 0;
   const hasActivity = (myActivity ?? []).length > 0;
-  const newToken = (await cookies()).get(COOKIE.newToken)?.value;
+  const jar = await cookies();
+  const newToken = jar.get(COOKIE.newToken)?.value;
+  // One-shot message from a token creation that failed (e.g. a duplicate
+  // label). The Desk layout renders this for every Desk page; this by-hand
+  // page is reachable outside the Desk (linked from /open) so it needs its
+  // own read — same cookie, same NOTICES map, same NoticeOnce.
+  const notice = jar.get(COOKIE.notice)?.value ?? null;
   const h = await headers();
   const server = (process.env.NEXT_PUBLIC_SITE_URL || `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`).replace(/\/$/, "");
   const installCmd = "curl -fsSL https://raw.githubusercontent.com/lukeb230/devbrain/main/install.sh | sh";
@@ -93,9 +102,10 @@ export default async function SetupPage() {
 
         <Step n={2} title="Manual setup (no Mac app: CI, Linux, headless agents)" done={hasToken && (hasSession || hasActivity)}>
           <p>Create a token{hasToken ? " (you already have one — a new one is fine too)" : ""}, then paste the command it produces.</p>
+          <NoticeOnce text={notice && NOTICES[notice] ? NOTICES[notice] : null} />
           <form action={createToken} className="mt-2 flex gap-2">
             <input name="label" placeholder={`Label (e.g. ${login}-ci)`} className="min-w-0 flex-1 rounded-lg border border-line2 bg-row px-3 py-2 text-[12.5px] text-txt placeholder:text-faint focus:border-accent focus:outline-none" />
-            <button className="whitespace-nowrap rounded-lg bg-accent2 px-3 py-2 text-[12px] font-semibold text-white">{hasToken ? "New token" : "Create token"}</button>
+            <SubmitButton pendingLabel="Creating…">{hasToken ? "New token" : "Create token"}</SubmitButton>
           </form>
           {newToken && (
             <>

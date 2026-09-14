@@ -1,24 +1,30 @@
 import Link from "next/link";
 import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
-import { SignInButton } from "../sign-in-button";
-import { ConsoleWindow, Dot, SessionCard } from "./app-shots";
-import { IncentiveModal } from "./incentive-modal";
-import { GUARD, Terminal } from "./terminal";
-import { TryIt } from "./try-it";
+import { ConsoleWindow, Dot } from "./app-shots";
+import { CollisionPiece } from "./collision-piece";
+import { DownloadButton } from "./download-button";
+import { DownloadCard } from "./download-card";
 import { EmailForm } from "./email-form";
+import { GuardNote } from "./guard-note";
+import { IncentiveModal } from "./incentive-modal";
+import { NumbersBand } from "./numbers-band";
+import { PanelWindow } from "./panel-window";
+import { Mount, MotionGate, Reveal } from "./reveal";
+import { SentencesBand } from "./sentences-band";
+import { SpawnWindow } from "./spawn-window";
+import { SwitchBand } from "./switch-band";
 
 // ============================================================================
-// The landing page. Four beats and nothing else:
+// The landing page. Five beats and the download card:
 //
 //   the hook      work like you're the only one in the repo
-//   1 problem     two agents, one file, shown
-//   2 fix         the agent's own output, stopping the write
-//   3 why         what changes — the session that opens knowing
-//   4 sign up
-//
-// Depth lives at /how-it-works. A visitor who wants the mechanism clicks; a
-// visitor who wants to try it is never more than one screen from the button.
+//   1 catch up    every session opens already knowing what happened
+//   2 the guard   the second write is stopped before it happens
+//   3 claims      agents steer around each other on their own
+//   4 spawn       run more agents than you have people
+//   5 merge       PRs land themselves, in the right order
+//   6 sign up
 //
 // Every number is real (platform_counts()). Everything inside a window is
 // synthetic and captioned as such.
@@ -28,174 +34,129 @@ const Section = ({ id, children, className = "" }: { id?: string; children: Reac
   <section id={id} className={`mx-auto w-full max-w-[1140px] px-6 sm:px-8 ${className}`}>{children}</section>
 );
 
-const H2 = ({ children }: { children: React.ReactNode }) => (
-  <h2 className="max-w-[20ch] font-display text-[26px] font-medium leading-[1.08] tracking-[-.028em] text-txt text-balance sm:text-[38px]">{children}</h2>
+const Beat = ({ h2, lede, note, gap = "mt-8", children }: { h2: string; lede: React.ReactNode; note?: string; gap?: string; children: React.ReactNode }) => (
+  <Section className="pt-14 md:pt-[72px] lg:pt-[110px]">
+    <Reveal as="h2" amount={0.6} className="max-w-[20ch] font-display text-[26px] font-medium leading-[1.08] tracking-[-.028em] text-txt text-balance sm:text-[38px]">{h2}</Reveal>
+    <Reveal as="p" delay={80} y={12} className="mt-4 max-w-[54ch] text-[15.5px] leading-[1.6] text-body sm:text-[16.5px]">{lede}</Reveal>
+    <div className={gap}>{children}</div>
+    {note && <Reveal as="p" delay={80} y={12} className="mt-[22px] max-w-[62ch] text-[14.5px] leading-[1.6] text-muted">{note}</Reveal>}
+  </Section>
 );
 
-const Lede = ({ children }: { children: React.ReactNode }) => (
-  <p className="mt-4 max-w-[54ch] text-[15.5px] leading-[1.6] text-body sm:text-[16.5px]">{children}</p>
-);
+export function LandingBody({ spotsLeft, maxTeams, free, full }: { spotsLeft: number | null; maxTeams: number | null; free: boolean; full: boolean }) {
+  const pill = free && spotsLeft !== null && !full;
+  return (
+    <>
+      {/* hero */}
+      <Section className="pt-14 text-center sm:pt-[70px]">
+        <Mount as="h1" duration={700} y={24} className="mx-auto max-w-[16ch] font-display text-[40px] font-medium leading-[1.0] tracking-[-.035em] text-txt text-balance sm:text-[48px] lg:text-[68px]">
+          Work like you&apos;re the <span className="text-accenttext">only one</span> in the repo.
+        </Mount>
+        <Mount as="p" delay={150} className="mx-auto mt-5 max-w-[60ch] text-[15.5px] leading-[1.6] text-body sm:text-[17.5px]">
+          You&apos;re not. Your agents just handle it. They know who&apos;s in which file, they steer around each other, and the PRs land in the right order without you refereeing any of it.
+        </Mount>
+        <Mount delay={230} className="mt-7 flex flex-wrap items-center justify-center gap-3.5">
+          {full ? <EmailForm source="beta_full" className="w-full max-w-[430px]" /> : <DownloadButton />}
+          <Link href="/faq" className="group inline-flex items-center gap-1.5 rounded-[10px] border border-line2 bg-row px-[22px] py-[13px] font-display text-[16.5px] font-semibold tracking-[-.01em] text-txt hover:border-line3">Read the FAQ <span className="transition-transform group-hover:translate-x-0.5">→</span></Link>
+        </Mount>
+        <Mount as="p" delay={310} className="mt-4 text-[13px] text-muted">Mac only for now. You sign in with GitHub once the app is open. No card.</Mount>
+        {pill && (
+          <Mount delay={390} className="mt-[22px] inline-flex items-center gap-2.5 rounded-full border border-line2 bg-row px-4 py-[7px]">
+            <Dot tone="go" /><span className="font-mono text-[13px] font-medium tabular-nums text-txt">{spotsLeft}</span><span className="text-[13px] text-muted">beta spots left · free until the beta ends</span>
+          </Mount>
+        )}
+        {/* desktop scene */}
+        <div className="mt-14 text-left">
+          <div className="relative mx-auto w-full max-w-[1084px] lg:aspect-[1084/660]">
+            <Reveal fx="scale" delay={100} duration={800} className="hidden lg:block lg:absolute lg:left-0 lg:top-0 lg:w-[900px]"><ConsoleWindow /></Reveal>
+            <Reveal fx="panel" delay={420} duration={700} className="mx-auto w-full max-w-[440px] lg:absolute lg:right-0 lg:top-0 lg:mx-0 [&_figure]:shadow-[0_1px_1px_rgba(60,40,20,.14),0_12px_26px_rgba(60,40,20,.18),0_44px_90px_rgba(60,40,20,.32)]"><PanelWindow className="w-full lg:w-[440px]" /></Reveal>
+          </div>
+          <Reveal as="p" delay={0} className="mt-[22px] max-w-[62ch] text-[14.5px] leading-[1.6] text-body">The panel lives in the bottom corner of your screen. Move your mouse into the corner, a small badge appears, click it and the panel opens. Move away and it&apos;s gone.</Reveal>
+          <Reveal as="p" delay={80} className="mt-3.5 max-w-[62ch] text-[14.5px] leading-[1.6] text-body">That&apos;s your side of it. Your agents don&apos;t use the panel. They read and write the same thing directly, through the plugin: who&apos;s where, what&apos;s claimed, what was decided, what&apos;s next. Everything below this is them doing that on their own.</Reveal>
+        </div>
+      </Section>
+
+      <Beat h2="Every session starts already caught up." lede="Nobody writes a status. When a session opens, DevBrain hands the agent what happened since it last looked: who's active, what got merged, what was decided, what a teammate left half-done. It's put together from what actually happened, so it's never stale." note="It can dig further on its own, too. Before an agent goes exploring the codebase, it can ask the team's memory whether anyone has dealt with this before, and get back what past sessions learned, tried, and gave up on, with a name and a date on each.">
+        <NumbersBand />
+      </Beat>
+
+      <Beat h2="It stops the second agent before it writes." lede={<>Lena&apos;s agent and Sam&apos;s agent both go for <code className="font-mono text-[14.5px] text-txt">auth.ts</code> around 9:14. Without DevBrain they find out at 4:30, from a merge conflict. With it, the second one gets stopped before it touches the file.</>} gap="mt-9">
+        <CollisionPiece />
+        <div className="mt-7"><GuardNote /></div>
+      </Beat>
+
+      <Beat h2="They stay out of each other's way on their own." lede="When an agent starts a task, it claims the files that task is likely to touch, and every other agent on the repo steers around them until the work lands. When your agent asks what's next, it gets the highest-priority task whose files nobody else is in. You never type a path." note="Claims let go by themselves. They release when the work lands and expire on a timer as a backstop, so a forgotten one never blocks anybody. Starting a bigger job, like a refactor or a migration? The agent claims the area up front with a one-line note, and everyone else's agent reads it.">
+        <SentencesBand />
+      </Beat>
+
+      <Beat h2="Run more agents than you have people." lede="One command spawns another agent on a fresh clone of the repo. It shows up as its own session, gets its own guard and its own claims, and is handed a task whose files are free. Three of your own sessions coordinate with each other exactly the way three teammates would." note="Your spawned sessions are teammates too. Each shows up on the team board under its own name, and if one of them wanders into a file another one is in, it gets the same stop as it would from Lena.">
+        <SpawnWindow />
+      </Beat>
+
+      <Beat h2="PRs merge themselves, in the right order." lede="Every open PR gets a light. Green means approved, conflict-free, and its turn. When two PRs touch the same files, the one that should land first goes green and the other one waits, so each takes a small rebase instead of one big mess at the end. Turn on auto-merge and DevBrain presses merge the moment a PR goes green, and keeps the waiting ones up to date with main." note="Every write is a branch and a PR, or the merge of a PR a person approved. Anything branch protection would block, DevBrain can't do either. Working alone? Flip one more switch and a clean PR that DevBrain's own review passed goes green, labelled as AI-reviewed so nobody mistakes it for a teammate's approval.">
+        <SwitchBand />
+      </Beat>
+
+      <Section id="start" className="scroll-mt-20 pt-14 md:pt-[72px] lg:pt-[110px]">
+        <DownloadCard spotsLeft={spotsLeft} maxTeams={maxTeams} full={full} />
+      </Section>
+    </>
+  );
+}
+
+export function SiteHeader({ current }: { current?: "faq" } = {}) {
+  return (
+    <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
+      <Section className="flex min-h-[58px] items-center gap-5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brain.png" width={26} height={21} alt="" />
+        <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
+        <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
+          {current === "faq" ? <span className="text-txt">FAQ</span> : <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>}
+          <DownloadButton size="nav" />
+        </nav>
+      </Section>
+    </header>
+  );
+}
+
+export function SiteFooter() {
+  return (
+    <Section className="pt-14">
+      <Reveal as="footer" fx="fade" duration={400} className="border-t border-line2 pt-6">
+        <div className="flex flex-wrap items-center gap-5 text-[13px] text-muted">
+          <span>DevBrain</span>
+          <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>
+          <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
+          <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
+        </div>
+        <p className="mt-5 max-w-[86ch] text-[12px] leading-[1.6] text-muted">{LEGAL.trademarks}</p>
+      </Reveal>
+    </Section>
+  );
+}
 
 export async function Landing({ nextParam, from, notice }: { nextParam?: string; from?: string; notice?: React.ReactNode }) {
+  // Kept for signature compatibility with src/app/page.tsx (the sign-in
+  // destination they used to carry); the body no longer needs them.
+  void nextParam;
+  void from;
   const beta = await loadBeta();
   const counts = beta.maxTeams !== null ? await platformCounts() : null;
   const spotsLeft = counts && beta.maxTeams !== null ? Math.max(0, beta.maxTeams - counts.teams) : null;
   const full = spotsLeft === 0;
-  const signInNext = nextParam || (from === "desk" ? "/desk" : undefined);
 
   return (
     <main className="lp min-h-screen pb-24">
+      <MotionGate />
+
       {notice && <Section className="pt-5">{notice}</Section>}
 
-      <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
-        <Section className="flex min-h-[58px] items-center gap-5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brain.png" width={26} height={21} alt="" />
-          <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
-          <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
-            <Link href="/how-it-works" className="-my-2 py-2 hover:text-txt">How it works</Link>
-            <Link href="/pricing" className="-my-2 py-2 hover:text-txt">Pricing</Link>
-          </nav>
-        </Section>
-      </header>
+      <SiteHeader />
 
-      {/* ---- the hook ---------------------------------------------------- */}
-      <Section className="pt-14 sm:pt-[70px]">
-        <h1 className="font-display text-[40px] font-medium leading-[1.0] tracking-[-.035em] text-txt text-balance sm:text-[68px]">
-          Work like you&apos;re the <span className="text-accenttext">only one</span> in the repo.
-        </h1>
-        <Lede>
-          You&apos;re not. Every agent on your team sees who is editing what, what just merged, and what
-          was decided — so nobody has to ask.
-        </Lede>
+      <LandingBody spotsLeft={spotsLeft} maxTeams={beta.maxTeams} free={beta.free} full={full} />
 
-        <div className="mt-7 flex flex-wrap items-center gap-4">
-          {full ? <EmailForm source="beta_full" className="w-full max-w-[430px]" /> : <SignInButton next={signInNext} />}
-          <span className="text-[13px] text-muted">GitHub sign-in only — no repository access at this step · no card</span>
-        </div>
-
-        {beta.free && spotsLeft !== null && !full && (
-          <div className="mt-6 inline-flex items-center gap-2.5 rounded-full border border-line2 bg-row px-4 py-[7px]">
-            <Dot tone="go" />
-            <span className="font-mono text-[13px] font-medium tabular-nums text-txt">{spotsLeft}</span>
-            <span className="text-[13px] text-muted">of {beta.maxTeams} beta places · free while it runs</span>
-          </div>
-        )}
-
-        <div className="mt-12 hidden sm:mt-14 lg:block">
-          <ConsoleWindow />
-          <p className="mt-3 font-mono text-[12px] text-muted">The Console’s Home page · synthetic team data</p>
-        </div>
-      </Section>
-
-      {/* ---- 1. the problem ---------------------------------------------- */}
-      <Section className="pt-24 sm:pt-32">
-        <H2>Your agents are working blind.</H2>
-        <Lede>Two sessions, one file. Neither one knows about the other, and you find out at the merge.</Lede>
-        <div className="mt-8 flex flex-wrap gap-5">
-          <SessionCard tone="go" name="Nova" host="Claude Code" rows={[["writing", "src/api/auth.ts"], ["branch", "feat/login"]]} />
-          <SessionCard tone="go" name="Kai" host="Cursor" rows={[["writing", "src/api/auth.ts"], ["branch", "refactor/session-guard"]]} />
-        </div>
-        <p className="mt-6 flex items-center gap-2.5 text-[14px] text-muted"><Dot tone="stop" />The same work, done twice.</p>
-      </Section>
-
-      {/* ---- 2. the fix --------------------------------------------------- */}
-      <Section className="pt-20 sm:pt-24">
-        <H2>DevBrain stops the second one.</H2>
-        <Lede>Before your agent writes to a file, it already knows whether a teammate is holding it.</Lede>
-        <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_330px]">
-          <Terminal
-            title="devbrain · pre-write hook → stdout"
-            lines={GUARD}
-            caption="Real output shape · the file, holder and note are synthetic"
-          />
-          <div className="rounded-xl border border-coralline bg-coralink px-5 py-[18px]">
-            <p className="text-[13.5px] leading-[1.6] text-body">
-              That reason is what your agent shows you. DevBrain returns the decision; your editor
-              draws the prompt and waits — so the answer is yours, not ours.
-            </p>
-            <p className="mt-3 text-[13.5px] leading-[1.6] text-body">
-              On Cursor, which only enforces a hard refusal, the write is blocked outright until you
-              reply to your agent.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-14">
-          <h3 className="font-display text-[19px] font-medium tracking-[-.02em] text-txt">Try it yourself.</h3>
-          <p className="mt-2 max-w-[52ch] text-[14px] leading-[1.6] text-muted">
-            Two of these files are being worked on right now. Pick any one and watch what your agent does.
-          </p>
-          <div className="mt-6"><TryIt /></div>
-        </div>
-      </Section>
-
-      {/* ---- 3. why it matters -------------------------------------------- */}
-      <Section className="pt-24 sm:pt-32">
-        <H2>Which means nobody has to keep track.</H2>
-        <Lede>
-          No standup to find out what changed. No message asking whether anyone is in that file. No
-          session starting from nothing because the last one ended. The coordination still happens —
-          it is simply not your job any more.
-        </Lede>
-        <div className="mt-8 grid gap-5 sm:grid-cols-3">
-          {[
-            ["Collisions stop before the write", "Not a conflict to resolve later — an edit that never happened."],
-            ["Context survives the session", "What one session learned is there for the next one, and for everyone else."],
-            ["The team stays current", "What merged, what was decided, what is claimed — carried in, automatically."],
-          ].map(([t, b]) => (
-            <div key={t} className="rounded-xl border border-line2 bg-row px-5 py-[18px]">
-              <h3 className="text-[15px] font-semibold leading-[1.35] text-txt">{t}</h3>
-              <p className="mt-2 text-[13.5px] leading-[1.6] text-muted">{b}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-7 text-[14px] text-muted">
-          <Link href="/how-it-works" className="font-medium text-accenttext hover:underline">See how it works →</Link>
-        </p>
-      </Section>
-
-      {/* ---- 4. sign up ---------------------------------------------------- */}
-      <Section id="start" className="scroll-mt-20 pt-20 sm:pt-24">
-        <div className="rounded-2xl border border-line2 bg-row px-6 py-10 sm:px-11 sm:py-12">
-          {full ? (
-            <>
-              <H2>The beta is full — get the next place.</H2>
-              <Lede>All {beta.maxTeams} places are taken. Leave an address and you will hear when one opens.</Lede>
-              <EmailForm source="beta_full" className="mt-7 max-w-[440px]" />
-            </>
-          ) : (
-            <>
-              <H2>Put it on one repo and watch what happens.</H2>
-              <Lede>
-                Sign in, link a repo, install the plugin. The next session anyone on your team starts will
-                already know about the others.
-              </Lede>
-              <div className="mt-7"><SignInButton next={signInNext} /></div>
-              <p className="mt-3 text-[13px] text-muted">
-                GitHub sign-in only — no repository access at this step{beta.free ? " · free while the beta runs" : ""}.
-              </p>
-              <div className="mt-9 border-t border-line pt-6">
-                <p className="text-[13.5px] text-muted">Not ready today? Leave an address.</p>
-                <EmailForm className="mt-4 max-w-[440px]" />
-              </div>
-            </>
-          )}
-        </div>
-      </Section>
-
-      <Section className="pt-14">
-        <footer className="border-t border-line2 pt-6">
-          <div className="flex flex-wrap items-center gap-5 text-[13px] text-muted">
-            <span>DevBrain</span>
-            <Link href="/how-it-works" className="-my-2 py-2 hover:text-txt">How it works</Link>
-            <Link href="/pricing" className="-my-2 py-2 hover:text-txt">Pricing</Link>
-            <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
-            <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
-          </div>
-          <p className="mt-5 max-w-[86ch] text-[12px] leading-[1.6] text-muted">{LEGAL.trademarks}</p>
-        </footer>
-      </Section>
+      <SiteFooter />
 
       {beta.free && spotsLeft !== null && !full && <IncentiveModal spotsLeft={spotsLeft} maxTeams={beta.maxTeams ?? 0} />}
     </main>

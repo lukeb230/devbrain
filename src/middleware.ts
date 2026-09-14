@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, LAST_REPO_COOKIE_OPTS } from "@/lib/cookies";
 import { retiredRedirect } from "@/lib/retire";
+import { siteRedirect } from "@/lib/site-redirects";
 import { browserRedirect } from "@/lib/app-only";
 
 // Refreshes the Supabase auth session cookie on every request so server
@@ -40,6 +41,16 @@ export async function middleware(request: NextRequest) {
     const [path, query] = retired.split("?");
     url.pathname = path;
     url.search = query ? `?${query}` : "";
+    const redirect = NextResponse.redirect(url, 308);
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  }
+  // Pages the site retired (How it works → FAQ, Pricing → home): permanent.
+  const site = siteRedirect(request.nextUrl.pathname);
+  if (site) {
+    const url = request.nextUrl.clone();
+    url.pathname = site;
+    url.search = "";
     const redirect = NextResponse.redirect(url, 308);
     response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
     return redirect;

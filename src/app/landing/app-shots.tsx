@@ -20,6 +20,8 @@
 // would put a real team's private work on a public page.
 // ============================================================================
 
+import { TEAM } from "./mock-team";
+
 export type Tone = "go" | "wait" | "stop" | "idle";
 const TONE: Record<Tone, string> = { go: "bg-go", wait: "bg-wait", stop: "bg-stop", idle: "bg-faint" };
 
@@ -47,7 +49,7 @@ const NAV = [
 /** The Console's Home page. Sidebar 180 · list pane 272 · reading pane. */
 export function ConsoleWindow() {
   return (
-    <figure className="lp-win bg-ink">
+    <figure className="lp-win bg-ink" role="img" aria-label="Illustration: the DevBrain Console's Home page">
       <TitleBar title="DevBrain Console" />
       <div className="grid min-h-[430px] grid-cols-[180px_272px_minmax(0,1fr)]">
         {/* sidebar */}
@@ -79,7 +81,7 @@ export function ConsoleWindow() {
           {[
             // Titles match the generators in src/lib/desk/needs-you.ts.
             { t: "stop" as Tone, h: "#133 has conflicts", s: "Auth refactor · 2m ago" },
-            { t: "wait" as Tone, h: "Handoff from Rio", s: "auth tests need the new fixture" },
+            { t: "wait" as Tone, h: "Handoff from Jonah", s: "auth tests need the new fixture" },
           ].map((r) => (
             <div key={r.h} className={`mx-2 mb-1.5 rounded-lg border-l-[3px] bg-row px-2.5 py-2 ${r.t === "stop" ? "border-l-stop" : "border-l-wait"}`}>
               <div className="text-[12.5px] font-medium leading-[1.35] text-txt">{r.h}</div>
@@ -92,9 +94,9 @@ export function ConsoleWindow() {
             <span className="font-mono text-[11px] text-accenttext">3</span>
           </div>
           {[
-            { t: "wait" as Tone, n: "Kai", s: "cursor · src/api/**", sel: true },
-            { t: "go" as Tone, n: "Rio", s: "codex · tests/**" },
-            { t: "go" as Tone, n: "Nova", s: "claude code · src/ui/**" },
+            { t: "wait" as Tone, n: "Lena", s: "cursor · src/api/**", sel: true },
+            { t: "go" as Tone, n: "Jonah", s: "codex · tests/**" },
+            { t: "go" as Tone, n: "Sam", s: "claude code · src/ui/**" },
           ].map((r) => (
             <div key={r.n} className={`mx-2 rounded-lg px-2.5 py-2 ${r.sel ? "bg-row2" : ""}`}>
               <div className="flex items-center gap-2 text-[12.5px] font-medium text-txt"><Dot tone={r.t} />{r.n}</div>
@@ -108,8 +110,8 @@ export function ConsoleWindow() {
           <div className="flex h-11 items-center gap-4 border-b border-line bg-pane px-4">
             <span className="max-w-[240px] flex-1 rounded-lg border border-line bg-ink px-2.5 py-[5px] text-[12px] text-faint">⌘K &nbsp;Jump to anything…</span>
             <span className="ml-auto flex items-center gap-2">
-              <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accenttext">L</span>
-              <span className="font-mono text-[10.5px] text-muted">lukeb230 · owner</span>
+              <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accenttext">{TEAM.you[0]}</span>
+              <span className="font-mono text-[10.5px] text-muted">{TEAM.you.toLowerCase()} · owner</span>
             </span>
           </div>
           <div className="px-7 pb-7 pt-6">
@@ -127,15 +129,15 @@ export function ConsoleWindow() {
               <div className="rounded-[11px] border border-line bg-row px-4 py-3.5">
                 <div className="text-[13px] font-semibold text-txt">Claimed areas</div>
                 <div className="mt-2 text-[12.5px] leading-[1.7] text-muted">
-                  <span className="font-mono text-[11.5px] text-txt">src/api/**</span> · Kai<br />
-                  <span className="font-mono text-[11.5px] text-txt">tests/**</span> · Rio
+                  <span className="font-mono text-[11.5px] text-txt">src/api/**</span> · Lena<br />
+                  <span className="font-mono text-[11.5px] text-txt">tests/**</span> · Jonah
                 </div>
               </div>
               <div className="rounded-[11px] border border-line bg-row px-4 py-3.5">
                 <div className="text-[13px] font-semibold text-txt">Open handoffs</div>
                 <div className="mt-2 text-[12.5px] leading-[1.7] text-muted">
                   auth fixtures<br />
-                  <span className="text-faint">from Rio · unclaimed</span>
+                  <span className="text-faint">from Jonah · unclaimed</span>
                 </div>
               </div>
             </div>
@@ -143,7 +145,7 @@ export function ConsoleWindow() {
             <div className="mt-3.5 rounded-[11px] border border-line bg-row px-4 py-3.5">
               <div className="text-[13px] font-semibold text-txt">Standup</div>
               <p className="mt-1.5 text-[12.5px] leading-[1.6] text-muted">
-                Rate limiting landed in #128. Kai is part-way through the session guard and has
+                Rate limiting landed in #128. Lena is part-way through the session guard and has
                 <span className="font-mono text-[11.5px] text-txt"> src/api/**</span> held.
               </p>
             </div>
@@ -154,46 +156,3 @@ export function ConsoleWindow() {
   );
 }
 
-/** A session as DevBrain holds it. Deliberately NOT framed as the panel:
- *  this is a data card, not a recreation of a surface, because the panel's
- *  real layout (Needs you / Now working) is not what these two show. */
-export function SessionCard({ tone, name, host, rows }: { tone: Tone; name: string; host: string; rows: [string, string][] }) {
-  return (
-    <div className="w-full max-w-[320px] rounded-xl border border-line2 bg-row px-4 py-3.5">
-      <div className="flex items-center gap-2 text-[13px] font-semibold text-txt">
-        <Dot tone={tone} />{name}
-        <span className="ml-auto font-mono text-[10px] uppercase tracking-[.09em] text-muted">{host}</span>
-      </div>
-      {rows.map(([k, v]) => (
-        <div key={k} className="mt-2">
-          <div className="text-[12px] text-muted">{k}</div>
-          <div className="mt-0.5 font-mono text-[12px] text-txt">{v}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Pull requests with traffic lights and computed merge order. */
-export function PrWindow() {
-  return (
-    <figure className="lp-win bg-ink">
-      <TitleBar title="Pull requests" />
-      <div className="px-4 py-3">
-        {[
-          // Reasons verbatim from src/lib/traffic.ts.
-          { t: "go" as Tone, n: "#128", title: "Rate limiting", w: "cleared to land — press merge" },
-          { t: "wait" as Tone, n: "#131", title: "Session guard", w: "waiting on a teammate's review" },
-          { t: "stop" as Tone, n: "#133", title: "Auth refactor", w: "conflicts with main — resolve before merging" },
-        ].map((p) => (
-          <div key={p.n} className="flex items-center gap-2.5 border-b border-line py-2.5 text-[12.5px] text-txt last:border-b-0">
-            <Dot tone={p.t} />
-            <span className="w-11 font-mono text-[11.5px] text-muted">{p.n}</span>
-            <span>{p.title}</span>
-            <span className="ml-auto truncate pl-3 text-[11.5px] text-muted">{p.w}</span>
-          </div>
-        ))}
-      </div>
-    </figure>
-  );
-}

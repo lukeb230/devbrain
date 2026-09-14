@@ -130,12 +130,12 @@ export function IncentiveModal({ spotsLeft, maxTeams }: { spotsLeft: number; max
           Take one of them before you go.
         </h2>
         <p className="mt-3 text-[14.5px] leading-[1.6] text-body">
-          DevBrain is free while the beta runs — no card, nothing to cancel, and you keep your place
+          DevBrain is free while the beta runs, no card, nothing to cancel, and you keep your place
           when it ends. Put it on one repo and see whether the collisions stop.
         </p>
 
         <div className="mt-6">
-          <EmailForm label="Where should I send your invite?" />
+          <EmailForm label="Where should we send your invite?" />
         </div>
         <p className="mt-3 text-[12.5px] text-muted">
           One email, when there is something to say. No sequence, no newsletter.

@@ -10,7 +10,7 @@
 # ============================================================================
 set -eu
 TA="${1:?tokenA}"; RA="${2:?repoA owner/name}"; TB="${3:?tokenB}"; RB="${4:?repoB owner/name}"
-SERVER="${5:-https://devbrain-seven.vercel.app}"
+SERVER="${5:-https://getdevbrain.com}"
 pass=0; fail=0
 
 hit() { # method path token body → prints the HTTP status

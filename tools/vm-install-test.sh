@@ -24,7 +24,7 @@ set -eu
 TOKEN="${1:?usage: vm-install-test.sh <dev-token> [beta|stable] [vm]}"
 CH="${2:-beta}"
 VM="${3:-devbrain-run}"
-SERVER="${DEVBRAIN_SERVER:-https://devbrain-seven.vercel.app}"
+SERVER="${DEVBRAIN_SERVER:-https://getdevbrain.com}"
 REPO="lukeb230/devbrain"
 if [ "$CH" = "beta" ]; then APP="DevBrain Beta"; CMD="devbrain-beta"; DIR=".devbrain-beta"; ASSET="DevBrain-Beta.dmg"; PLUGIN="plugin-beta"
 else APP="DevBrain"; CMD="devbrain"; DIR=".devbrain"; ASSET="DevBrain.dmg"; PLUGIN="plugin"; fi

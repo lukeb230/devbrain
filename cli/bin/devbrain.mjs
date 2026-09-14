@@ -47,7 +47,7 @@ import { HOST_NAMES, mergeAgentsMd, mergeCodexConfig, mergeCodexHooks, mergeCurs
 // The repo everything is installed from. When the repo goes private this is
 // the one place the updater needs credentials — see docs/PRIVATE-REPO.md.
 const SOURCE_REPO = "lukeb230/devbrain";
-const DEFAULT_SERVER = "https://devbrain-seven.vercel.app";
+const DEFAULT_SERVER = "https://getdevbrain.com";
 const MARKETPLACE = "devbrain";
 
 const HOME = homedir();

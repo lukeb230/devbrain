@@ -3,7 +3,7 @@
   "description": "The panel and the Desk load the DevBrain web app remotely; grant them the app commands they call (notifications, setup, opening the Desk).",
   "remote": {
     "urls": [
-      "https://devbrain-seven.vercel.app"
+      "https://getdevbrain.com"
     ]
   },
   "windows": [

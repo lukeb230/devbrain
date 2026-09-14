@@ -16,7 +16,7 @@ fn main() {
         .ok()
         .map(|s| s.trim().trim_end_matches('/').to_string())
         .filter(|s| !s.is_empty()) // an empty var (CI default, build-channel.sh) means "default"
-        .unwrap_or_else(|| "https://devbrain-seven.vercel.app".into());
+        .unwrap_or_else(|| "https://getdevbrain.com".into());
     let remote = std::fs::read_to_string("capabilities/remote.json").expect("capabilities/remote.json");
     assert!(
         remote.contains(&format!("\"{site}\"")),

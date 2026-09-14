@@ -13,7 +13,7 @@ import { patchFromSubscription } from "@/lib/billing/sync";
 // app window (Stripe never loads inside the Console) or an error string.
 // ============================================================================
 
-const site = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://devbrain-seven.vercel.app").replace(/\/$/, "");
+const site = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://getdevbrain.com").replace(/\/$/, "");
 /** Back into the app on the exact route after Stripe. */
 const back = (route: string) => `${site()}/open?to=${encodeURIComponent(route)}`;
 

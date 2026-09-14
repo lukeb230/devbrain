@@ -6,7 +6,7 @@ const DESCRIPTION =
   "Your coding agents have no idea what your team is doing. DevBrain gives every agent live presence, collision warnings and shared memory, Claude Code, Cursor and Codex, on any GitHub repo.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://devbrain-seven.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://getdevbrain.com"),
   title: { default: "DevBrain: shared awareness for teams running coding agents", template: "%s · DevBrain" },
   description: DESCRIPTION,
   openGraph: {

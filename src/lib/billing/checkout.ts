@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { PLANS, TRIAL_DAYS, type PlanId } from "./plans";
 import { customerFor, lineItemsFor, stripe, stripeConfigured, stripeIds } from "./stripe";
 
-export const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://devbrain-seven.vercel.app").replace(/\/$/, "");
+export const SITE = () => (process.env.NEXT_PUBLIC_SITE_URL || "https://getdevbrain.com").replace(/\/$/, "");
 
 export type CheckoutOutcome = { url: string } | { error: string };
 

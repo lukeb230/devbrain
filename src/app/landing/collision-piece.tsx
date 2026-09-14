@@ -22,11 +22,11 @@ export function CollisionPiece({ team = TEAM }: { team?: typeof TEAM }) {
       <Reveal fx="fade" amount={0.3} duration={400} className="relative h-[260px] overflow-hidden rounded-xl border border-line2 bg-ink lg:h-[360px]">
         <span className="absolute left-7 top-[22px] font-mono text-[12px] text-muted">src/api/auth.ts · 09:14</span>
         <Reveal as="span" fx="file" delay={100} duration={700} className="absolute left-6 top-[80px] font-mono text-[72px] tracking-[-.045em] text-txt lg:left-16 lg:top-[112px] lg:text-[128px]">auth.ts</Reveal>
-        <Reveal fx="cursor-l" delay={350} className="absolute left-[104px] top-[70px]">
+        <Reveal fx="cursor-l" delay={350} className="lp-cursor-lena absolute left-[104px] top-[70px]">
           <Cursor fill="var(--wg-wait)" />
           <span className="absolute left-[22px] top-[26px] whitespace-nowrap rounded-md bg-wait px-2 py-[3px] font-mono text-[10.5px] text-white">{team.cursor} · Cursor</span>
         </Reveal>
-        <Reveal fx="cursor-r" delay={500} className="absolute left-[430px] top-[242px] hidden lg:block">
+        <Reveal fx="cursor-r" delay={500} className="lp-cursor-sam absolute left-[430px] top-[242px] hidden lg:block">
           <Cursor fill="var(--wg-accent-strong)" />
           <span className="absolute left-[22px] top-[26px] whitespace-nowrap rounded-md bg-accent2 px-2 py-[3px] font-mono text-[10.5px] text-white">{team.you} · Claude Code</span>
         </Reveal>

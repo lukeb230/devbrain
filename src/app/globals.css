@@ -228,3 +228,25 @@ html.lp-js .lp-toggle:not([data-in]) i{transform:translateX(0)}
   html.lp-js .lp-toggle:not([data-in]){background:var(--wg-go)}
   html.lp-js .lp-toggle:not([data-in]) i{transform:translateX(28px)}
 }
+
+/* The two cursors in the collision piece. After they reveal, Lena's drifts
+   in a small loop over the filename (she is editing), Sam's creeps toward it
+   and hesitates (he is about to). Transform only; off under reduced motion. */
+@keyframes lp-wander-a{
+  0%{transform:translate(0,0)}
+  25%{transform:translate(14px,-6px)}
+  50%{transform:translate(6px,10px)}
+  75%{transform:translate(-10px,4px)}
+  100%{transform:translate(0,0)}
+}
+@keyframes lp-wander-b{
+  0%{transform:translate(0,0)}
+  40%{transform:translate(-26px,-18px)}
+  55%{transform:translate(-22px,-14px)}
+  100%{transform:translate(0,0)}
+}
+html.lp-js .lp-cursor-lena[data-in]{animation:lp-wander-a 7s ease-in-out 1s infinite}
+html.lp-js .lp-cursor-sam[data-in]{animation:lp-wander-b 5s ease-in-out 1.6s infinite}
+@media (prefers-reduced-motion: reduce){
+  html.lp-js .lp-cursor-lena[data-in],html.lp-js .lp-cursor-sam[data-in]{animation:none}
+}

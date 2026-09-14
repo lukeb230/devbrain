@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import robots from "@/app/robots";
 import sitemap, { SITE_PAGES, SITE_URL } from "@/app/sitemap";
 import { metadata } from "@/app/layout";
+import { wwwRedirect } from "@/lib/site-redirects";
 
 describe("site metadata", () => {
   it("lists exactly the public pages in the sitemap, on the canonical host", () => {
@@ -24,5 +25,15 @@ describe("site metadata", () => {
   it("every page gets a canonical of its own path", () => {
     expect(metadata.alternates?.canonical).toBe("./");
     expect(String(metadata.metadataBase)).toBe(`${SITE_URL}/`);
+  });
+  it("www redirects to the apex host and keeps the path and query", () => {
+    const site = "https://getdevbrain.com";
+    const u = (s: string) => new URL(s);
+    expect(wwwRedirect("www.getdevbrain.com", u("https://www.getdevbrain.com/faq?x=1"), site)).toBe("https://getdevbrain.com/faq?x=1");
+    expect(wwwRedirect("www.getdevbrain.com:443", u("https://www.getdevbrain.com/"), site)).toBe("https://getdevbrain.com/");
+    expect(wwwRedirect("getdevbrain.com", u("https://getdevbrain.com/faq"), site)).toBeNull();
+    expect(wwwRedirect("devbrain-seven.vercel.app", u("https://devbrain-seven.vercel.app/"), site)).toBeNull();
+    expect(wwwRedirect("www.example.com", u("https://www.example.com/"), site)).toBeNull();
+    expect(wwwRedirect(null, u("https://www.getdevbrain.com/"), site)).toBeNull();
   });
 });

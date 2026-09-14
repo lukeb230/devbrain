@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, LAST_REPO_COOKIE_OPTS } from "@/lib/cookies";
 import { retiredRedirect } from "@/lib/retire";
-import { siteRedirect } from "@/lib/site-redirects";
+import { siteRedirect, wwwRedirect } from "@/lib/site-redirects";
 import { browserRedirect } from "@/lib/app-only";
 
 // Refreshes the Supabase auth session cookie on every request so server
@@ -10,6 +10,10 @@ import { browserRedirect } from "@/lib/app-only";
 // excluded — they authenticate by signature, bearer token or cron secret,
 // not cookies (so the 2-minute tick never pays for a session refresh).
 export async function middleware(request: NextRequest) {
+  // www → apex before anything else, so the redirect costs no session refresh.
+  const www = wwwRedirect(request.headers.get("host"), request.nextUrl);
+  if (www) return NextResponse.redirect(www, 308);
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

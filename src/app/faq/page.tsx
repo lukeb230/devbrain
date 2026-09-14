@@ -5,6 +5,7 @@ import { BrowserShell } from "@/app/browser-shell";
 import { DownloadCard } from "@/app/landing/download-card";
 import { MotionGate, Mount, Reveal } from "@/app/landing/reveal";
 import { SiteFooter, SiteHeader } from "@/app/landing/landing";
+import { siteDisplay } from "@/app/fonts";
 import { FAQ_ITEMS } from "./faq-items";
 
 export const metadata: Metadata = { title: "FAQ", description: "The questions people ask before they download DevBrain." };
@@ -25,7 +26,7 @@ export default async function FaqPage() {
   ));
   return (
     <BrowserShell>
-      <main className="lp min-h-screen pb-24">
+      <main className={`lp ${siteDisplay.variable} min-h-screen pb-24`}>
         <MotionGate />
         <SiteHeader current="faq" />
         <section className="mx-auto w-full max-w-[1140px] px-6 pt-14 sm:px-8 sm:pt-[70px]">

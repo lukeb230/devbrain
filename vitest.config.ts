@@ -12,6 +12,13 @@ export default defineConfig({
     environment: "node",
   },
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      // next/font/google only has real exports inside Next's own build (its
+      // compiler swaps each call for a generated CSS module); site-copy.test.tsx
+      // renders src/app/landing/landing.tsx, which now imports src/app/fonts.ts
+      // for siteDisplay, so tests need a callable stand-in. See the mock file.
+      "next/font/google": fileURLToPath(new URL("./src/test/next-font-google.mock.ts", import.meta.url)),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
   },
 });

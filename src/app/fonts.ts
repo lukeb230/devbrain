@@ -8,5 +8,5 @@ export const body = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "
 export const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono", display: "swap" });
 // The marketing site's own display face (chosen 2026-09-13, option C from the
 // tryout), scoped to `.lp` in globals.css so the app keeps Bricolage.
-export const siteDisplay = Instrument_Sans({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-site-display", display: "swap" });
-export const FONT_VARS = `${display.variable} ${body.variable} ${mono.variable} ${siteDisplay.variable}`;
+export const siteDisplay = Instrument_Sans({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-site-display", display: "swap" });
+export const FONT_VARS = `${display.variable} ${body.variable} ${mono.variable}`;

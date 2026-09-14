@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { siteDisplay } from "@/app/fonts";
 import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
 import { ConsoleWindow, Dot } from "./app-shots";
@@ -149,7 +150,7 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
   const full = spotsLeft === 0;
 
   return (
-    <main className="lp min-h-screen pb-24">
+    <main className={`lp ${siteDisplay.variable} min-h-screen pb-24`}>
       <MotionGate />
 
       {notice && <Section className="pt-5">{notice}</Section>}

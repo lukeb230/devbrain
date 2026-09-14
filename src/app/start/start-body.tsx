@@ -6,7 +6,7 @@ import { siteDisplay } from "@/app/fonts";
 import { AutoDownload } from "./auto-download";
 
 export const START_STEPS = [
-  { title: "Open the DMG", body: "It is in your Downloads folder, named DevBrain.dmg. If the download did not start, use the button below." },
+  { title: "Open the DMG", body: "It is in your Downloads folder, named DevBrain.dmg. Safari asks once whether to allow downloads from getdevbrain.com. Allow it. If the download still did not start, use the button below." },
   { title: "Drag DevBrain into Applications", body: "Then eject the DMG. You can delete it afterwards." },
   { title: "Open DevBrain from Applications", body: "It lives in the menu bar and has no Dock icon. The panel opens from the bottom corner of the screen when your mouse reaches it." },
   { title: "Sign in with GitHub", body: "The panel opens a browser tab for sign-in and hands you straight back to the app. Signing in does not give DevBrain access to any code." },

@@ -69,7 +69,8 @@ export async function revokeToken(formData: FormData): Promise<void> {
     .from("dev_tokens")
     .update({ revoked_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("user_id", member.userId); // can only revoke your own
+    .eq("user_id", member.userId) // can only revoke your own
+    .eq("org_id", member.orgId); // and only in the team you are looking at
   revalidatePath("/settings/tokens");
   revalidatePath("/desk", "layout");
 }

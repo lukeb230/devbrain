@@ -37,7 +37,7 @@ export default async function DeskTokens() {
   if (!org) redirect("/welcome");
 
   const [{ data: tokens }] = await Promise.all([
-    supabase.from("dev_tokens").select("id, label, created_at, revoked_at, last_used_at, parent_token_id").order("created_at", { ascending: false })
+    supabase.from("dev_tokens").select("id, label, created_at, revoked_at, last_used_at, parent_token_id").eq("org_id", org.orgId).order("created_at", { ascending: false })
   ]);
   const live = (tokens ?? []).filter((t) => !t.revoked_at);
   const roots = live.filter((t) => !t.parent_token_id);

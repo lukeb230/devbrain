@@ -37,7 +37,7 @@ export default async function DeskMac() {
     admin.from("system_state").select("value, updated_at").eq("key", "last_tick").maybeSingle(),
     admin.from("linked_repos").select("id, full_name, installation_id").eq("org_id", org.orgId).is("unlinked_at", null),
     admin.from("policies").select("repo_id, enabled").eq("org_id", org.orgId).eq("rule", "journals"),
-    supabase.from("dev_tokens").select("id, label, last_used_at").is("revoked_at", null),
+    supabase.from("dev_tokens").select("id, label, last_used_at").eq("org_id", org.orgId).is("revoked_at", null),
     admin.from("alert_log").select("id", { count: "exact", head: true }).is("org_id", null).is("resolved_at", null),
     admin.from("alert_log").select("id", { count: "exact", head: true }).eq("org_id", org.orgId).is("resolved_at", null),
     operatorOrgId()

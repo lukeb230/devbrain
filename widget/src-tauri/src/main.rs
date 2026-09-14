@@ -169,6 +169,34 @@ fn work_area(app: &AppHandle) -> (f64, f64, f64, f64) {
     }
 }
 
+/// The work area of the display the Desk was last on, so a window parked on a
+/// second monitor is fitted to that monitor, not dragged to the primary. Picks
+/// the monitor whose work area contains the remembered window's centre point;
+/// falls back to the primary display's work area when nothing is remembered,
+/// no monitor matches (the display was unplugged), or the display API fails.
+/// All in logical points, like `work_area`.
+fn work_area_for(app: &AppHandle, want: Option<Bounds>) -> (f64, f64, f64, f64) {
+    if let Some(b) = want {
+        let (cx, cy) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
+        if let Ok(monitors) = app.available_monitors() {
+            for m in monitors {
+                let s = m.scale_factor();
+                let wa = m.work_area();
+                let pos = wa.position.to_logical::<f64>(s);
+                let size = wa.size.to_logical::<f64>(s);
+                if cx >= pos.x
+                    && cx < pos.x + size.width
+                    && cy >= pos.y
+                    && cy < pos.y + size.height
+                {
+                    return (pos.x, pos.y, size.width, size.height);
+                }
+            }
+        }
+    }
+    work_area(app)
+}
+
 /// Size and place the Desk so it sits inside the work area (the screen minus
 /// the menu bar and the Dock). Remembered bounds from a bigger display, or the
 /// 1180×760 default on a small one, otherwise leave the bottom of the window
@@ -416,7 +444,7 @@ pub fn show_desk(app: AppHandle, route: Option<String>) {
 pub fn raise_desk(app: AppHandle) {
     let Some(desk) = app.get_webview_window("desk") else { return };
     if let Some(b) = *app.state::<State>().desk.lock().unwrap() {
-        let fit = fit_desk(Some(b), work_area(&app));
+        let fit = fit_desk(Some(b), work_area_for(&app, Some(b)));
         let _ = desk.set_size(LogicalSize::new(fit.w, fit.h));
         let _ = desk.set_position(LogicalPosition::new(fit.x, fit.y));
     }
@@ -677,7 +705,7 @@ fn main() {
             // the panel, scoped to /desk. Loads /desk at launch (hidden) so
             // the first open is instant and in-page navigation always works.
             let desk_nav = app.handle().clone();
-            let desk_fit = fit_desk(settings.desk, work_area(app.handle()));
+            let desk_fit = fit_desk(settings.desk, work_area_for(app.handle(), settings.desk));
             let desk = WebviewWindowBuilder::new(app, "desk", WebviewUrl::External(site_desk(None).parse().unwrap()))
                 .on_navigation(move |url| {
                     let host = url.host_str().unwrap_or("");
@@ -922,5 +950,18 @@ mod desk_fit_tests {
         let b = fit_desk(None, (0.0, 25.0, 800.0, 500.0));
         assert_eq!((b.w, b.h), (DESK_MIN_W, DESK_MIN_H));
         assert_eq!((b.x, b.y), (0.0, 25.0));
+    }
+
+    #[test]
+    fn a_window_hanging_off_the_right_and_bottom_is_slid_back_in() {
+        let b = fit_desk(Some(Bounds { x: 1000.0, y: 600.0, w: 900.0, h: 600.0 }), SMALL);
+        assert_eq!((b.x, b.y, b.w, b.h), (124.0, 98.0, 900.0, 600.0));
+    }
+
+    #[test]
+    fn a_display_left_of_the_primary_centres_at_negative_x() {
+        let b = fit_desk(None, (-1920.0, 25.0, 1920.0, 1055.0));
+        assert_eq!((b.w, b.h), (DESK_W, DESK_H));
+        assert_eq!((b.x, b.y), (-1550.0, 172.5));
     }
 }

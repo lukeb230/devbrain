@@ -394,6 +394,25 @@ function openExternal(e: React.MouseEvent, url: string) {
 export function WidgetApp({ data }: { data: WidgetData }) {
   const [tab, setTab] = useState<Tab>("Home");
   const [menu, setMenu] = useState(false);
+  // Which screen corner the widget sits in ("bl" | "br"). The Console button
+  // rides the panel's inner top corner — the side facing the middle of the
+  // screen — so a right-corner widget shows it top-left, a left-corner widget
+  // top-right. Read once from the shell and follow the tray's live changes.
+  const [corner, setCorner] = useState<"bl" | "br">("br");
+  useEffect(() => {
+    const t = (window as unknown as {
+      __TAURI__?: {
+        core?: { invoke: (c: string) => Promise<unknown> };
+        event?: { listen: (e: string, cb: (ev: { payload: unknown }) => void) => Promise<() => void> };
+      };
+    }).__TAURI__;
+    if (!t?.core) return; // plain browser — keep the default
+    const take = (c: unknown) => { if (c === "bl" || c === "br") setCorner(c); };
+    void t.core.invoke("get_corner").then(take).catch(() => {});
+    let un: (() => void) | undefined;
+    void t.event?.listen("corner-changed", (ev) => take(ev.payload)).then((u) => { un = u; }).catch(() => {});
+    return () => un?.();
+  }, []);
   // First-run: inside the desktop app with no ~/.devbrain/config.json yet.
   const [setup, setSetup] = useState<SetupState | null>(null);
   useEffect(() => {
@@ -457,6 +476,24 @@ export function WidgetApp({ data }: { data: WidgetData }) {
   const peopleLastHour = new Set(data.activity.filter((a) => new Date(a.at).getTime() > hourAgo).map((a) => a.dev_label ?? "")).size;
   const repoQ = data.lastRepo ? `?repo=${data.lastRepo.id}` : "";
   const desk = (e: React.MouseEvent, route: string) => openDesk(e, route, `/desk${route}`);
+  // The panel's one door to the full app — a quiet icon in the tab row's inner
+  // corner, replacing the old full-width "Open the Console" bar.
+  const consoleButton = (
+    <a
+      href={`/desk${repoQ}`}
+      target="_blank"
+      onClick={(e) => desk(e, `/${repoQ}`)}
+      title="Open the Console"
+      aria-label="Open the Console"
+      className="flex flex-shrink-0 items-center self-center rounded-md px-1.5 py-1 text-muted transition-colors hover:bg-row2 hover:text-accent"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M15 3h6v6" />
+        <path d="M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </svg>
+    </a>
+  );
   const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 
   // The dispatcher's pick for you — the same rule Claude gets in its context.
@@ -575,8 +612,10 @@ export function WidgetApp({ data }: { data: WidgetData }) {
         )}
       </div>
 
-      {/* Tabs under the header */}
-      <div className="flex flex-shrink-0 border-b border-line bg-row px-2.5">
+      {/* Tabs under the header. The Console button rides the inner corner:
+          left when the widget is bottom-right, right when bottom-left. */}
+      <div className="flex flex-shrink-0 items-center border-b border-line bg-row px-2.5">
+        {corner === "br" && consoleButton}
         {TABS.map((t) => {
           const active = tab === t;
           const attention = t === "PRs" ? data.conflicted > 0 : t === "Tasks" ? open.some((x) => x.priority === 1 && !x.started_by && (!x.assigned_to || isMe(x.assigned_to))) : false;
@@ -587,6 +626,7 @@ export function WidgetApp({ data }: { data: WidgetData }) {
             </button>
           );
         })}
+        {corner === "bl" && consoleButton}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
@@ -703,9 +743,6 @@ export function WidgetApp({ data }: { data: WidgetData }) {
               </>
             )}
 
-            <a href={`/desk${repoQ}`} target="_blank" onClick={(e) => desk(e, `/${repoQ}`)} className="mt-[18px] flex items-center gap-2 rounded-[10px] border border-line2 px-3.5 py-2.5 font-display text-[12.5px] font-semibold text-accent hover:border-line3">
-              Open the Console <span className="ml-auto font-mono text-[10px] font-normal text-faint">board · PRs · brain · feed · team</span>→
-            </a>
           </>
         )}
 

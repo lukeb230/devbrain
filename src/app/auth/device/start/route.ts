@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { publicLimit } from "@/lib/api-guard";
 import { clientIp } from "@/lib/client-ip";
-import { CHANNEL_COOKIE_OPTS, COOKIE, NEXT_COOKIE_OPTS } from "@/lib/cookies";
+import { CHANNEL_COOKIE_OPTS, COOKIE } from "@/lib/cookies";
 import { supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 import { hashToken } from "@/lib/token";
 
@@ -10,10 +10,11 @@ import { hashToken } from "@/lib/token";
 // Desktop sign-in, step 1 — opened in the user's NORMAL browser by the app.
 //   GET /auth/device/start?channel=stable|beta
 // Not signed in here yet → bounce through the usual GitHub sign-in with
-// next= pointing back at this URL. Signed in → mint a one-time device token
-// and hand it to the app through its custom URL scheme. Renders a tiny page
-// that both auto-redirects and offers a click (macOS sometimes needs the
-// click for custom schemes) plus a "close this tab" note.
+// next= pointing back at this URL. Signed in (with or without a team) → mint
+// a one-time device token and hand it to the app; the app's own window shows
+// the team step if there is none yet. Renders a tiny page that both
+// auto-redirects and offers a click (macOS sometimes needs the click for
+// custom schemes) plus a "close this tab" note.
 // ============================================================================
 
 const SCHEME: Record<string, string> = { stable: "devbrain", beta: "devbrain-beta" };
@@ -39,16 +40,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${url.origin}/?from=${surface}&next=${encodeURIComponent(self)}`);
   }
 
-  // Signed in but on no team yet: create/join one first (full-size, in the
-  // browser), then come back here — the cookie remembers this destination.
   const admin = supabaseAdmin();
-  const { count } = await admin.from("org_members").select("org_id", { count: "exact", head: true }).eq("user_id", user.id);
-  if (!count) {
-    const res = NextResponse.redirect(`${url.origin}/welcome`);
-    res.cookies.set(COOKIE.next, self, NEXT_COOKIE_OPTS);
-    return res;
-  }
-
   const token = "dbd_" + randomBytes(24).toString("hex");
   const { error } = await admin.from("device_logins").insert({
     user_id: user.id,

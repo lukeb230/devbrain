@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/api-guard";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { ingestLimiter } from "@/lib/ratelimit";
+import { openSession } from "@/lib/session-open";
 
 // ============================================================================
 // Presence ingest — called by Claude Code hooks + git hooks via the CLI.
@@ -56,20 +57,16 @@ export async function POST(request: Request) {
   const kind = body.kind ?? "activity";
 
   if (kind === "session_start") {
-    const { data: session } = await admin
-      .from("sessions")
-      .insert({
-        org_id: repo.org_id,
-        repo_id: repo.id,
-        user_id: auth.user_id,
-        dev_label: auth.label,
-        branch: cap(body.branch, 200),
-        summary: cap(body.summary, 200),
-        agent_kind: cap(body.agent, 40) ?? "claude-code",
-      })
-      .select("id")
-      .single();
-    return NextResponse.json({ ok: true, session_id: session?.id });
+    const session_id = await openSession(admin, {
+      org_id: repo.org_id,
+      repo_id: repo.id,
+      user_id: auth.user_id,
+      dev_label: auth.label,
+      branch: cap(body.branch, 200),
+      summary: cap(body.summary, 200),
+      agent_kind: cap(body.agent, 40) ?? "claude-code",
+    });
+    return NextResponse.json({ ok: true, session_id });
   }
 
   if (kind === "session_update") {

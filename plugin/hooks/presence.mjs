@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSyn
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { devbrainHome, httpHint, loadConfig } from "./home.mjs";
-import { detectHost, editedFile, emitContext, git as gitIn, markPrompt, readInput, relative, repoFromRemote, sessionKey, workdir } from "./host.mjs";
+import { detectHost, editedFile, emitContext, endsOwnSession, git as gitIn, markPrompt, readInput, relative, repoFromRemote, sessionKey, workdir } from "./host.mjs";
 import { fileURLToPath } from "node:url";
 import { buildExcerpt } from "./journal-extract.mjs";
 
@@ -242,8 +242,9 @@ async function main() {
   }
 
   if (kind === "session_end") {
-    if (session_id) await post({ kind: "session_end", repo, session_id });
-    queueJournal({ cfg, repo, session_id, hookInput });
+    const mine = endsOwnSession(sessionFile + ".convo", sessionKey(hookInput));
+    if (session_id && mine) await post({ kind: "session_end", repo, session_id });
+    queueJournal({ cfg, repo, session_id: mine ? session_id : undefined, hookInput });
     process.exit(0);
   }
 

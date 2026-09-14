@@ -116,6 +116,14 @@ export function sessionKey(input) {
   return String(input?.session_id || input?.conversation_id || "unknown");
 }
 
+/** True when the conversation ending now is the one the sidecar tracks. A
+ *  sidecar with no record (a session that predates the hooks) counts as ours.
+ *  A chat closed after a newer one opened was already superseded by that
+ *  start server-side; ending "the current id" would close the live chat. */
+export function endsOwnSession(convoFile, convo) {
+  try { return readFileSync(convoFile, "utf8").trim() === convo; } catch { return true; }
+}
+
 /** Print team context so the host injects it at session start. */
 export function emitContext(host, text) {
   if (host === "cursor") process.stdout.write(JSON.stringify({ additional_context: text }));

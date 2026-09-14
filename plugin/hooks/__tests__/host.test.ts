@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { detectHost, editedFile, hostLabel, isEditTool, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
+import { detectHost, editedFile, endsOwnSession, hostLabel, isEditTool, normalizeHost, relative, sessionKey, workdir } from "../host.mjs";
 
 describe("detectHost", () => {
   it("prefers the --host flag, then the env, then the payload shape", () => {
@@ -78,5 +80,15 @@ describe("the plugin never assumes Node is on PATH", () => {
     };
     expect(manifest.mcpServers.devbrain.command).toBe("sh");
     expect(manifest.mcpServers.devbrain.args[0]).toContain("node.sh");
+  });
+});
+
+describe("endsOwnSession", () => {
+  it("only the conversation the sidecar tracks ends the session", () => {
+    const f = join(mkdtempSync(join(tmpdir(), "dbk-")), "session-acme_app.convo");
+    expect(endsOwnSession(f, "c1")).toBe(true); // no record (pre-hooks session) → ours
+    writeFileSync(f, "c1\n");
+    expect(endsOwnSession(f, "c1")).toBe(true);
+    expect(endsOwnSession(f, "c2")).toBe(false);
   });
 });

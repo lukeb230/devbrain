@@ -35,5 +35,7 @@ describe("site metadata", () => {
     expect(wwwRedirect("devbrain-seven.vercel.app", u("https://devbrain-seven.vercel.app/"), site)).toBeNull();
     expect(wwwRedirect("www.example.com", u("https://www.example.com/"), site)).toBeNull();
     expect(wwwRedirect(null, u("https://www.getdevbrain.com/"), site)).toBeNull();
+    expect(wwwRedirect("www.getdevbrain.com", u("http://localhost:3123/faq?x=1"), site)).toBe("https://getdevbrain.com/faq?x=1");
+    expect(wwwRedirect("www.example.com:8443", u("https://www.example.com:8443/a"), "https://example.com:8443")).toBe("https://example.com:8443/a");
   });
 });

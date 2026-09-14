@@ -11,11 +11,13 @@ export function siteRedirect(pathname: string): string | null {
 // site host is folded; previews and the old vercel.app host are left alone.
 export function wwwRedirect(host: string | null, url: URL, siteUrl = SITE_URL): string | null {
   if (!host) return null;
-  const apex = new URL(siteUrl).host;
+  const site = new URL(siteUrl);
+  const apex = site.host; // may include a port, e.g. for local/dev site URLs
   const bare = host.replace(/:\d+$/, "").toLowerCase();
-  if (bare !== `www.${apex}`) return null;
+  if (bare !== `www.${site.hostname}`) return null;
   const target = new URL(url.toString());
-  target.host = apex;
   target.protocol = "https:";
+  target.port = "";
+  target.host = apex;
   return target.toString();
 }

@@ -942,7 +942,6 @@ if (cmd === "doctor") {
     const others = detectHosts();
     if (others.length) note("claude CLI", `not installed — ${others.join(" + ")} wired instead (install Claude Code and re-run to add it)`);
     else bad("agent host", `none found — install Claude Code, Cursor or Codex, then run: ${CH.cmd} update`);
-    if (existsSync(CODEX_DIR)) note("codex hooks", "run only after you approve them once in an interactive codex session (codex exec needs --dangerously-bypass-hook-trust); for codex exec, pass --approve-for-me so DevBrain's tools can run");
   }
   else {
     const m = pl.stdout.match(new RegExp(`${CH.plugin}@${MARKETPLACE}\\s+Version:\\s*(\\S+)`));
@@ -951,6 +950,7 @@ if (cmd === "doctor") {
     else if (m[1] === want) ok("plugin", `${m[1]}`);
     else bad("plugin", `${m[1]} installed, ${want} on main — run: ${CH.cmd} update, then restart Claude`);
   }
+  if (existsSync(CODEX_DIR)) note("codex hooks", "run only after you approve them once in an interactive codex session (codex exec needs --dangerously-bypass-hook-trust); for codex exec, pass --approve-for-me so DevBrain's tools can run");
 
   const running = runningApp();
   if (cfg?.reminders === true) {

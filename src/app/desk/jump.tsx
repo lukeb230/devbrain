@@ -45,6 +45,8 @@ export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
   const [cursor, setCursor] = useState(0);
   const [index, setIndex] = useState<Index | null>(null);
   const [loading, setLoading] = useState(false);
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const switching = useRef(false); // a ref, not state: the hits memo closes over it
   const input = useRef<HTMLInputElement | null>(null);
   const list = useRef<HTMLDivElement | null>(null);
   const qp = params.get("repo");
@@ -55,6 +57,7 @@ export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
   const show = useCallback(() => {
     setOpen(true);
     setLoading(true);
+    setSwitchFailed(false);
     const get = (part: string) => fetch(`/api/desk/jump?repo=${encodeURIComponent(repo)}&part=${part}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     // Tasks and PRs are one query each; the brain's note titles can mean a
     // GitHub round-trip, so they arrive second and never hold up the list.
@@ -73,6 +76,18 @@ export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
   useEffect(() => { if (open) setTimeout(() => input.current?.focus(), 0); }, [open]);
 
   const go = (path: string) => { close(); router.push(path); };
+  // Teams: the palette stays open until the switch is known to have worked, so
+  // a failure has somewhere to be said. Full load on success — nothing pending
+  // can drop it.
+  const pickTeam = useCallback(async (id: string) => {
+    if (switching.current) return;
+    switching.current = true;
+    setSwitchFailed(false);
+    const r = await pickOrg(id).catch((): PickOrgResult => ({ ok: false, reason: "signed_out" }));
+    if (r.ok) { close(); window.location.assign("/desk"); return; }
+    switching.current = false;
+    setSwitchFailed(true);
+  }, [pickOrg, close]);
   const hits = useMemo<Hit[]>(() => {
     const query = q.trim().toLowerCase();
     const out: (Hit & { s: number })[] = [];
@@ -86,7 +101,7 @@ export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
     for (const n of index?.notes ?? []) add({ key: `n:${n.slug}`, group: "Notes", label: n.title, hint: n.type, go: () => go(`/desk/brain?repo=${index?.noteRepo}&note=${n.slug}`) }, `${n.title} ${n.type}`);
     add({ key: "r:all", group: "Repos", label: "all repos", current: repo === "all", go: () => { const n = new URLSearchParams(params.toString()); n.set("repo", "all"); go(`${pathname}?${n}`); } }, "all repos");
     for (const r of repos) add({ key: `r:${r.id}`, group: "Repos", label: r.name.split("/").pop() ?? r.name, hint: r.name.split("/")[0], current: repo === r.id, go: () => { const n = new URLSearchParams(params.toString()); n.set("repo", r.id); go(`${pathname}?${n}`); } }, r.name);
-    for (const o of orgs) add({ key: `o:${o.id}`, group: "Teams", label: o.name, current: o.id === orgId, go: () => { close(); void pickOrg(o.id).then((r) => { if (r.ok) window.location.assign("/desk"); }); } }, o.name);
+    for (const o of orgs) add({ key: `o:${o.id}`, group: "Teams", label: o.name, current: o.id === orgId, go: () => { void pickTeam(o.id); } }, o.name);
     // Best matches first within each group; groups in a fixed order; cap per group.
     const byGroup = new Map<Hit["group"], (Hit & { s: number })[]>();
     for (const h of out) byGroup.set(h.group, [...(byGroup.get(h.group) ?? []), h]);
@@ -99,7 +114,7 @@ export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, index, repo, pathname, params, repos, orgs, orgId]);
 
-  useEffect(() => setCursor(0), [q]);
+  useEffect(() => { setCursor(0); setSwitchFailed(false); }, [q]);
   useEffect(() => { list.current?.querySelector<HTMLElement>(`[data-i="${cursor}"]`)?.scrollIntoView({ block: "nearest" }); }, [cursor]);
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -135,6 +150,7 @@ export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
                 </div>
               ))}
             </div>
+            {switchFailed && <p className="border-t border-line px-3.5 py-2 text-[12px] text-stop">Couldn't switch teams. Try again.</p>}
             <div className="flex gap-4 border-t border-line px-3.5 py-2 font-mono text-[10px] text-faint"><span>↑↓ move</span><span>↵ go</span><span>esc close</span></div>
           </div>
         </div>

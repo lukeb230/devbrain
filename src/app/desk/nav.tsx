@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useState } from "react";
+import type { PickOrgResult } from "@/app/settings/org/actions";
 import { Picker } from "./picker";
 import { DESK_SECTIONS } from "./sections";
 
@@ -11,10 +12,10 @@ import { DESK_SECTIONS } from "./sections";
 // repo pickers under it; then the grouped sections, no icons. Active item =
 // coral ink + coral line.
 
-export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, canLink, onboardingNudge }: {
+export function DeskNav({ orgs, orgId, pickOrg, repos, remembered, appSlug, canLink, onboardingNudge }: {
   orgs: { id: string; name: string }[];
   orgId: string;
-  switchOrg: (fd: FormData) => Promise<void>;
+  pickOrg: (orgId: string) => Promise<PickOrgResult>;
   repos: { id: string; name: string }[];
   remembered: string | null;
   appSlug: string;
@@ -24,7 +25,6 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
   const pathname = usePathname();
   const router = useRouter();
   const params = useSearchParams();
-  const [, start] = useTransition();
   const active = pathname.replace(/^\/desk\/?/, "").split("/")[0] ?? "";
   // URL wins; otherwise the remembered repo the pages are using; "all" is explicit.
   const q = params.get("repo");
@@ -34,11 +34,16 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
     next.set("repo", v);
     router.push(`${pathname}?${next}`);
   };
-  const pickTeam = (id: string) => {
-    const fd = new FormData();
-    fd.set("orgId", id);
-    fd.set("next", "/desk");
-    start(() => { void switchOrg(fd); });
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const pickTeam = async (id: string) => {
+    if (switching) return;
+    setSwitching(id);
+    setSwitchFailed(false);
+    const r = await pickOrg(id).catch((): PickOrgResult => ({ ok: false, reason: "signed_out" }));
+    if (r.ok) { window.location.assign("/desk"); return; } // full load: nothing pending can drop it
+    setSwitching(null);
+    setSwitchFailed(true);
   };
   const openExternal = (e: React.MouseEvent, url: string) => {
     const core = (window as unknown as { __TAURI__?: { core?: { invoke: (c: string, a?: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__?.core;
@@ -56,7 +61,10 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
       </div>
       <div className="mb-2 flex flex-col gap-px px-1">
         {orgs.length > 1 ? (
-          <Picker items={orgs.map((o) => ({ key: o.id, label: o.name }))} value={orgId} onPick={pickTeam} width={200} title="Team" />
+          <>
+            <Picker items={orgs.map((o) => ({ key: o.id, label: o.name }))} value={orgId} onPick={(id) => { void pickTeam(id); }} width={160} title="Team" label={switching ? "Switching…" : undefined} />
+            {switchFailed && <p className="px-1.5 pt-0.5 text-[11px] leading-snug text-stop">Couldn't switch teams. Try again.</p>}
+          </>
         ) : (
           <div className="px-1.5 py-1 text-[13px] text-txt">{orgs.find((o) => o.id === orgId)?.name ?? "team"}</div>
         )}
@@ -65,7 +73,7 @@ export function DeskNav({ orgs, orgId, switchOrg, repos, remembered, appSlug, ca
             items={[{ key: "all", label: "all repos" }, ...repos.map((r) => ({ key: r.id, label: r.name.split("/").pop() ?? r.name, hint: r.name.split("/")[0] }))]}
             value={repo}
             onPick={pickRepo}
-            width={232}
+            width={164}
             title="Repo scope — filters every page to one repo"
             footer={canLink ? <a href={`https://github.com/apps/${appSlug}/installations/new`} target="_blank" onClick={(e) => openExternal(e, `https://github.com/apps/${appSlug}/installations/new`)} className="block rounded-lg px-2.5 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-row2">Link a repo ↗</a> : undefined}
           />

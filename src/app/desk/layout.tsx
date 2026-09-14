@@ -2,7 +2,7 @@ import { FONT_VARS } from "@/app/fonts";
 import { redirect } from "next/navigation";
 import { currentOrg, hasRole } from "@/lib/org";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
-import { switchOrg } from "@/app/settings/org/actions";
+import { pickOrg } from "@/app/settings/org/actions";
 import { deskScope } from "@/lib/desk/scope";
 import { teamRepos } from "@/lib/desk/repos";
 import { Jump } from "./jump";
@@ -89,7 +89,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
         <DeskNav
           orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))}
           orgId={org.orgId}
-          switchOrg={switchOrg}
+          pickOrg={pickOrg}
           repos={repos.map((r) => ({ id: r.id, name: r.full_name }))}
           remembered={scope.repoId}
           appSlug={appSlug}
@@ -99,7 +99,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Toolbar over the panes: jump-to-anything and who you are. */}
           <div className="flex h-11 flex-shrink-0 items-center gap-4 border-b border-line bg-pane px-4">
-            <Jump orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))} orgId={org.orgId} switchOrg={switchOrg} repos={repos.map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
+            <Jump orgs={org.orgs.map((o) => ({ id: o.id, name: o.name }))} orgId={org.orgId} pickOrg={pickOrg} repos={repos.map((r) => ({ id: r.id, name: r.full_name }))} remembered={scope.repoId} />
             <span className="ml-auto flex items-center gap-2">
               <span className="grid h-[26px] w-[26px] place-items-center rounded-full bg-coralink text-[11px] font-semibold text-accent">{initial}</span>
               <span className="font-mono text-[10.5px] text-muted">{org.login} · {org.role}</span>

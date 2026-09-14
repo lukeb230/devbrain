@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PickOrgResult } from "@/app/settings/org/actions";
 import { DESK_PAGES } from "./sections";
 
 // ============================================================================
@@ -29,17 +30,16 @@ function score(q: string, text: string): number {
   return i === q.length ? 0.5 : 0;
 }
 
-export function Jump({ orgs, orgId, switchOrg, repos, remembered }: {
+export function Jump({ orgs, orgId, pickOrg, repos, remembered }: {
   orgs: { id: string; name: string }[];
   orgId: string;
-  switchOrg: (fd: FormData) => Promise<void>;
+  pickOrg: (orgId: string) => Promise<PickOrgResult>;
   repos: { id: string; name: string }[];
   remembered: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [, start] = useTransition();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -86,7 +86,7 @@ export function Jump({ orgs, orgId, switchOrg, repos, remembered }: {
     for (const n of index?.notes ?? []) add({ key: `n:${n.slug}`, group: "Notes", label: n.title, hint: n.type, go: () => go(`/desk/brain?repo=${index?.noteRepo}&note=${n.slug}`) }, `${n.title} ${n.type}`);
     add({ key: "r:all", group: "Repos", label: "all repos", current: repo === "all", go: () => { const n = new URLSearchParams(params.toString()); n.set("repo", "all"); go(`${pathname}?${n}`); } }, "all repos");
     for (const r of repos) add({ key: `r:${r.id}`, group: "Repos", label: r.name.split("/").pop() ?? r.name, hint: r.name.split("/")[0], current: repo === r.id, go: () => { const n = new URLSearchParams(params.toString()); n.set("repo", r.id); go(`${pathname}?${n}`); } }, r.name);
-    for (const o of orgs) add({ key: `o:${o.id}`, group: "Teams", label: o.name, current: o.id === orgId, go: () => { close(); const fd = new FormData(); fd.set("orgId", o.id); fd.set("next", "/desk"); start(() => { void switchOrg(fd); }); } }, o.name);
+    for (const o of orgs) add({ key: `o:${o.id}`, group: "Teams", label: o.name, current: o.id === orgId, go: () => { close(); void pickOrg(o.id).then((r) => { if (r.ok) window.location.assign("/desk"); }); } }, o.name);
     // Best matches first within each group; groups in a fixed order; cap per group.
     const byGroup = new Map<Hit["group"], (Hit & { s: number })[]>();
     for (const h of out) byGroup.set(h.group, [...(byGroup.get(h.group) ?? []), h]);

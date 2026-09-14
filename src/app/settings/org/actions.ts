@@ -8,13 +8,25 @@ import { currentOrg, requireRoleOrRedirect } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { returnTo } from "@/lib/surface";
 
-export async function switchOrg(formData: FormData): Promise<void> {
+export type PickOrgResult = { ok: true } | { ok: false; reason: "signed_out" | "not_member" };
+
+/** Make `orgId` the active team. Sets the cookie and reports the outcome;
+ *  never redirects, so the Desk's client-side switchers can do a full
+ *  navigation themselves — one that no in-flight router.refresh() can drop. */
+export async function pickOrg(orgId: string): Promise<PickOrgResult> {
   const me = await currentOrg();
-  const id = String(formData.get("orgId") || "");
-  if (!me || !me.orgs.some((o) => o.id === id)) return;
+  if (!me) return { ok: false, reason: "signed_out" };
+  if (!me.orgs.some((o) => o.id === orgId)) return { ok: false, reason: "not_member" };
   const jar = await cookies();
-  jar.set(COOKIE.org, id, ORG_COOKIE_OPTS);
+  jar.set(COOKIE.org, orgId, ORG_COOKIE_OPTS);
   clearDevbrainCookies(jar, [{ name: COOKIE.lastRepo, path: "/" }]); // never carry a repo across teams
+  return { ok: true };
+}
+
+/** The <form> version (settings page, widget): pick, then go back. */
+export async function switchOrg(formData: FormData): Promise<void> {
+  const r = await pickOrg(String(formData.get("orgId") || ""));
+  if (!r.ok) return;
   redirect(returnTo(formData, "/dashboard"));
 }
 

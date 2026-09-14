@@ -7,7 +7,8 @@ import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { Copy } from "../../copy";
 import { DeskNext } from "../../desk-next";
 import { Reading } from "../../panes";
-import { ACTION_MUTED, ACTION_STOP, Button, Dot, Empty, Field } from "../../ui";
+import { SubmitButton } from "../../submit-button";
+import { ACTION_MUTED, ACTION_STOP, Dot, Empty, Field } from "../../ui";
 
 // ============================================================================
 // Desk · Tokens & sessions (Dusk) — the shown-once token card, label + New
@@ -67,7 +68,7 @@ export default async function DeskTokens() {
           <form action={createToken} className="flex gap-2">
             <DeskNext />
             <Field name="label" required placeholder="Label — a machine or a person (e.g. Sam's MacBook)" className="min-w-0 flex-1" />
-            <Button size="lg">New token</Button>
+            <SubmitButton size="lg" pendingLabel="Minting…">New token</SubmitButton>
           </form>
           {rows.length === 0 && <Empty className="mt-3.5 border-t border-line">No tokens yet.</Empty>}
           <div className="mt-3.5">

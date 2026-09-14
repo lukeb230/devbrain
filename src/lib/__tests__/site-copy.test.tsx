@@ -87,4 +87,9 @@ describe("the site's copy", () => {
     expect(header).toMatch(/<a\b(?=[^>]*\bhref="\/")(?=[^>]*\baria-label="DevBrain home")[^>]*>/);
     expect(header).toContain("DevBrain</span>");
   });
+  it("the spawn window has three real tabs and starts on the second", () => {
+    const tabs = [...html.matchAll(/<button [^>]*role="tab"[^>]*aria-selected="(true|false)"[^>]*>/g)].map((m) => m[1]);
+    expect(tabs).toEqual(["false", "true", "false"]);
+    expect(html).toContain("Sam · 2 · src/api/limits/**");
+  });
 });

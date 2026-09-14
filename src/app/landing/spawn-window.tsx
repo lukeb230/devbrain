@@ -1,35 +1,88 @@
+"use client";
+
+import { useState } from "react";
 import { Reveal } from "./reveal";
 import { TEAM } from "./mock-team";
 import { Transcript, type Line } from "./terminal";
 
-// devbrain spawn, start_task and Update(...) are real; the wording the agent
-// prints around them is illustrative and stays as written.
-const LINES = (t: typeof TEAM): Line[] => [
+// devbrain spawn, start_task, get_team_context, claim_area and Read/Update/
+// Write are real; the wording the agent prints around them is illustrative
+// and stays as written.
+
+// Tab 1: the original session in src/ui/** (no spawn; it was started by hand).
+const LINES_1 = (t: typeof TEAM): Line[] => [
+  { text: "› wire the login form to the new session endpoint", tone: "cmd" },
+  { text: "" },
+  { text: `● devbrain - get_team_context (MCP)(repo: "${t.repo}")`, tone: "ok" },
+  { text: `  ⎿  ${t.cursor} in src/api/** (refactoring the session guard) · ${t.codex} in tests/** · src/ui/** is clear`, tone: "dim" },
+  { text: '● devbrain - claim_area (MCP)(paths: ["src/ui/**"], note: "wiring the login form")', tone: "ok" },
+  { text: "  ⎿  claimed src/ui/** for 4h", tone: "dim" },
+  { text: "● Read(src/ui/LoginForm.tsx)", tone: "ok" },
+  { text: "  ⎿  Read 84 lines", tone: "dim" },
+  { text: "● Update(src/ui/LoginForm.tsx)", tone: "warn" },
+];
+
+// Tab 2: Sam · 2, spawned to rate limit the token endpoint.
+const LINES_2 = (t: typeof TEAM): Line[] => [
   { text: "$ devbrain spawn", tone: "dim" },
-  { text: `  token "${t.you} · 2" minted · cloned ${t.repo} → ~/dev/northwind-api-2`, tone: "dim" },
+  { text: `identity: ${t.you} · 2`, tone: "dim" },
+  { text: `cloning ${t.repo} → ~/dev/northwind-api-2 …`, tone: "dim" },
+  { text: "dispatched: rate limit the token endpoint", tone: "dim" },
+  { text: `launching claude as ${t.you} · 2 in ~/dev/northwind-api-2`, tone: "dim" },
   { text: "" },
   { text: "› rate limit the token endpoint", tone: "cmd" },
   { text: "" },
-  { text: `● DevBrain brief: ${t.you} is in src/ui/**, ${t.you} · 3 is in tests/**. #44 is yours; its files are free.`, tone: "ok" },
+  { text: `● devbrain - get_team_context (MCP)(repo: "${t.repo}")`, tone: "ok" },
+  { text: `  ⎿  ${t.you} in src/ui/** · ${t.you} · 3 in tests/** · #44 is yours, its files are free`, tone: "dim" },
   { text: '● devbrain - start_task (MCP)(id: "t_44")', tone: "ok" },
   { text: "  ⎿  started · claimed src/api/limits/** for 8h", tone: "dim" },
   { text: "● Update(src/api/limits/limiter.ts)", tone: "warn" },
 ];
 
+// Tab 3: Sam · 3, spawned to add coverage for the limiter in tests/**.
+const LINES_3 = (t: typeof TEAM): Line[] => [
+  { text: "$ devbrain spawn", tone: "dim" },
+  { text: `identity: ${t.you} · 3`, tone: "dim" },
+  { text: `cloning ${t.repo} → ~/dev/northwind-api-3 …`, tone: "dim" },
+  { text: "dispatched: add coverage for the limiter", tone: "dim" },
+  { text: `launching claude as ${t.you} · 3 in ~/dev/northwind-api-3`, tone: "dim" },
+  { text: "" },
+  { text: "› add coverage for the limiter", tone: "cmd" },
+  { text: "" },
+  { text: `● devbrain - get_team_context (MCP)(repo: "${t.repo}")`, tone: "ok" },
+  { text: `  ⎿  ${t.you} in src/ui/** · ${t.you} · 2 in src/api/limits/** · tests/** is free`, tone: "dim" },
+  { text: '● devbrain - start_task (MCP)(id: "t_45")', tone: "ok" },
+  { text: "  ⎿  started · claimed tests/** for 8h", tone: "dim" },
+  { text: "● Write(tests/limits/limiter.spec.ts)", tone: "warn" },
+];
+
+const TRANSCRIPTS = [LINES_1, LINES_2, LINES_3];
+
 export function SpawnWindow({ team = TEAM }: { team?: typeof TEAM }) {
-  const tabs = [`${team.you} · src/ui/**`, `${team.you} · 2 · src/api/limits/**`, `${team.you} · 3 · tests/**`, "+"];
+  const [active, setActive] = useState(1);
+  const tabs = [`${team.you} · src/ui/**`, `${team.you} · 2 · src/api/limits/**`, `${team.you} · 3 · tests/**`];
+  const lights = (
+    <div className="flex items-center gap-2 px-3.5"><span className="h-[11px] w-[11px] rounded-full bg-[#ec6a5e]" /><span className="h-[11px] w-[11px] rounded-full bg-[#f4bf4f]" /><span className="h-[11px] w-[11px] rounded-full bg-[#61c554]" /></div>
+  );
   return (
-    <figure role="img" aria-label="Illustration: a terminal with three spawned sessions, the second one starting a task" className="lp-win w-full overflow-hidden">
-      <div className="flex h-[38px] items-stretch overflow-x-auto bg-[#2e2922]">
-        <div className="flex items-center gap-2 px-3.5"><span className="h-[11px] w-[11px] rounded-full bg-[#ec6a5e]" /><span className="h-[11px] w-[11px] rounded-full bg-[#f4bf4f]" /><span className="h-[11px] w-[11px] rounded-full bg-[#61c554]" /></div>
+    <figure aria-label="Illustration: a terminal with three spawned sessions; click a tab to see that session" className="lp-win w-full overflow-hidden">
+      <div role="tablist" aria-label="Sessions" className="flex h-[38px] items-stretch overflow-x-auto bg-[#2e2922]">
+        {lights}
         {tabs.map((t, i) => (
-          <Reveal key={t} as="span" fx="tab" amount={0.4} delay={i * 120} duration={400} className={`hidden items-center gap-2 whitespace-nowrap border-r border-black/35 px-3.5 font-mono text-[12px] sm:flex ${i === 1 ? "bg-codebg text-white" : "text-white/55"}`}>
-            {t !== "+" && <span className="h-[7px] w-[7px] rounded-full bg-[#7fd39b]" />}{t}
+          <Reveal key={t} as="button" fx="tab" amount={0.4} delay={i * 120} duration={400} role="tab" aria-selected={i === active} type="button" onClick={() => setActive(i)}
+            className={`hidden items-center gap-2 whitespace-nowrap border-r border-black/35 px-3.5 font-mono text-[12px] sm:flex ${i === active ? "bg-codebg text-white" : "text-white/55 hover:text-white/80"}`}>
+            <span className="h-[7px] w-[7px] rounded-full bg-[#7fd39b]" />{t}
           </Reveal>
         ))}
-        <span className="flex items-center px-3.5 font-mono text-[12px] text-white sm:hidden">{tabs[1]}</span>
+        <span aria-hidden className="hidden items-center px-3.5 font-mono text-[12px] text-white/55 sm:flex">+</span>
+        {/* phones: the active tab as a label; previous/next switch */}
+        <div className="flex items-center gap-3 px-3.5 font-mono text-[12px] text-white sm:hidden">
+          <button type="button" aria-label="Previous session" onClick={() => setActive((a) => (a + 2) % 3)} className="text-white/55">‹</button>
+          <span>{tabs[active]}</span>
+          <button type="button" aria-label="Next session" onClick={() => setActive((a) => (a + 1) % 3)} className="text-white/55">›</button>
+        </div>
       </div>
-      <Transcript lines={LINES(team)} className="min-h-[230px] bg-codebg px-[22px] py-5 font-mono text-[12.5px] leading-[1.8] text-codefg" />
+      <Transcript key={active} lines={TRANSCRIPTS[active]!(team)} className="min-h-[230px] bg-codebg px-[22px] py-5 font-mono text-[12.5px] leading-[1.8] text-codefg" />
     </figure>
   );
 }

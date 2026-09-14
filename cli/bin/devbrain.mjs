@@ -41,7 +41,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
-import { compareVersions, httpHint, normalizeStep, reexecArgs, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "./lib.mjs";
+import { compareVersions, httpHint, normalizeStep, reexecArgs, stepFromError, summarizeResults, sessionSlug, nextCloneName, migrateServer } from "./lib.mjs";
 import { HOST_NAMES, mergeAgentsMd, mergeCodexConfig, mergeCodexHooks, mergeCursorHooks, mergeCursorMcp, stripCodexConfig, stripCodexHooks, stripCursorHooks, stripMcpJson } from "./hosts.mjs";
 
 // The repo everything is installed from. When the repo goes private this is
@@ -603,7 +603,10 @@ async function updateWidget() {
 // non-zero, so hooks and launchd can call it blindly.
 // ----------------------------------------------------------------------------
 async function updateAll({ skipSource = false } = {}) {
-  const cfg = loadConfig();
+  const loaded = loadConfig();
+  const mig = migrateServer(loaded, DEFAULT_SERVER);
+  const cfg = mig.cfg;
+  if (mig.changed) { saveConfig(cfg); log(`  server    moved from ${mig.from} to ${DEFAULT_SERVER}`); }
   // One updater at a time (launchd daily vs. session-start hook).
   const lock = join(CONFIG_DIR, "update.lock");
   try {

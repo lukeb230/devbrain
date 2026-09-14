@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareVersions, httpHint, normalizeStep, reexecArgs, stepFromError, summarizeResults, sessionSlug, nextCloneName } from "../lib.mjs";
+import { compareVersions, httpHint, normalizeStep, reexecArgs, stepFromError, summarizeResults, sessionSlug, nextCloneName, LEGACY_SERVERS, migrateServer } from "../lib.mjs";
 
 describe("compareVersions", () => {
   it("compares numerically per component", () => {
@@ -73,5 +73,26 @@ describe("reexecArgs", () => {
     expect(reexecArgs(["bootstrap", "--server", "https://x", "--token", "dbk_1", "--reminders", "off", "--json"])).toEqual([
       "bootstrap", "--server", "https://x", "--token", "dbk_1", "--reminders", "off", "--json", "--no-source",
     ]);
+  });
+});
+
+describe("migrateServer", () => {
+  const current = "https://getdevbrain.com";
+  it("moves a legacy host to the current one", () => {
+    const r = migrateServer({ server: "https://devbrain-seven.vercel.app", token: "t" }, current);
+    expect(r.changed).toBe(true);
+    expect(r.from).toBe("https://devbrain-seven.vercel.app");
+    expect(r.cfg).toEqual({ server: current, token: "t" });
+  });
+  it("tolerates a trailing slash on the legacy host", () => {
+    expect(migrateServer({ server: "https://devbrain-seven.vercel.app/" }, current).changed).toBe(true);
+  });
+  it("leaves the current host and any unknown host alone", () => {
+    expect(migrateServer({ server: current }, current)).toEqual({ cfg: { server: current }, changed: false, from: null });
+    expect(migrateServer({ server: "https://preview-abc.vercel.app" }, current).changed).toBe(false);
+    expect(migrateServer({}, current).changed).toBe(false);
+  });
+  it("lists the legacy host", () => {
+    expect(LEGACY_SERVERS).toContain("https://devbrain-seven.vercel.app");
   });
 });

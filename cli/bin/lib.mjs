@@ -88,3 +88,13 @@ export function reexecArgs(argv) {
   const args = argv.filter((a) => a !== "--no-source");
   return [...args, "--no-source"];
 }
+
+/** Hosts DevBrain used before its own domain. An install still pointed at one
+ *  is moved to `current` on its next update — the token is the same either way. */
+export const LEGACY_SERVERS = ["https://devbrain-seven.vercel.app"];
+
+export function migrateServer(cfg, current) {
+  const server = String(cfg?.server ?? "").replace(/\/+$/, "");
+  if (!server || !LEGACY_SERVERS.includes(server)) return { cfg, changed: false, from: null };
+  return { cfg: { ...cfg, server: current }, changed: true, from: server };
+}

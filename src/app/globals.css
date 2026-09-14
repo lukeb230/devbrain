@@ -252,3 +252,16 @@ html.lp-js .lp-cursor-sam[data-in]{animation:lp-wander-b 5s ease-in-out 1.6s inf
 @media (prefers-reduced-motion: reduce){
   html.lp-js .lp-cursor-lena[data-in],html.lp-js .lp-cursor-sam[data-in]{animation:none}
 }
+
+/* ── Legal pages (/terms, /privacy): one prose column, handoff §4.11 ─────── */
+.lp .legal h1{font-family:var(--font-display),system-ui,sans-serif;font-size:36px;font-weight:600;line-height:1.05;letter-spacing:-.03em;color:var(--wg-txt);margin:0 0 10px}
+@media (min-width:640px){.lp .legal h1{font-size:44px}}
+.lp .legal h2{font-family:var(--font-display),system-ui,sans-serif;font-size:22px;font-weight:600;line-height:1.2;letter-spacing:-.015em;color:var(--wg-txt);margin:40px 0 10px}
+.lp .legal p{font-size:15.5px;line-height:1.7;color:var(--wg-body);margin:0 0 14px}
+.lp .legal ul{margin:0 0 14px;padding-left:22px}
+.lp .legal li{font-size:15.5px;line-height:1.7;color:var(--wg-body);margin:0 0 8px}
+.lp .legal strong{color:var(--wg-txt);font-weight:600}
+.lp .legal code{font-family:var(--font-mono),ui-monospace,monospace;font-size:14px;color:var(--wg-txt)}
+.lp .legal a{color:var(--wg-accent-text);text-decoration:underline}
+.lp .legal h1+p{font-size:13.5px;color:var(--wg-muted);margin-bottom:22px}
+.lp .legal h1+p strong{color:inherit;font-weight:500}

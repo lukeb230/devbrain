@@ -8,7 +8,7 @@ export const FAQ_ITEMS: { q: string; a: React.ReactNode[] }[] = [
     q: "Does it see my code?",
     a: [
       <>It doesn&apos;t store any. What DevBrain keeps is metadata: who&apos;s active, which files were touched, task and PR records, and short redacted session summaries. Never file contents, never command output.</>,
-      <>Two things do leave your machine briefly: a PR&apos;s diff, when DevBrain reviews it, and a redacted excerpt of a session, when it writes a journal. Both go to the AI provider for that one job and aren&apos;t kept afterwards. The <a href="/privacy" className="text-accenttext hover:underline">privacy page</a> lists every field.</>,
+      <>Two things do leave your machine briefly: a PR&apos;s diff, when DevBrain reviews it, and a redacted excerpt of a session, when it writes a journal. Both go to the AI provider for that one job and aren&apos;t kept afterwards. The only repository text it keeps is what your team gives it on purpose: notes in a <code className="font-mono text-[13px]">.brain</code> folder and spec documents you upload. The <a href="/privacy" className="text-accenttext hover:underline">privacy page</a> lists every field.</>,
     ],
   },
   {

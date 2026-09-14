@@ -39,6 +39,16 @@ describe("macSetupState", () => {
   it("last bootstrap failed: not done", () => {
     expect(macSetupState({ liveLabels: live, hostname: "codex-mac", hasToken: true, bootstrapOk: false })).toEqual({ doneHere: false });
   });
+  it("the 60-char label the mint stores matches a hostname truncated the same way", () => {
+    // mintDeviceToken stores `hostname.trim().slice(0, 60)`, so mac-step.tsx
+    // must compare that truncated label — the raw hostname would never match
+    // its own token and the row could never turn green.
+    const hostname = "macbook-pro-belonging-to-someone-with-a-remarkably-long-full-name";
+    expect(hostname.length).toBeGreaterThan(60);
+    const stored = hostname.slice(0, 60);
+    expect(macSetupState({ liveLabels: [stored], hostname: stored, hasToken: true, bootstrapOk: true })).toEqual({ doneHere: true });
+    expect(macSetupState({ liveLabels: [stored], hostname, hasToken: true, bootstrapOk: true })).toEqual({ doneHere: false });
+  });
   it("no hostname from the app: not done", () => {
     expect(macSetupState({ liveLabels: live, hostname: null, hasToken: true, bootstrapOk: true })).toEqual({ doneHere: false });
   });

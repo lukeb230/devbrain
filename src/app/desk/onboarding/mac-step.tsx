@@ -32,7 +32,13 @@ export function MacStep({ n, liveLabels, orgId, orgName }: { n: number; liveLabe
     c?.invoke("setup_state").then((s) => setSetup(s as Setup)).catch(() => setSetup({}));
   }, []);
 
-  const { doneHere } = macSetupState({ liveLabels, hostname: setup?.hostname, hasToken: Boolean(setup?.has_token), bootstrapOk: setup?.bootstrap_ok });
+  // The label the mint will store, computed ONCE: mintDeviceToken trims and
+  // cuts to 60 chars, so a long machine name is stored short. macSetupState
+  // must compare that same short label — a Mac named longer than 60 chars
+  // would otherwise never match its own token, so the row could never turn
+  // green and the copy would keep claiming another team owns it.
+  const label = (setup?.hostname ?? "").trim().slice(0, 60);
+  const { doneHere } = macSetupState({ liveLabels, hostname: label, hasToken: Boolean(setup?.has_token), bootstrapOk: setup?.bootstrap_ok });
   const copy = setupMacCopy({ done: doneHere, hasToken: Boolean(setup?.has_token), orgName });
   const failed = setup?.bootstrap_failed ?? [];
 
@@ -41,8 +47,7 @@ export function MacStep({ n, liveLabels, orgId, orgName }: { n: number; liveLabe
     if (!c) return;
     setBusy(true); setErr(null);
     try {
-      const label = (setup?.hostname ?? "").trim().slice(0, 60) || "my-mac";
-      const minted = await mintDeviceToken(label, orgId);
+      const minted = await mintDeviceToken(label || "my-mac", orgId);
       if ("error" in minted) throw new Error(minted.error);
       await c.invoke("bootstrap", { server: window.location.origin, token: minted.token, remindersList: null, remindersRepo: null });
       setSetup((await c.invoke("setup_state")) as Setup);

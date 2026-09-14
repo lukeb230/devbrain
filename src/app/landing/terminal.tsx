@@ -35,7 +35,7 @@ const len = (lines: Line[]) => lines.reduce((n, l) => n + l.text.length + 1, 0);
  * scrolled into view, with the same line rendering and blinking cursor
  * `Transcript` has always shown. No window chrome — callers supply their own.
  */
-export function Transcript({ lines, className = "" }: { lines: Line[]; className?: string }) {
+export function Transcript({ lines, className = "", minLines }: { lines: Line[]; className?: string; minLines?: number }) {
   const total = len(lines);
   // Server and no-JS render everything; the effect below decides to animate.
   const [shown, setShown] = useState(total);
@@ -90,7 +90,7 @@ export function Transcript({ lines, className = "" }: { lines: Line[]; className
   }
 
   return (
-    <div ref={box} className={className} style={{ minHeight: `calc(${lines.length} * 1.8em + 2.5rem)` }}>
+    <div ref={box} className={className} style={{ minHeight: `calc(${Math.max(lines.length, minLines ?? 0)} * 1.8em + 2.5rem)` }}>
       {visible.map((l, i) => (
         <div key={i} className={`whitespace-pre-wrap ${TONE[l.tone ?? ""] ?? ""}`}>
           {l.text}

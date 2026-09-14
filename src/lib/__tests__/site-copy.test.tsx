@@ -88,8 +88,13 @@ describe("the site's copy", () => {
     expect(header).toContain("DevBrain</span>");
   });
   it("the spawn window has three real tabs and starts on the second", () => {
-    const tabs = [...html.matchAll(/<button [^>]*role="tab"[^>]*aria-selected="(true|false)"[^>]*>/g)].map((m) => m[1]);
+    const tabButtons = [...html.matchAll(/<button [^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
+    const tabs = tabButtons.map((b) => b.match(/aria-selected="(true|false)"/)?.[1]);
     expect(tabs).toEqual(["false", "true", "false"]);
     expect(html).toContain("Sam · 2 · src/api/limits/**");
+    for (const b of tabButtons) expect(b).toContain('aria-controls="spawn-panel"');
+    expect(html).toContain('role="tabpanel"');
+    expect(html).toContain("$ devbrain spawn --auto");
+    expect(html).toContain("~/.devbrain/clones/api-2");
   });
 });

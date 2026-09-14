@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createToken, revokeToken } from "@/app/settings/tokens/actions";
 import { COOKIE } from "@/lib/cookies";
 import { currentOrg } from "@/lib/org";
+import { SITE_URL } from "@/lib/site-url";
 import { currentUser, supabaseServer } from "@/lib/supabase/server";
 import { Copy } from "../../copy";
 import { DeskNext } from "../../desk-next";
@@ -59,7 +60,7 @@ export default async function DeskTokens() {
             <code className="mt-2 block select-all break-all font-mono text-[13px] leading-[1.6] text-txt">{newToken}</code>
             <div className="mt-2.5 flex items-center gap-3">
               <Copy text={newToken} label="Copy" tone="button" />
-              <p className="text-[12px] text-accent">For a manual, CI or headless setup: <code className="font-mono">devbrain connect --token …</code>. Whoever holds it is that teammate.</p>
+              <p className="text-[12px] text-accent">For a manual, CI or headless setup: <code className="font-mono">devbrain bootstrap --server {SITE_URL} --token …</code>. Whoever holds it is that teammate.</p>
             </div>
           </div>
         )}

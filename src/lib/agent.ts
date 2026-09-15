@@ -55,6 +55,27 @@ export function agentModel(): string {
   return process.env.DEVBRAIN_AGENT_MODEL || "claude-sonnet-4-5";
 }
 
+/** The system prompt as a single cache-marked block. Our system prompts
+ *  (REVIEW, DIGEST, …) are long and identical across calls, so marking them
+ *  lets Anthropic serve their tokens from the prompt cache when the same prefix
+ *  recurs within its ~5-minute TTL — cheaper input and lower latency on a hit.
+ *  This is a pure cost/latency optimization: the model receives byte-identical
+ *  tokens, so output is unchanged. A prefix under the ~1K-token minimum is
+ *  silently not cached (no error), so marking every system prompt is safe. */
+export type CachedSystem = { type: "text"; text: string; cache_control: { type: "ephemeral" } };
+export function cachedSystem(text: string): CachedSystem[] {
+  return [{ type: "text", text, cache_control: { type: "ephemeral" } }];
+}
+
+/** Anthropic's usage block, including the two cache counters that appear once
+ *  prompt caching is in play. */
+export type Usage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+};
+
 /** Thrown when an org has spent today's AI budget (orgs.ai_daily_cap). */
 export class AiCapExceeded extends Error {
   constructor(orgId: string) {
@@ -140,10 +161,15 @@ async function clearBreaker() {
   } catch { /* best effort */ }
 }
 
-async function record(orgId: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined) {
+async function record(orgId: string | undefined, usage: Usage | undefined) {
   if (!orgId || !usage) return;
   const { supabaseAdmin } = await import("@/lib/supabase/server");
-  await supabaseAdmin().rpc("ai_record", { p_org: orgId, p_in: usage.input_tokens ?? 0, p_out: usage.output_tokens ?? 0 });
+  // Count every input token the model processed, cached or not, so the usage
+  // total does not appear to drop when a prompt-cache hit moves tokens out of
+  // input_tokens into the cache_* counters. (Billing is per call, not per
+  // token — see reserve() — so this figure is for visibility only.)
+  const p_in = (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0);
+  await supabaseAdmin().rpc("ai_record", { p_org: orgId, p_in, p_out: usage.output_tokens ?? 0 });
 }
 
 // Provider trouble is an ops matter: one alert per status class, resolved on
@@ -188,7 +214,7 @@ export async function askClaude(
       body: JSON.stringify({
         model: agentModel(),
         max_tokens: maxTokens,
-        system,
+        system: cachedSystem(system),
         messages: prefill
           ? [{ role: "user", content: user }, { role: "assistant", content: prefill }]
           : [{ role: "user", content: user }],
@@ -204,7 +230,7 @@ export async function askClaude(
     await providerFailed(res.status, detail);
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
-  const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+  const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: Usage };
   await record(orgId, data.usage);
   await providerOk();
   const text = (data.content ?? [])
@@ -235,7 +261,7 @@ export async function askClaudeBlocks(
       body: JSON.stringify({
         model: agentModel(),
         max_tokens: maxTokens,
-        system,
+        system: cachedSystem(system),
         messages: [{ role: "user", content: blocks }],
       }),
     });
@@ -249,7 +275,7 @@ export async function askClaudeBlocks(
     await providerFailed(res.status, detail);
     throw new Error(`anthropic ${res.status}: ${detail.slice(0, 300)}`);
   }
-  const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+  const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: Usage };
   await record(orgId, data.usage);
   await providerOk();
   return (data.content ?? [])

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anthropicHeaders } from "@/lib/agent";
+import { anthropicHeaders, cachedSystem } from "@/lib/agent";
 
 describe("anthropicHeaders", () => {
   it("always carries the key and the API version", () => {
@@ -18,5 +18,19 @@ describe("anthropicHeaders", () => {
     for (const ws of ["", "   "]) {
       expect("anthropic-workspace-id" in anthropicHeaders("k", ws.trim())).toBe(false);
     }
+  });
+});
+
+describe("cachedSystem", () => {
+  it("wraps the prompt in one ephemeral-cache text block, unchanged", () => {
+    const blocks = cachedSystem("You review pull requests.");
+    expect(blocks).toEqual([
+      { type: "text", text: "You review pull requests.", cache_control: { type: "ephemeral" } },
+    ]);
+  });
+
+  it("preserves the prompt byte-for-byte so the model sees identical tokens", () => {
+    const prompt = "line one\nline two — with an em dash\n\t{json}";
+    expect(cachedSystem(prompt)[0].text).toBe(prompt);
   });
 });

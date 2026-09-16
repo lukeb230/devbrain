@@ -32,7 +32,7 @@ DevBrain coordinates coding-agent sessions across a team. To do that it stores *
 
 **Email addresses you give us on the website.** If you leave an email address to hear about the beta, we store it with the date and the page it came from, and will use it only to contact you about DevBrain.
 
-**Support requests.** If you ask a question, report a bug or request a feature on the website or in the app, we store what you wrote, your email address and name if you gave one, the date, and, from the app, the app version, update channel, team name and the outcome of the last setup run, so we can answer without asking for them. We email the request to ourselves and a confirmation to you through our email provider (section 5), and we use it only to answer you and to fix what you reported.
+**Support requests.** If you ask a question, report a bug or request a feature on the website or in the app, we store what you wrote, your email address and name if you gave one, the date, and, from the app, the app version, update channel, team name, the outcome of the last setup run, the Console page you sent it from and the app's user-agent string, so we can answer without asking for them. We email the request to ourselves and a confirmation to you through our email provider (section 5), and we use it only to answer you and to fix what you reported.
 
 ## 3. What we do not collect
 

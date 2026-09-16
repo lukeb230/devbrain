@@ -21,6 +21,7 @@ describe("legal documents", () => {
     expect(privacy).toContain(`Email delivery: ${LEGAL.emailProvider}`);
     expect(privacy).not.toContain("we do not send email at all");
     expect(privacy).toContain("**Support requests:**");
+    expect(privacy).toContain("user-agent string");
   });
 
   it("refuses an unknown token or a leftover draft placeholder", () => {

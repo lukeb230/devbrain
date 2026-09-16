@@ -99,15 +99,15 @@ No I/O. Exports:
 - `subjectFor(kind, ref, subject)` → `[DB-1042] Bug: <subject>` with the
   kind word `Question` / `Bug` / `Feature request`.
 - `ackSubject(ref)` → `[DB-1042] We got your report`.
-- `bodyForOps(report)` and `bodyForAck(report)`: plain-text bodies (message,
-  then a context block for ops; a short thank-you quoting the message for
-  the submitter).
+- `bodyForOps(report, ref)` and `bodyForAck(report, ref)`: plain-text
+  bodies (the reference, the message, then a context block for ops; a
+  short thank-you quoting the message for the submitter).
 
 ### Mail: `src/lib/support-mail.ts`
 
 Wraps the Resend SDK. One export:
 
-`sendReportMail(report)` → `Promise<{ status: "sent" } | { status: "failed"; error: string }>`.
+`sendReportMail(report, ref)` → `Promise<{ status: "sent" } | { status: "failed"; error: string }>`.
 
 - From: `DevBrain <team@getdevbrain.com>` (constant `SUPPORT_FROM`), to
   `LEGAL.contact`.

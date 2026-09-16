@@ -13,7 +13,13 @@ describe("SupportForm (website)", () => {
     expect(html).toContain('name="website"');
     expect(html).toContain('name="source" value="web"');
     expect(html).toContain('name="email"');
-    expect(html).not.toContain("readonly");
+    // Same reasoning as the signed-in test below: React 19's
+    // renderToStaticMarkup would emit `readOnly=""` (camelCase), never the
+    // lowercase substring "readonly" — so a bare `not.toContain("readonly")`
+    // can't fail even if the field were wrongly read-only. Extract the email
+    // <input> tag and check it directly, symmetric with the signed-in case.
+    const emailTagOut = html.match(/<input[^>]*\bname="email"[^>]*>/)?.[0] ?? "";
+    expect(emailTagOut).not.toContain("readOnly");
   });
   it("locks the email to the signed-in account", () => {
     const html = renderToStaticMarkup(<SupportForm email="luke@example.com" />);

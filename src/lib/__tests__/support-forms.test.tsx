@@ -47,6 +47,7 @@ describe("HelpForms (Console)", () => {
     expect(html).toContain('name="kind" value="feature"');
     expect(html).not.toContain('value="support"');
     expect(html.match(/name="source" value="console"/g)).toHaveLength(2);
+    expect(html.match(/name="context"/g)).toHaveLength(2);
     expect(html).not.toContain('name="website"');
     expect(html).not.toContain('name="email"');
     expect(html).toContain("We attach your app version");

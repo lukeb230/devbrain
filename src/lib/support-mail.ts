@@ -28,15 +28,19 @@ function withBudget<T>(p: Promise<T>): Promise<T> {
 export async function sendReportMail(report: Report, ref: number): Promise<MailResult> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { status: "failed", error: "RESEND_API_KEY unset" };
-  const resend = new Resend(key);
-  const mails = [
-    { from: SUPPORT_FROM, to: [LEGAL.contact], replyTo: report.email, subject: subjectFor(report.kind, ref, report.subject), text: bodyForOps(report, ref) },
-    { from: SUPPORT_FROM, to: [report.email], replyTo: LEGAL.contact, subject: ackSubject(ref), text: bodyForAck(report, ref) },
-  ];
-  const results = await Promise.allSettled(mails.map((m) => withBudget(resend.emails.send(m) as Promise<SendResult>)));
-  for (const r of results) {
-    if (r.status === "rejected") return { status: "failed", error: String(r.reason instanceof Error ? r.reason.message : r.reason).slice(0, 200) };
-    if (r.value?.error) return { status: "failed", error: String(r.value.error.message || r.value.error.name).slice(0, 200) };
+  try {
+    const resend = new Resend(key);
+    const mails = [
+      { from: SUPPORT_FROM, to: [LEGAL.contact], replyTo: report.email, subject: subjectFor(report.kind, ref, report.subject), text: bodyForOps(report, ref) },
+      { from: SUPPORT_FROM, to: [report.email], replyTo: LEGAL.contact, subject: ackSubject(ref), text: bodyForAck(report, ref) },
+    ];
+    const results = await Promise.allSettled(mails.map((m) => withBudget(resend.emails.send(m) as Promise<SendResult>)));
+    for (const r of results) {
+      if (r.status === "rejected") return { status: "failed", error: String(r.reason instanceof Error ? r.reason.message : r.reason).slice(0, 200) };
+      if (r.value?.error) return { status: "failed", error: String(r.value.error.message || r.value.error.name).slice(0, 200) };
+    }
+    return { status: "sent" };
+  } catch (e) {
+    return { status: "failed", error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
-  return { status: "sent" };
 }

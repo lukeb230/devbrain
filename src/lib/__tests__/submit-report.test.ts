@@ -70,6 +70,16 @@ describe("submitReport", () => {
     expect(inserted[0]).toMatchObject({ email: "luke@example.com", user_id: "u1", org_id: "o1", context: { app_version: "0.4.12", team: "Northwind" } });
   });
 
+  it("signed out claiming source=console is refused, writing nothing", async () => {
+    expect(await submitReport(null, fd({ source: "console" }))).toEqual({ ok: false, message: "Pick what this is about." });
+    expect(inserted).toHaveLength(0);
+  });
+
+  it("signed out: a client-supplied team in context is dropped", async () => {
+    expect(await submitReport(null, fd({ context: JSON.stringify({ team: "Forged", app_version: "9.9.9" }) }))).toEqual({ ok: true, ref: "DB-1042" });
+    expect(inserted[0].context).toEqual({ app_version: "9.9.9" });
+  });
+
   it("insert failure: an error, nothing mailed", async () => {
     insertError = { code: "XX000" };
     expect(await submitReport(null, fd())).toEqual({ ok: false, message: "Something went wrong saving that. Try again in a moment." });

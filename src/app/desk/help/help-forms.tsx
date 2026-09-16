@@ -34,8 +34,8 @@ function useBridgeContext(): string {
       const c = core();
       if (c) {
         const [setup, prefs] = await Promise.all([
-          c.invoke("setup_state").catch(() => ({})) as Promise<{ app_version?: string; bootstrap_ok?: boolean | null; bootstrap_at?: string | null }>,
-          c.invoke("mac_prefs").catch(() => ({})) as Promise<{ channel?: string }>,
+          c.invoke("setup_state").then((v) => v ?? {}, () => ({})) as Promise<{ app_version?: string; bootstrap_ok?: boolean | null; bootstrap_at?: string | null }>,
+          c.invoke("mac_prefs").then((v) => v ?? {}, () => ({})) as Promise<{ channel?: string }>,
         ]);
         Object.assign(base, { app_version: setup.app_version, channel: prefs.channel, bootstrap_ok: setup.bootstrap_ok, bootstrap_at: setup.bootstrap_at });
       }

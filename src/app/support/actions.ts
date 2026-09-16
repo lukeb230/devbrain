@@ -45,7 +45,12 @@ export async function submitReport(_prev: ReportState, formData: FormData): Prom
     context: formData.get("context"),
   });
   if (!v.ok) return { ok: false, message: v.message };
-  const report = org ? { ...v.report, context: { ...v.report.context, team: org.orgName } } : v.report;
+  // The source and the team are bound to the session, not the request: a
+  // signed-out POST cannot claim to be the Console, and any client-supplied
+  // `team` is dropped in favour of the org the session actually belongs to.
+  if (v.report.source === "console" && !user) return { ok: false, message: "Pick what this is about." };
+  const { team: _client, ...ctx } = v.report.context;
+  const report = { ...v.report, context: org ? { ...ctx, team: org.orgName } : ctx };
 
   const admin = supabaseAdmin();
   const { data: row, error } = await admin

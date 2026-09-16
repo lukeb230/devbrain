@@ -81,8 +81,8 @@ export function isHoneypotHit(formData: FormData): boolean {
 }
 
 /** UTF-8 byte length. `.length` on a string counts UTF-16 code units, which
- *  undercounts anything outside the ASCII range — this module has no
- *  `Buffer` available (a client component imports it in a later task), so
+ *  undercounts anything outside the ASCII range — this module is bundled
+ *  for the browser by client components, so `Buffer` cannot be used here;
  *  `TextEncoder` is the portable way to measure what actually gets stored. */
 function byteLength(s: string): number {
   return new TextEncoder().encode(s).length;

@@ -29,6 +29,7 @@ export const DESK_SECTIONS: { group: string; items: { slug: string; label: strin
     items: [
       { slug: "team", label: "Team", also: ["rules", "members", "tokens", "plan", "reminders"] },
       { slug: "mac", label: "This Mac" },
+      { slug: "help", label: "Help" },
     ],
   },
 ];

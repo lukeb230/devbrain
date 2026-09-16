@@ -2,6 +2,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SupportForm } from "@/app/support/support-form";
+import { HelpForms } from "@/app/desk/help/help-forms";
+import { DESK_PAGES, DESK_SECTIONS } from "@/app/desk/sections";
 
 describe("SupportForm (website)", () => {
   it("offers all three kinds, a honeypot, and posts as web", () => {
@@ -34,5 +36,24 @@ describe("SupportForm (website)", () => {
     // `name="email"` precedes a lowercase `readonly` in the string.
     const emailTag = html.match(/<input[^>]*\bname="email"[^>]*>/)?.[0] ?? "";
     expect(emailTag).toContain("readOnly");
+  });
+});
+
+describe("HelpForms (Console)", () => {
+  it("is a bug form and a feature form, no support question, posting as console with the attach note", () => {
+    const html = renderToStaticMarkup(<HelpForms />);
+    expect(html.match(/<form/g)).toHaveLength(2);
+    expect(html).toContain('name="kind" value="bug"');
+    expect(html).toContain('name="kind" value="feature"');
+    expect(html).not.toContain('value="support"');
+    expect(html.match(/name="source" value="console"/g)).toHaveLength(2);
+    expect(html).not.toContain('name="website"');
+    expect(html).not.toContain('name="email"');
+    expect(html).toContain("We attach your app version");
+  });
+  it("is reachable from the sidebar and the palette", () => {
+    const settings = DESK_SECTIONS.find((g) => g.group === "Settings")!;
+    expect(settings.items.map((i) => i.slug)).toEqual(["team", "mac", "help"]);
+    expect(DESK_PAGES.find((p) => p.slug === "help")).toEqual({ slug: "help", label: "Help", group: "Settings" });
   });
 });

@@ -31,7 +31,7 @@ export default async function FaqPage() {
         <SiteHeader current="faq" />
         <section className="mx-auto w-full max-w-[1140px] px-6 pt-14 sm:px-8 sm:pt-[70px]">
           <Mount as="h1" duration={700} y={24} className="max-w-[17ch] font-display text-[40px] font-semibold leading-[1.02] tracking-[-.03em] text-txt text-balance sm:text-[56px]">The questions people ask before they download.</Mount>
-          <Mount as="p" delay={150} className="mt-4 max-w-[58ch] text-[16.5px] leading-[1.6] text-body">Short answers, no marketing. If yours isn&apos;t here, the <Link href="/privacy" className="text-accenttext hover:underline">privacy page</Link> has the long version of most of them, and the repo is public.</Mount>
+          <Mount as="p" delay={150} className="mt-4 max-w-[58ch] text-[16.5px] leading-[1.6] text-body">Short answers, no marketing. If yours isn&apos;t here, the <Link href="/privacy" className="text-accenttext hover:underline">privacy page</Link> has the long version of most of them, and the repo is public. Anything else, <Link href="/support" className="text-accenttext hover:underline">ask us</Link>.</Mount>
           <div className="mt-14 grid gap-x-14 md:grid-cols-2"><div>{col(left)}</div><div>{col(right)}</div></div>
           <div className="pt-20"><DownloadCard spotsLeft={spotsLeft} maxTeams={beta.maxTeams} full={full} emailForm={false} /></div>
         </section>

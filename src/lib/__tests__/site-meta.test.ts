@@ -7,7 +7,7 @@ import { wwwRedirect } from "@/lib/site-redirects";
 
 describe("site metadata", () => {
   it("lists exactly the public pages in the sitemap, on the canonical host", () => {
-    expect(SITE_PAGES).toEqual(["/", "/faq", "/start", "/terms", "/privacy"]);
+    expect(SITE_PAGES).toEqual(["/", "/faq", "/support", "/start", "/terms", "/privacy"]);
     const urls = sitemap().map((e) => e.url);
     expect(urls).toEqual(SITE_PAGES.map((p) => `${SITE_URL}${p}`));
     for (const u of urls) expect(u.startsWith("https://")).toBe(true);

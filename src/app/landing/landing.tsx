@@ -130,6 +130,7 @@ export function SiteFooter() {
         <div className="flex flex-wrap items-center gap-5 text-[13px] text-muted">
           <span>DevBrain</span>
           <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>
+          <Link href="/support" className="-my-2 py-2 hover:text-txt">Support</Link>
           <Link href="/privacy" className="-my-2 py-2 hover:text-txt">Privacy</Link>
           <Link href="/terms" className="-my-2 py-2 hover:text-txt">Terms</Link>
         </div>

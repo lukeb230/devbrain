@@ -297,7 +297,10 @@ export type ReportValidation = { ok: true; report: Report } | { ok: false; field
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export function validateReport(input: ReportInput): ReportValidation {
-  const source: ReportSource = isReportSource(input.source) ? input.source : "web";
+  // The source is a hidden field; a value that is not one of ours is a
+  // tampered form, and the kinds it may pick from are unknown — refuse.
+  if (!isReportSource(input.source)) return { ok: false, field: "kind", message: "Pick what this is about." };
+  const source = input.source;
   if (!isReportKind(input.kind) || !kindsFor(source).includes(input.kind)) {
     return { ok: false, field: "kind", message: "Pick what this is about." };
   }
@@ -387,12 +390,11 @@ export function bodyForAck(report: Report, ref: number | string): string {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `cd ~/Downloads/devbrain-product && npx vitest run src/lib/__tests__/reports.test.ts`
-Expected: PASS, 13 tests.
+Expected: PASS, 14 tests.
 
-- [ ] **Step 6: Apply the migration to the project database**
+- [ ] **Step 6: The migration is applied by the controller, not the implementer**
 
-Run: `cd ~/Downloads/devbrain-product && npx supabase db push` (or apply through the Supabase MCP `apply_migration` with name `0043_reports`, project `guuzgqzljrnfqzrprgrp`, the same way `0042_onboarding` was applied).
-Expected: `reports` exists. Verify: `select count(*) from reports;` returns 0.
+The controller applies `0043_reports.sql` to project `guuzgqzljrnfqzrprgrp` through the Supabase MCP `apply_migration` (name `0043_reports`) after this task's review passes, and verifies `select count(*) from reports;` returns 0. The implementer does not touch the database.
 
 - [ ] **Step 7: Commit**
 

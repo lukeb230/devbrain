@@ -80,6 +80,14 @@ export function isHoneypotHit(formData: FormData): boolean {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+/** UTF-8 byte length. `.length` on a string counts UTF-16 code units, which
+ *  undercounts anything outside the ASCII range — this module has no
+ *  `Buffer` available (a client component imports it in a later task), so
+ *  `TextEncoder` is the portable way to measure what actually gets stored. */
+function byteLength(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
 /** Keep the allowed keys only, every value a string cut to 200 chars; a
  *  JSON string is parsed first. Garbage → {}. If the result would still
  *  exceed the cap, the whole blob is dropped rather than truncated
@@ -97,7 +105,7 @@ export function trimContext(raw: unknown): ReportContext {
     const s = typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
     if (s) out[k] = s.slice(0, LIMITS.contextValue);
   }
-  return JSON.stringify(out).length > LIMITS.context ? {} : out;
+  return byteLength(JSON.stringify(out)) > LIMITS.context ? {} : out;
 }
 
 export function refLabel(ref: number | string): string {

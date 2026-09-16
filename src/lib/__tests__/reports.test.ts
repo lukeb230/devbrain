@@ -83,6 +83,14 @@ describe("trimContext", () => {
     expect(Object.keys(out)).toHaveLength(CONTEXT_KEYS.length);
     expect(JSON.stringify(out).length).toBeLessThanOrEqual(LIMITS.context);
   });
+  it("measures the cap in UTF-8 bytes, not UTF-16 code units", () => {
+    // Each "字" is 1 UTF-16 code unit but 3 UTF-8 bytes, so 7 keys × 200
+    // of them serialise to well over 4096 bytes while `.length` stays
+    // under it — a byte-counting cap must reject this; a code-unit-
+    // counting one would wrongly let it through.
+    const big = Object.fromEntries(CONTEXT_KEYS.map((k) => [k, "字".repeat(200)]));
+    expect(trimContext(big)).toEqual({});
+  });
 });
 
 describe("mail copy", () => {

@@ -15,6 +15,14 @@ describe("legal documents", () => {
     }
   });
 
+  it("the privacy policy discloses support requests and the email provider", () => {
+    const privacy = legalMarkdown("privacy");
+    expect(privacy).toContain("**Support requests.**");
+    expect(privacy).toContain(`Email delivery: ${LEGAL.emailProvider}`);
+    expect(privacy).not.toContain("we do not send email at all");
+    expect(privacy).toContain("**Support requests:**");
+  });
+
   it("refuses an unknown token or a leftover draft placeholder", () => {
     expect(() => fillTokens("hello {{nope}}")).toThrow(/unknown token/);
     expect(placeholders("see [EMAIL] and [STATE / COUNTRY] and {{x}}")).toEqual(["[EMAIL]", "[STATE / COUNTRY]", "{{x}}"]);

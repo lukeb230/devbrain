@@ -12,7 +12,7 @@ DevBrain coordinates coding-agent sessions across a team. To do that it stores *
 
 ## 2. What we collect
 
-**Account information.** When you sign in with GitHub, our sign-in provider receives your GitHub login, display name, avatar and the email address on your GitHub account, and keeps them in your sign-in record. DevBrain itself stores your GitHub login with each team you belong to, so teammates can see who is who. We do not display your avatar. We may use your email address to contact you about the Service; today we do not send email at all.
+**Account information.** When you sign in with GitHub, our sign-in provider receives your GitHub login, display name, avatar and the email address on your GitHub account, and keeps them in your sign-in record. DevBrain itself stores your GitHub login with each team you belong to, so teammates can see who is who. We do not display your avatar. We may use your email address to contact you about the Service; today the only email we send is the confirmation of, and our reply to, a support request you make (below).
 
 **Device tokens.** Each Mac you use the Service from receives a token that identifies it. We store a hash of the token, never the token itself, along with the label given to the device and when it was last used.
 
@@ -31,6 +31,8 @@ DevBrain coordinates coding-agent sessions across a team. To do that it stores *
 **Usage and technical data.** Our hosting provider keeps server logs (IP address, user agent, request path, timestamps, error details) for security and debugging. The Service records operational error events, such as a failed GitHub webhook, in its own database. We do not run analytics on the website or in the app today. If we add website analytics, they will be cookie-free and we will update this policy. We do not use advertising trackers.
 
 **Email addresses you give us on the website.** If you leave an email address to hear about the beta, we store it with the date and the page it came from, and will use it only to contact you about DevBrain.
+
+**Support requests.** If you ask a question, report a bug or request a feature on the website or in the app, we store what you wrote, your email address and name if you gave one, the date, and, from the app, the app version, update channel, team name and the outcome of the last setup run, so we can answer without asking for them. We email the request to ourselves and a confirmation to you through our email provider (section 5), and we use it only to answer you and to fix what you reported.
 
 ## 3. What we do not collect
 
@@ -53,6 +55,7 @@ We share information with these service providers, only as needed to run the Ser
 - **AI provider: {{aiProvider}}.** Receives pull-request diffs, redacted session excerpts, spec text and PDFs, and short prompt fragments, to generate reviews, journals, digests, and task extractions. DevBrain does not retain that content beyond the result. The provider's handling of it is governed by its own terms; we use API access whose terms do not permit training on our inputs.
 - **GitHub.** The GitHub App exchanges repository metadata and, where a write rule is enabled, performs the actions in section 6. GitHub's own privacy statement applies to your GitHub account.
 - **Hosting and infrastructure.** {{hosting}} (application hosting and server logs) and {{database}} (database, sign-in, and realtime). These providers process data on our behalf under their standard terms.
+- **Email delivery: {{emailProvider}}.** Sends the confirmation and our replies for support requests; receives your address, name if given, and the text of your request to do so.
 - **Apple.** The macOS app is distributed as a signed and notarised download. Apple may receive notarisation and crash information under its own policies.
 
 We may also disclose information if required by law, to protect the rights, safety, or property of users or the public, or as part of a merger, acquisition, or sale of the Service, in which case this policy will continue to apply to the transferred data until it is updated.
@@ -81,6 +84,7 @@ Data is stored on servers operated by our hosting and database providers in {{re
 - **Account information:** kept while you have an account.
 - **Server logs:** kept by our hosting provider for a short rolling window, never more than 30 days.
 - **Website email sign-ups:** until you ask us to remove you.
+- **Support requests:** until answered and no longer needed to fix what you reported, or until you ask us to remove them.
 - **Backups:** we do not keep separate database backups today, so deleted data is gone when it is deleted. If we add backups, they will be kept for no more than 30 days and deleted data may persist in them for that period.
 
 ## 8. Security

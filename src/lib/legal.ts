@@ -12,6 +12,7 @@ export const LEGAL = {
   aiProvider: "Anthropic (the Claude API)",
   hosting: "Vercel",
   database: "Supabase",
+  emailProvider: "Resend",
   region: "the United States",
   law: "the State of California, United States",
   venue: "San Diego County, California",

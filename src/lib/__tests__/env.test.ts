@@ -24,4 +24,12 @@ describe("missingEnv", () => {
     expect(m.required).toEqual([]);
     expect(m.recommended).toEqual(["ANTHROPIC_API_KEY"]);
   });
+
+  it("treats the support mail key as recommended, not required", () => {
+    expect(RECOMMENDED_ENV).toContain("RESEND_API_KEY");
+    expect(REQUIRED_ENV).not.toContain("RESEND_API_KEY");
+    const m = missingEnv({ ...full, RESEND_API_KEY: "" });
+    expect(m.required).toEqual([]);
+    expect(m.recommended).toEqual(["RESEND_API_KEY"]);
+  });
 });

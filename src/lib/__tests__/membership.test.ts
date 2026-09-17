@@ -48,7 +48,7 @@ describe("membership", () => {
     expect(b.calls[0].filters).toEqual([["eq", "id", "t1"], ["eq", "user_id", "u1"], ["eq", "org_id", "o1"]]);
   });
   it("counts and billing come back keyed by org, zero/absent for teams with no rows", async () => {
-    const { admin } = fakeAdmin({ org_members: [{ org_id: "o1", role: "owner" }, { org_id: "o1", role: "member" }, { org_id: "o2", role: "owner" }], orgs: [{ id: "o1", billing_status: "active", stripe_subscription_id: "sub_1" }, { id: "o2", billing_status: "trialing", stripe_subscription_id: null }] });
+    const { admin } = fakeAdmin({ org_members: [{ org_id: "o1", role: "owner" }, { org_id: "o1", role: "member" }, { org_id: "o2", role: "owner" }, { org_id: "o4", role: "owner" }], orgs: [{ id: "o1", billing_status: "active", stripe_subscription_id: "sub_1" }, { id: "o2", billing_status: "trialing", stripe_subscription_id: null }, { id: "o4", billing_status: "active", stripe_subscription_id: "sub_4" }] });
     expect(await ownerCounts(admin, ["o1", "o2", "o3"])).toEqual(new Map([["o1", 1], ["o2", 1], ["o3", 0]]));
     expect(await memberCounts(admin, ["o1", "o2", "o3"])).toEqual(new Map([["o1", 2], ["o2", 1], ["o3", 0]]));
     expect(await teamBilling(admin, ["o1", "o2"])).toEqual(new Map([["o1", { billingStatus: "active", hasSubscription: true }], ["o2", { billingStatus: "trialing", hasSubscription: false }]]));

@@ -32,4 +32,9 @@ describe("missingEnv", () => {
     expect(m.required).toEqual([]);
     expect(m.recommended).toEqual(["RESEND_API_KEY"]);
   });
+
+  it("treats the Sentry DSN as recommended, not required", () => {
+    expect(RECOMMENDED_ENV).toContain("NEXT_PUBLIC_SENTRY_DSN");
+    expect(REQUIRED_ENV).not.toContain("NEXT_PUBLIC_SENTRY_DSN");
+  });
 });

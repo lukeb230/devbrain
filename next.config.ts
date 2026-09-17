@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Webhook payloads can be large (PR sync events with many files).
@@ -12,4 +13,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Source maps go up at build only when SENTRY_AUTH_TOKEN is set (Vercel);
+// without it the wrapper is a no-op apart from the tunnel rewrite, so local
+// builds and CI never need a Sentry credential.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  widenClientFileUpload: true,
+  tunnelRoute: "/sentry-tunnel",
+  disableLogger: true,
+});

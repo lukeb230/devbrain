@@ -59,6 +59,8 @@ export async function GET(request: Request) {
     // row (if any) is the only trace it leaves.
     admin.from("alert_log").select("id").is("org_id", null).eq("key", "watchdog.tick").is("resolved_at", null).maybeSingle(),
   ]);
+  // Live-gate switch for error tracking: operator token only; throws so onRequestError runs end to end.
+  if (auth.org_id === operator && new URL(request.url).searchParams.get("boom") === "1") throw new Error("health: deliberate test error (boom=1)");
   // Journals are per-repo and default OFF — the one feature whose "off"
   // state used to be indistinguishable from a bug. Name each repo's state.
   const [{ data: repos }, { data: jpol }] = await Promise.all([

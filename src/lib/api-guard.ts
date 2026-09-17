@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { clientIp } from "@/lib/client-ip";
 import { durableDenied, durableTake, limits } from "@/lib/ratelimit";
 import { resolveDevToken } from "@/lib/token";
+import { withSentryUser } from "@/lib/sentry-scope";
 
 export type ApiAuth = NonNullable<Awaited<ReturnType<typeof resolveDevToken>>>;
 
@@ -56,6 +57,7 @@ export async function apiAuth(request: Request): Promise<ApiAuth | { denied: Nex
     { bucket: "all", limit: l.global_per_min, window: 60 },
   ]);
   if (over) return { denied: tooMany(over, over.startsWith("orgd:") ? 600 : 60) };
+  withSentryUser({ userId: auth.user_id, orgId: auth.org_id, path: new URL(request.url).pathname, userAgent: request.headers.get("user-agent") });
   return auth;
 }
 

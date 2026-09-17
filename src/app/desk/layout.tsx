@@ -11,8 +11,10 @@ import { ThemeFollow } from "./theme-follow";
 import { loadBilling } from "@/lib/billing/usage";
 import { wallReason } from "@/lib/billing/wall";
 import { PlanWall } from "./(team)/plan/page";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { COOKIE } from "@/lib/cookies";
+import { withSentryUser } from "@/lib/sentry-scope";
+import { SentryUser } from "@/components/SentryUser";
 import { loadOnboarding, loadPolicyMap } from "@/lib/onboarding-load";
 import { NOTICES } from "@/lib/onboarding-notices";
 import { OnboardingWall } from "./onboarding/wall";
@@ -45,6 +47,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
     const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "there");
     return <TeamWall login={login} full={await signupBlock("team")} />;
   }
+  withSentryUser({ userId: user.id, orgId: org.orgId, path: "/desk", userAgent: (await headers()).get("user-agent") });
 
   const [repos, billing] = await Promise.all([teamRepos(org.orgId), loadBilling(org.orgId)]);
 
@@ -80,6 +83,7 @@ export default async function DeskLayout({ children }: { children: React.ReactNo
     <div className={`wg ${FONT_VARS} font-body flex h-screen flex-col bg-ink text-[13.5px] text-txt`}>
       <script dangerouslySetInnerHTML={{ __html: early }} />
       <ThemeFollow />
+      <SentryUser userId={user.id} orgId={org.orgId} />
 
       {/* Flush window: this strip is the title bar — only the traffic lights
           live here, and it drags the window (data-tauri-drag-region). */}

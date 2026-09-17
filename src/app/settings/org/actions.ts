@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { COOKIE, ORG_COOKIE_OPTS, clearDevbrainCookies } from "@/lib/cookies";
+import { deleteOrgAs } from "@/lib/membership";
 import { currentOrg, requireRoleOrRedirect } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { returnTo } from "@/lib/surface";
@@ -41,7 +42,7 @@ export async function renameOrg(formData: FormData): Promise<void> {
 export async function deleteOrg(formData: FormData): Promise<void> {
   const me = await requireRoleOrRedirect("owner", "/settings/org");
   if (String(formData.get("confirm") || "").trim() !== me.orgName) return;
-  await supabaseAdmin().from("orgs").delete().eq("id", me.orgId); // cascades everything
+  await deleteOrgAs(supabaseAdmin(), me.orgId); // cascades everything
   clearDevbrainCookies(await cookies(), [{ name: COOKIE.org, path: "/" }, { name: COOKIE.lastRepo, path: "/" }]);
   redirect("/welcome");
 }

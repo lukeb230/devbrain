@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE, NEW_TOKEN_COOKIE_OPTS, noticeCookieOptsFor } from "@/lib/cookies";
+import { revokeTokenAs } from "@/lib/membership";
 import { currentOrg } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { returnTo, surfaceOf } from "@/lib/surface";
@@ -64,13 +65,7 @@ export async function revokeToken(formData: FormData): Promise<void> {
   if (!member) return;
   const id = String(formData.get("id") || "");
   if (!id) return;
-  const admin = supabaseAdmin();
-  await admin
-    .from("dev_tokens")
-    .update({ revoked_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", member.userId) // can only revoke your own
-    .eq("org_id", member.orgId); // and only in the team you are looking at
+  await revokeTokenAs(supabaseAdmin(), member.userId, id, member.orgId); // your own, in the team you are looking at
   revalidatePath("/settings/tokens");
   revalidatePath("/desk", "layout");
 }

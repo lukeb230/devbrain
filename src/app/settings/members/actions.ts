@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE, clearDevbrainCookies } from "@/lib/cookies";
+import { leaveOrgAs } from "@/lib/membership";
 import { currentOrg, requireRoleOrRedirect, type Role } from "@/lib/org";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { returnTo, surfaceRoot } from "@/lib/surface";
@@ -70,8 +71,7 @@ export async function leaveOrg(formData?: FormData): Promise<void> {
     const { count } = await admin.from("org_members").select("user_id", { count: "exact", head: true }).eq("org_id", me.orgId).eq("role", "owner");
     if ((count ?? 0) <= 1) return; // hand ownership over first
   }
-  await admin.from("org_members").delete().eq("org_id", me.orgId).eq("user_id", me.userId);
-  await admin.from("dev_tokens").update({ revoked_at: new Date().toISOString() }).eq("org_id", me.orgId).eq("user_id", me.userId).is("revoked_at", null);
+  await leaveOrgAs(admin, me.userId, me.orgId);
   clearDevbrainCookies(await cookies(), [{ name: COOKIE.org, path: "/" }, { name: COOKIE.lastRepo, path: "/" }]);
   redirect(surfaceRoot(returnTo(formData, "/dashboard"))); // that surface's home picks another membership, or /welcome
 }

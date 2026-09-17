@@ -102,6 +102,18 @@ describe("the site's copy", () => {
     expect(header).toMatch(/<a\b(?=[^>]*\bhref="\/")(?=[^>]*\baria-label="DevBrain home")[^>]*>/);
     expect(header).toContain("DevBrain</span>");
   });
+  it("a signed-in visitor gets the landing page with a way into the app, not a redirect", () => {
+    // Installing the app signs the person in through their browser, which
+    // used to bounce every later visit to / straight to /open — the homepage
+    // became unreachable. Now the header offers the Console instead of the
+    // download; nothing else changes.
+    const signedIn = renderToStaticMarkup(<SiteHeader signedIn />);
+    expect(signedIn).toMatch(/<a\b[^>]*\bhref="\/open"[^>]*>Open the Console/);
+    expect(signedIn).not.toContain("Download for Mac");
+    const signedOut = renderToStaticMarkup(<SiteHeader />);
+    expect(signedOut).toContain("Download for Mac");
+    expect(signedOut).not.toContain("Open the Console");
+  });
   it("the spawn window has three real tabs and starts on the second", () => {
     const tabButtons = [...html.matchAll(/<button [^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
     const tabs = tabButtons.map((b) => b.match(/aria-selected="(true|false)"/)?.[1]);

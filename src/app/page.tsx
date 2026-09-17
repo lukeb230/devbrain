@@ -13,7 +13,11 @@ import { SignInButton } from "./sign-in-button";
 //   otherwise     the public landing page (./landing/landing.tsx), which owns
 //                 its own <main> and its own width.
 //
-// Signed in → /open either way.
+// Signed in: the landing page still renders (with "Open the Console" in the
+// header instead of the download). It used to redirect to /open, which made
+// the homepage unreachable from any browser that had ever signed in — and
+// installing the app signs the browser in. The panel's ?from=widget screen
+// still redirects: it has no page of its own to show.
 
 export default async function LandingPage({
   searchParams,
@@ -24,7 +28,6 @@ export default async function LandingPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/open");
   const { from, next, auth_error, device_error } = await searchParams;
   // Only same-origin paths may be used as a post-login destination.
   const nextParam = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
@@ -43,10 +46,11 @@ export default async function LandingPage({
   if (!inPanel) {
     return (
       <BrowserShell>
-        <Landing nextParam={nextParam} from={from} notice={notice} />
+        <Landing nextParam={nextParam} from={from} notice={notice} signedIn={Boolean(user)} />
       </BrowserShell>
     );
   }
+  if (user) redirect("/open");
 
   return (
     <BrowserShell>

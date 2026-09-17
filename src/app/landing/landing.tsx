@@ -105,7 +105,11 @@ export function LandingBody({ spotsLeft, maxTeams, free, full }: { spotsLeft: nu
   );
 }
 
-export function SiteHeader({ current }: { current?: "faq" } = {}) {
+// signedIn: the person already has a DevBrain session in this browser
+// (installing the app signs them in here), so the header offers the Console
+// rather than a download they have. The page itself is the same either way —
+// a signed-in visitor is never bounced off the homepage.
+export function SiteHeader({ current, signedIn = false }: { current?: "faq"; signedIn?: boolean } = {}) {
   return (
     <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
       <Section className="flex min-h-[58px] items-center gap-5">
@@ -116,7 +120,11 @@ export function SiteHeader({ current }: { current?: "faq" } = {}) {
         </Link>
         <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
           {current === "faq" ? <span className="text-txt">FAQ</span> : <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>}
-          <DownloadButton size="nav" />
+          {signedIn ? (
+            <Link href="/open" className="inline-flex items-center whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-1.5 font-display text-[13px] font-semibold tracking-[-.01em] text-white hover:bg-[#b4453d]">Open the Console</Link>
+          ) : (
+            <DownloadButton size="nav" />
+          )}
         </nav>
       </Section>
     </header>
@@ -140,7 +148,7 @@ export function SiteFooter() {
   );
 }
 
-export async function Landing({ nextParam, from, notice }: { nextParam?: string; from?: string; notice?: React.ReactNode }) {
+export async function Landing({ nextParam, from, notice, signedIn = false }: { nextParam?: string; from?: string; notice?: React.ReactNode; signedIn?: boolean }) {
   // Kept for signature compatibility with src/app/page.tsx (the sign-in
   // destination they used to carry); the body no longer needs them.
   void nextParam;
@@ -156,7 +164,7 @@ export async function Landing({ nextParam, from, notice }: { nextParam?: string;
 
       {notice && <Section className="pt-5">{notice}</Section>}
 
-      <SiteHeader />
+      <SiteHeader signedIn={signedIn} />
 
       <LandingBody spotsLeft={spotsLeft} maxTeams={beta.maxTeams} free={beta.free} full={full} />
 

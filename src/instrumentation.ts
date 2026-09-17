@@ -15,13 +15,13 @@ export async function register() {
 // keeps the explicit shape and casts only at the Sentry boundary.
 export const onRequestError = async (
   err: unknown,
-  request: { path: string; method: string; headers: Record<string, string> },
+  request: { path: string; method: string; headers: Record<string, string | string[] | undefined> },
   context: { routerKind: string; routePath: string; routeType: string },
 ) => {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   try {
     const Sentry = await import("@sentry/nextjs");
-    await Sentry.captureRequestError(err, request as never, context as never);
+    await Sentry.captureRequestError(err, request, context);
   } catch { /* the tracker being down is not our user's problem */ }
   try {
     const { alert } = await import("@/lib/alerts");

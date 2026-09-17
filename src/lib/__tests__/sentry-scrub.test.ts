@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { environmentFromEnv, releaseFromEnv, scrubEvent, SENTRY_DSN_VAR, surfaceOf } from "@/lib/sentry-scrub";
+import { environmentFromEnv, releaseFromEnv, scrubEvent, SENTRY_DSN_VAR, surfaceOf, type ScrubbableEvent } from "@/lib/sentry-scrub";
 
 describe("surfaceOf", () => {
   it("maps the three surfaces", () => {
@@ -36,7 +36,27 @@ describe("scrubEvent", () => {
     expect(e.request?.headers).toEqual({ "content-type": "application/json" });
   });
   it("leaves an event with no user or request untouched", () => {
-    const e = { message: "boom", extra: { a: 1 } };
+    // Cast needed: this event has neither `user` nor `request`, the only
+    // fields ScrubbableEvent declares, so it shares nothing structurally
+    // with the type — a real "weak type" mismatch, not a scrubEvent one.
+    const e = { message: "boom", extra: { a: 1 } } as unknown as ScrubbableEvent;
     expect(scrubEvent(e)).toEqual(e);
+  });
+  it("drops a user with no id entirely", () => {
+    expect(scrubEvent({ user: { email: "x@example.com" } }).user).toBeUndefined();
+  });
+  it("drops Vercel geo headers and forwarded/real-ip headers", () => {
+    const e = scrubEvent({
+      request: {
+        headers: {
+          "x-vercel-ip-city": "San Diego",
+          "x-vercel-ip-latitude": "32.7",
+          "x-forwarded-for": "1.2.3.4",
+          "x-real-ip": "1.2.3.4",
+          "content-type": "text/plain",
+        },
+      },
+    });
+    expect(e.request?.headers).toEqual({ "content-type": "text/plain" });
   });
 });

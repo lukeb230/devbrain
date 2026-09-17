@@ -2,6 +2,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import "./globals.css";
 
 // The last net: a render error in the root layout itself. Next replaces the
 // whole document with this, so it must carry its own <html>/<body>.

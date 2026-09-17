@@ -1,24 +1,19 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { surfaceOf } from "@/lib/sentry-scrub";
 
-// The browser side of "who and where": id-only identity plus surface/host
-// tags on every client-side error from the Console, the panel, or the site.
-// Renders nothing. Mounted by the Desk layout and the panel page, which
-// already know the user; site pages mount it with nulls.
+// The browser side of "who": id-only identity plus the team tag. Renders
+// nothing. Mounted by the Desk layout and the panel page, which already
+// know the user; site pages need no mount — there is no user there, and
+// surface/host are applied at send time in instrumentation-client.ts's
+// beforeSend, not here.
 export function SentryUser({ userId, orgId }: { userId: string | null; orgId: string | null }) {
-  const pathname = usePathname();
   useEffect(() => {
     try {
       Sentry.setUser(userId ? { id: userId } : null);
       if (orgId) Sentry.setTag("team", orgId);
-      Sentry.setTag("surface", surfaceOf(pathname ?? "/"));
-      const w = window as unknown as { __TAURI__?: unknown };
-      Sentry.setTag("host", typeof window !== "undefined" && w.__TAURI__ ? "app" : "browser");
     } catch { /* optional */ }
-  }, [userId, orgId, pathname]);
+  }, [userId, orgId]);
   return null;
 }

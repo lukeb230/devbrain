@@ -27,14 +27,21 @@ export function environmentFromEnv(env: Env = process.env): string {
 }
 
 export type ScrubbableEvent = {
-  user?: { id?: string; email?: string; username?: string; ip_address?: string; [k: string]: unknown };
-  request?: { url?: string; headers?: Record<string, string>; [k: string]: unknown };
-  [k: string]: unknown;
+  user?: { id?: string | number; email?: string; username?: string; ip_address?: string | null };
+  request?: { url?: string; headers?: Record<string, string> };
+  tags?: Record<string, unknown>;
 };
 
 const DROP_HEADER = (name: string) => {
   const n = name.toLowerCase();
-  return n === "authorization" || n === "cookie" || n.includes("token");
+  return (
+    n === "authorization" ||
+    n === "cookie" ||
+    n.includes("token") ||
+    n.startsWith("x-vercel-ip") ||
+    n.includes("forwarded") ||
+    n.endsWith("-ip")
+  );
 };
 
 /** Returns the same event with identity reduced to `{ id }` and auth

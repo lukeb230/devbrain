@@ -22,10 +22,12 @@ describe("error boundaries", () => {
     expect(html).toContain("This page hit an error. It&#x27;s been reported.");
     expect(html).toMatch(/<button[^>]*>Retry/);
     expect(html).toMatch(/href="\/desk"/);
+    expect(html).not.toContain("boom"); // never show the raw message to a visitor
   });
   it("panel: reload only, sized for 440px", () => {
     const html = renderToStaticMarkup(<WidgetError error={error} reset={reset} />);
     expect(html).toContain("The panel hit an error. It&#x27;s been reported.");
     expect(html).toMatch(/<button[^>]*>Reload/);
+    expect(html).not.toContain("boom"); // never show the raw message to a visitor
   });
 });

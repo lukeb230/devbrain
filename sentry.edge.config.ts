@@ -10,8 +10,5 @@ Sentry.init({
   release: releaseFromEnv(),
   tracesSampleRate: 0,
   sendDefaultPii: false,
-  // Sentry's ErrorEvent#user.id can be a number; the pure scrubEvent helper
-  // (shared with other surfaces) only knows string ids. The cast is local to
-  // this boundary — scrubEvent's own typing stays strict.
-  beforeSend: (event) => scrubEvent(event as never) as never,
+  beforeSend: (event) => scrubEvent(event),
 });

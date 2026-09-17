@@ -85,5 +85,5 @@ export async function middleware(request: NextRequest) {
 const APP_ONLY = process.env.DEVBRAIN_APP_ONLY === "1";
 
 export const config = {
-  matcher: ["/((?!api/github|api/v1|api/agents|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/github|api/v1|api/agents|sentry-tunnel|_next/static|_next/image|favicon.ico).*)"],
 };

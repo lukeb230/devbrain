@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { environmentFromEnv, releaseFromEnv, scrubEvent } from "@/lib/sentry-scrub";
+import { environmentFromEnv, releaseFromEnv, scrubEvent, surfaceOf } from "@/lib/sentry-scrub";
 
 // The browser half: the Console and panel webviews and the public site.
 // No replay, no tracing — errors only, and never a name or an email.
@@ -21,10 +21,16 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 0,
   sendDefaultPii: false,
-  // Sentry's ErrorEvent#user.id can be a number; the pure scrubEvent helper
-  // (shared with other surfaces) only knows string ids. The cast is local to
-  // this boundary — scrubEvent's own typing stays strict.
-  beforeSend: (event) => scrubEvent(event as never) as never,
+  beforeSend: (event) => {
+    if (typeof window !== "undefined") {
+      event.tags = {
+        ...event.tags,
+        surface: surfaceOf(window.location.pathname),
+        host: "__TAURI__" in window ? "app" : "browser",
+      };
+    }
+    return scrubEvent(event);
+  },
 });
 
 // Present on SDK majors that instrument App Router navigations; harmless to

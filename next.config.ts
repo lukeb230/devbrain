@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   // Webhook payloads can be large (PR sync events with many files).
@@ -23,5 +23,6 @@ export default withSentryConfig(nextConfig, {
   silent: true,
   widenClientFileUpload: true,
   tunnelRoute: "/sentry-tunnel",
-  disableLogger: true,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  webpack: { treeshake: { removeDebugLogging: true } },
 });

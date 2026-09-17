@@ -60,8 +60,11 @@ native macOS ops alert keeps paging him; Sentry becomes the record.
   props to client trees.
 - `src/lib/env.ts` `RECOMMENDED_ENV`; `.env.example`; `legal.ts` +
   `privacy.md` provider list (Resend precedent).
-- Middleware runs on the default (Node) runtime; an edge config is still
-  created per Sentry's layout so a future edge route is covered.
+- Middleware runs on the **edge** runtime (no `runtime` export, no
+  `nodeMiddleware`), so a middleware error reaches Sentry only through the
+  SDK's automatic wrapping under the edge init, never the ops alert
+  (`onRequestError` returns early off `nodejs`). Pre-existing behaviour;
+  noted, not changed.
 
 ## Architecture
 
@@ -71,10 +74,12 @@ native macOS ops alert keeps paging him; Sentry becomes the record.
   tracesSampleRate: 0, sendDefaultPii: false, enabled: Boolean(dsn),
   beforeSend: scrub })`.
 - `sentry.edge.config.ts` — same, minimal.
-- `instrumentation-client.ts` — `Sentry.init({...same..., integrations: []
-  beyond defaults — no replayIntegration })`; `export const
-  onRouterTransitionStart = Sentry.captureRouterTransitionStart` only if the
-  installed SDK exports it (the plan checks the installed version).
+- `instrumentation-client.ts` — `Sentry.init({...same..., no
+  replayIntegration })`; its `beforeSend` also stamps `surface` (from the
+  current pathname) and `host` (`app` when `window.__TAURI__` exists) on
+  every client event, so errors on the public site are tagged without a
+  mount; `export const onRouterTransitionStart =
+  Sentry.captureRouterTransitionStart`.
 - `src/instrumentation.ts` — adds `register()` importing the two configs by
   `NEXT_RUNTIME`; `onRequestError` calls `Sentry.captureRequestError(err,
   request, context)` **and** the existing `alert()`; both wrapped, never
@@ -88,9 +93,11 @@ native macOS ops alert keeps paging him; Sentry becomes the record.
 ### Shared scrub + tags: `src/lib/sentry-scrub.ts` (pure)
 
 - `scrubEvent(event)`: drops `user.email`, `user.username`,
-  `user.ip_address`; strips `Authorization`/`Cookie` headers and any
-  header whose name contains `token`; strips query strings from
-  `request.url`; returns the event. Unit-tested.
+  `user.ip_address`; strips `Authorization`/`Cookie` headers, any header
+  whose name contains `token` or `forwarded`, ends in `-ip`, or starts with
+  `x-vercel-ip` (Vercel's geo headers: city, country, coordinates,
+  timezone); strips query strings from `request.url`; returns the event.
+  Unit-tested.
 - `surfaceOf(pathname)` → `desk` | `panel` | `site` (`/desk*` → desk,
   `/widget*` → panel, else site). Unit-tested.
 
@@ -98,10 +105,10 @@ native macOS ops alert keeps paging him; Sentry becomes the record.
 
 Client component rendered by the Desk layout and the widget page (both
 already know the user and org server-side): props `{ userId, orgId }`;
-effect calls `Sentry.setUser({ id: userId })`, `Sentry.setTag("team",
-orgId)`, `Sentry.setTag("surface", surfaceOf(pathname))`,
-`Sentry.setTag("host", window.__TAURI__ ? "app" : "browser")`. Renders
-nothing. The site pages render it with `userId: null` → `setUser(null)`.
+effect calls `Sentry.setUser({ id: userId })` (or `null`) and
+`Sentry.setTag("team", orgId)`. Renders nothing. Surface/host tags are
+applied at send time in the client `beforeSend` (above), so site pages
+need no mount.
 
 ### Identity on the server
 

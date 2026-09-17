@@ -9,6 +9,7 @@ const props: AccountProps = {
     { orgId: "o1", name: "Alpha", role: "owner", ownerCount: 1, memberCount: 1, billingStatus: "trialing", hasSubscription: false, plan: { name: "Free beta", status: "trialing", betaFree: true }, active: true },
     { orgId: "o2", name: "Beta", role: "owner", ownerCount: 1, memberCount: 4, billingStatus: "active", hasSubscription: true, plan: { name: "Scale", status: "active", betaFree: false }, active: false },
     { orgId: "o3", name: "Gamma", role: "member", ownerCount: 2, memberCount: 9, billingStatus: "active", hasSubscription: true, plan: null, active: false },
+    { orgId: "o4", name: "Delta", role: "member", ownerCount: 1, memberCount: 1, billingStatus: "trialing", hasSubscription: false, plan: null, active: false },
   ],
   devices: [{ id: "t1", label: "Luke's MacBook Pro", team: "Alpha", lastUsedAt: "2026-09-16T04:51:50Z" }],
 };
@@ -26,10 +27,26 @@ describe("AccountBody", () => {
     expect(html).toMatch(/Alpha[\s\S]*Delete team/);
     expect(html).toContain('placeholder="Alpha"');
     // Beta: sole owner with others → Leave disabled with the explanation; Delete team offered (owner).
+    // (className always carries the Tailwind "disabled:…" variant text, so
+    // the check below looks for the real disabled="" attribute, not just
+    // the substring "disabled" anywhere in the tag.)
     expect(html).toContain("only owner of Beta");
+    expect(html).toMatch(/<button[^>]*\bdisabled=""[^>]*>Leave team<\/button>/);
     // Gamma: plain member → Leave enabled, no Delete team, no plan line.
     expect(html).toMatch(/Gamma[\s\S]*Leave team/);
+    const gammaOn = html.slice(html.indexOf("Gamma"));
+    const gammaLeave = gammaOn.match(/<button[^>]*>Leave team<\/button>/)?.[0];
+    expect(gammaLeave).toBeDefined();
+    expect(gammaLeave).not.toMatch(/\bdisabled=""/);
     expect((html.match(/Delete team/g) ?? []).length).toBe(2);
+  });
+  it("a sole non-owner member (alone in the team, but not its owner) still gets an enabled Leave, and no Delete team", () => {
+    const deltaOn = html.slice(html.indexOf("Delta"));
+    const deltaLeave = deltaOn.match(/<button[^>]*>Leave team<\/button>/)?.[0];
+    expect(deltaLeave).toBeDefined();
+    expect(deltaLeave).not.toMatch(/\bdisabled=""/);
+    const deltaSection = deltaOn.slice(0, deltaOn.indexOf("</li>"));
+    expect(deltaSection).not.toContain("Delete team");
   });
   it("shows the plan for admins and links the plan page", () => {
     expect(html).toContain("Free beta");

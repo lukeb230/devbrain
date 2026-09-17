@@ -17,7 +17,30 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 const currentOrg = vi.fn(async () => null as null | { userId: string; orgId: string; orgName: string; role: string; orgs: { id: string; name: string; role: string }[] });
 vi.mock("@/lib/org", () => ({ currentOrg: () => currentOrg() }));
-const m = { leaveOrgAs: vi.fn(async () => {}), deleteOrgAs: vi.fn(async () => {}), revokeTokenAs: vi.fn(async () => {}), ownerCounts: vi.fn(async () => new Map<string, number>()), memberCounts: vi.fn(async () => new Map<string, number>()), teamBilling: vi.fn(async () => new Map<string, { billingStatus: string; hasSubscription: boolean }>()) };
+// standingsFor moved out of the action module (it's a database read, not
+// something that should be its own public server action) and into
+// @/lib/membership, which composes ownerCounts/memberCounts/teamBilling.
+// The actions call it for real logic, so the mock reproduces that
+// composition rather than stubbing it out — copied from the real
+// src/lib/membership.ts standingsFor body.
+type Standing = { orgId: string; name: string; role: string; ownerCount: number; memberCount: number; billingStatus: string; hasSubscription: boolean };
+const m = {
+  leaveOrgAs: vi.fn(async () => {}),
+  deleteOrgAs: vi.fn(async () => {}),
+  revokeTokenAs: vi.fn(async () => {}),
+  ownerCounts: vi.fn(async (_admin: unknown, _ids: string[]) => new Map<string, number>()),
+  memberCounts: vi.fn(async (_admin: unknown, _ids: string[]) => new Map<string, number>()),
+  teamBilling: vi.fn(async (_admin: unknown, _ids: string[]) => new Map<string, { billingStatus: string; hasSubscription: boolean }>()),
+  standingsFor: vi.fn(async (admin: unknown, orgs: { id: string; name: string; role: string }[]): Promise<Standing[]> => {
+    const ids = orgs.map((o) => o.id);
+    const [owners, members, billing] = await Promise.all([m.ownerCounts(admin, ids), m.memberCounts(admin, ids), m.teamBilling(admin, ids)]);
+    return orgs.map((o) => ({
+      orgId: o.id, name: o.name, role: o.role,
+      ownerCount: owners.get(o.id) ?? 0, memberCount: members.get(o.id) ?? 0,
+      billingStatus: billing.get(o.id)?.billingStatus ?? "trialing", hasSubscription: billing.get(o.id)?.hasSubscription ?? false,
+    }));
+  }),
+};
 vi.mock("@/lib/membership", () => m);
 
 const { deleteAccount, deleteTeam, leaveTeam, revokeDevice } = await import("@/app/account/actions");

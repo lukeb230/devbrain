@@ -6,8 +6,8 @@ import { blockerCopy, DELETE_PHRASE } from "@/lib/account";
 import { deleteAccount, type AccountDeleteState } from "./actions";
 
 // The one part of the page that needs state: the delete form shows the
-// rule that stopped it (a team you solely own, a paid plan) inline, with
-// the phrase still typed, so fixing the blocker and retrying is one step.
+// rule that stopped it (a team you solely own, a paid plan) inline, so
+// fixing the blocker and retrying is one step.
 export function DeleteAccountForm() {
   const [state, action, pending] = useActionState<AccountDeleteState, FormData>(deleteAccount, null);
   return (

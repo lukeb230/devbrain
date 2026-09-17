@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LandingBody, SiteHeader } from "@/app/landing/landing";
+import { LandingBody, SignInNotice, SiteHeader } from "@/app/landing/landing";
 import { START_STEPS, StartBody } from "@/app/start/start-body";
 import NotFound from "@/app/not-found";
 import { FAQ_ITEMS } from "@/app/faq/faq-items";
@@ -129,6 +129,14 @@ describe("the site's copy", () => {
     expect(html).toContain('role="tabpanel"');
     expect(html).toContain("$ devbrain spawn --auto");
     expect(html).toContain("~/.devbrain/clones/api-2");
+  });
+  it("a signed-out visitor sent here with ?next gets a sign-in notice, worded for /account specifically", () => {
+    const forAccount = renderToStaticMarkup(<SignInNotice next="/account" />);
+    expect(forAccount).toContain("Sign in to continue to your account.");
+    expect(forAccount).toMatch(/<button[^>]*>Sign in with GitHub<\/button>/);
+    const forOther = renderToStaticMarkup(<SignInNotice next="/faq" />);
+    expect(forOther).toContain("Sign in to continue.");
+    expect(forOther).not.toContain("your account");
   });
   it("the start page lists the install steps and can download again", () => {
     const start = renderToStaticMarkup(<StartBody dl={false} />);

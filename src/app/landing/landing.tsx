@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { siteDisplay } from "@/app/fonts";
+import { SignInButton } from "@/app/sign-in-button";
 import { loadBeta, platformCounts } from "@/lib/beta";
 import { LEGAL } from "@/lib/legal";
 import { ConsoleWindow, Dot } from "./app-shots";
@@ -138,6 +139,20 @@ export function SiteHeader({ current, account = null }: { current?: "faq" | "sup
   );
 }
 
+// Shown above the header when a signed-out visitor was sent here with a
+// destination to come back to (e.g. /account redirecting a signed-out
+// visitor to /?next=/account) — otherwise that destination is silently
+// lost, since the page underneath (Landing, below) has no sign-in control
+// of its own.
+export function SignInNotice({ next }: { next: string }) {
+  return (
+    <Section className="pt-5">
+      <p className="text-[13px] text-muted">{next.startsWith("/account") ? "Sign in to continue to your account." : "Sign in to continue."}</p>
+      <div className="mt-2.5"><SignInButton next={next} size="sm" /></div>
+    </Section>
+  );
+}
+
 export function SiteFooter() {
   return (
     <Section className="pt-14">
@@ -156,9 +171,8 @@ export function SiteFooter() {
 }
 
 export async function Landing({ nextParam, from, notice, account = null }: { nextParam?: string; from?: string; notice?: React.ReactNode; account?: { login: string } | null }) {
-  // Kept for signature compatibility with src/app/page.tsx (the sign-in
-  // destination they used to carry); the body no longer needs them.
-  void nextParam;
+  // Kept for signature compatibility with src/app/page.tsx (the ?from=
+  // surface hint it used to carry); the body no longer needs it.
   void from;
   const beta = await loadBeta();
   const counts = beta.maxTeams !== null ? await platformCounts() : null;
@@ -170,6 +184,8 @@ export async function Landing({ nextParam, from, notice, account = null }: { nex
       <MotionGate />
 
       {notice && <Section className="pt-5">{notice}</Section>}
+
+      {nextParam && !account && <SignInNotice next={nextParam} />}
 
       <SiteHeader account={account} />
 

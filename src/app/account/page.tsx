@@ -6,9 +6,9 @@ import { siteDisplay } from "@/app/fonts";
 import { SiteFooter, SiteHeader } from "@/app/landing/landing";
 import { MotionGate, Mount } from "@/app/landing/reveal";
 import { loadBilling } from "@/lib/billing/usage";
+import { standingsFor } from "@/lib/membership";
 import { currentOrg, hasRole, loginOf } from "@/lib/org";
 import { currentUser, supabaseAdmin } from "@/lib/supabase/server";
-import { standingsFor } from "./actions";
 import { AccountBody, type AccountTeam } from "./account-body";
 
 export const metadata: Metadata = { title: "Account", description: "Your DevBrain account: teams, devices, sign out, delete." };
@@ -24,7 +24,10 @@ export default async function AccountPage() {
   const standings = ctx ? await standingsFor(admin, ctx.orgs) : [];
   const teams: AccountTeam[] = await Promise.all(standings.map(async (s) => {
     const admin_ = hasRole(s.role, "admin");
-    const b = admin_ ? await loadBilling(s.orgId) : null;
+    // One team's billing lookup failing (a Stripe hiccup, a missing row)
+    // must not take the whole page down — that team just renders without
+    // a plan line.
+    const b = admin_ ? await loadBilling(s.orgId).catch(() => null) : null;
     return { ...s, active: ctx?.orgId === s.orgId, plan: b ? { name: b.plan.name, status: b.status, betaFree: b.betaFree } : null };
   }));
 

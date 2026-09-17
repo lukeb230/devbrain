@@ -58,7 +58,7 @@ function TeamRow({ t }: { t: AccountTeam }) {
           <input type="hidden" name="next" value="/desk" />
           <button className={BTN}>Open in the Console</button>
         </form>
-        {!alone && (
+        {(!alone || !owner) && (
           <form action={leaveTeam}>
             <input type="hidden" name="orgId" value={t.orgId} />
             <button className={BTN} disabled={!mayLeave} title={mayLeave ? undefined : `You're the only owner of ${t.name}`}>Leave team</button>

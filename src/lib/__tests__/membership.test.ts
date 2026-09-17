@@ -47,6 +47,14 @@ describe("membership", () => {
     const b = fakeAdmin(); await revokeTokenAs(b.admin, "u1", "t1", "o1");
     expect(b.calls[0].filters).toEqual([["eq", "id", "t1"], ["eq", "user_id", "u1"], ["eq", "org_id", "o1"]]);
   });
+  it("revokeTokenAs also revokes the token's children, so a device's re-issued tokens die with it", async () => {
+    const a = fakeAdmin(); await revokeTokenAs(a.admin, "u1", "t1");
+    expect(a.calls.map((c) => [c.table, c.op])).toEqual([["dev_tokens", "update"], ["dev_tokens", "update"]]);
+    expect(a.calls[1].filters).toEqual([["eq", "parent_token_id", "t1"], ["eq", "user_id", "u1"], ["is", "revoked_at", null]]);
+    expect(a.calls[1].patch).toMatchObject({ revoked_at: expect.any(String) });
+    const b = fakeAdmin(); await revokeTokenAs(b.admin, "u1", "t1", "o1");
+    expect(b.calls[1].filters).toEqual([["eq", "parent_token_id", "t1"], ["eq", "user_id", "u1"], ["is", "revoked_at", null], ["eq", "org_id", "o1"]]);
+  });
   it("counts and billing come back keyed by org, zero/absent for teams with no rows", async () => {
     const { admin } = fakeAdmin({ org_members: [{ org_id: "o1", role: "owner" }, { org_id: "o1", role: "member" }, { org_id: "o2", role: "owner" }, { org_id: "o4", role: "owner" }], orgs: [{ id: "o1", billing_status: "active", stripe_subscription_id: "sub_1" }, { id: "o2", billing_status: "trialing", stripe_subscription_id: null }, { id: "o4", billing_status: "active", stripe_subscription_id: "sub_4" }] });
     expect(await ownerCounts(admin, ["o1", "o2", "o3"])).toEqual(new Map([["o1", 1], ["o2", 1], ["o3", 0]]));

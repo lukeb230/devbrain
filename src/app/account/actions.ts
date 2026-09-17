@@ -3,36 +3,24 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { canLeave, DELETE_PHRASE, deletionPlan, type Blocker, type TeamStanding } from "@/lib/account";
+import { canLeave, DELETE_PHRASE, deletionPlan, type Blocker } from "@/lib/account";
 import { clearDevbrainCookies, COOKIE } from "@/lib/cookies";
 import { LEGAL } from "@/lib/legal";
-import { deleteOrgAs, leaveOrgAs, memberCounts, ownerCounts, revokeTokenAs, teamBilling } from "@/lib/membership";
-import { currentOrg, type Role } from "@/lib/org";
+import { deleteOrgAs, leaveOrgAs, revokeTokenAs, standingsFor } from "@/lib/membership";
+import { currentOrg } from "@/lib/org";
 import { currentUser, supabaseAdmin, supabaseServer } from "@/lib/supabase/server";
 
 // ============================================================================
 // The website's account page — leave or delete a team, revoke a device,
 // delete the account. Every action is scoped to the signed-in person and
 // silently does nothing without a session. The rules live in
-// src/lib/account.ts; the database changes in src/lib/membership.ts.
+// src/lib/account.ts; the database changes (standingsFor included, so it
+// is not a public server action of its own) in src/lib/membership.ts.
 // ============================================================================
 
 export type AccountDeleteState = { ok: false; message: string; blockers?: Blocker[] } | null;
 
 const DELETE_FAILED = `Something went wrong deleting your account. Email ${LEGAL.contact} and we'll finish it by hand.`;
-
-type Admin = ReturnType<typeof supabaseAdmin>;
-
-/** Everything the rules need to know about each of this person's teams. */
-export async function standingsFor(admin: Admin, orgs: { id: string; name: string; role: Role }[]): Promise<TeamStanding[]> {
-  const ids = orgs.map((o) => o.id);
-  const [owners, members, billing] = await Promise.all([ownerCounts(admin, ids), memberCounts(admin, ids), teamBilling(admin, ids)]);
-  return orgs.map((o) => ({
-    orgId: o.id, name: o.name, role: o.role,
-    ownerCount: owners.get(o.id) ?? 0, memberCount: members.get(o.id) ?? 0,
-    billingStatus: billing.get(o.id)?.billingStatus ?? "trialing", hasSubscription: billing.get(o.id)?.hasSubscription ?? false,
-  }));
-}
 
 async function forgetTeamCookiesIfActive(orgId: string) {
   const jar = await cookies();

@@ -105,11 +105,14 @@ export function LandingBody({ spotsLeft, maxTeams, free, full }: { spotsLeft: nu
   );
 }
 
-// signedIn: the person already has a DevBrain session in this browser
-// (installing the app signs them in here), so the header offers the Console
-// rather than a download they have. The page itself is the same either way —
-// a signed-in visitor is never bounced off the homepage.
-export function SiteHeader({ current, signedIn = false }: { current?: "faq"; signedIn?: boolean } = {}) {
+// current: which nav item is the page itself (rendered as text, not a link).
+// account: the signed-in person, when there is one — the header then offers
+// their account page and the Console instead of a download they already
+// have. The page underneath is the same either way; a signed-in visitor is
+// never bounced off the site.
+export function SiteHeader({ current, account = null }: { current?: "faq" | "support" | "account"; account?: { login: string } | null } = {}) {
+  const item = (key: "faq" | "support", href: string, label: string) =>
+    current === key ? <span key={key} className="text-txt">{label}</span> : <Link key={key} href={href} className="-my-2 py-2 hover:text-txt">{label}</Link>;
   return (
     <header className="sticky top-0 z-50 border-b border-line2 bg-[color:var(--wg-ink)]/70 backdrop-blur">
       <Section className="flex min-h-[58px] items-center gap-5">
@@ -119,9 +122,13 @@ export function SiteHeader({ current, signedIn = false }: { current?: "faq"; sig
           <span className="font-display text-[17px] font-semibold tracking-[-.02em] text-txt">DevBrain</span>
         </Link>
         <nav className="ml-auto flex items-center gap-5 text-[13.5px] text-muted">
-          {current === "faq" ? <span className="text-txt">FAQ</span> : <Link href="/faq" className="-my-2 py-2 hover:text-txt">FAQ</Link>}
-          {signedIn ? (
-            <Link href="/open" className="inline-flex items-center whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-1.5 font-display text-[13px] font-semibold tracking-[-.01em] text-white hover:bg-[#b4453d]">Open the Console</Link>
+          {item("faq", "/faq", "FAQ")}
+          {item("support", "/support", "Support")}
+          {account ? (
+            <>
+              {current === "account" ? <span className="font-mono text-[12.5px] text-txt">{account.login}</span> : <Link href="/account" className="-my-2 py-2 font-mono text-[12.5px] hover:text-txt">{account.login}</Link>}
+              <Link href="/open" className="inline-flex items-center whitespace-nowrap rounded-lg bg-accent2 px-3.5 py-1.5 font-display text-[13px] font-semibold tracking-[-.01em] text-white hover:bg-[#b4453d]">Open the Console</Link>
+            </>
           ) : (
             <DownloadButton size="nav" />
           )}
@@ -148,7 +155,7 @@ export function SiteFooter() {
   );
 }
 
-export async function Landing({ nextParam, from, notice, signedIn = false }: { nextParam?: string; from?: string; notice?: React.ReactNode; signedIn?: boolean }) {
+export async function Landing({ nextParam, from, notice, account = null }: { nextParam?: string; from?: string; notice?: React.ReactNode; account?: { login: string } | null }) {
   // Kept for signature compatibility with src/app/page.tsx (the sign-in
   // destination they used to carry); the body no longer needs them.
   void nextParam;
@@ -164,7 +171,7 @@ export async function Landing({ nextParam, from, notice, signedIn = false }: { n
 
       {notice && <Section className="pt-5">{notice}</Section>}
 
-      <SiteHeader signedIn={signedIn} />
+      <SiteHeader account={account} />
 
       <LandingBody spotsLeft={spotsLeft} maxTeams={beta.maxTeams} free={beta.free} full={full} />
 

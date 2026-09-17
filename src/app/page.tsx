@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
+import { loginOf } from "@/lib/org";
 import { inAppSurface } from "@/lib/surface";
-import { supabaseServer } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/server";
 import { BrowserShell } from "./browser-shell";
 import { Landing } from "./landing/landing";
 import { SignInButton } from "./sign-in-button";
@@ -22,13 +23,10 @@ import { SignInButton } from "./sign-in-button";
 export default async function LandingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; next?: string; auth_error?: string; device_error?: string }>;
+  searchParams: Promise<{ from?: string; next?: string; auth_error?: string; device_error?: string; deleted?: string }>;
 }) {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { from, next, auth_error, device_error } = await searchParams;
+  const user = await currentUser();
+  const { from, next, auth_error, device_error, deleted } = await searchParams;
   // Only same-origin paths may be used as a post-login destination.
   const nextParam = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
   const surface = inAppSurface(from);
@@ -41,12 +39,14 @@ export default async function LandingPage({
           ? `The desktop sign-in link was ${device_error}. Click Sign in again in the ${surface === "desk" ? "DevBrain Console" : "DevBrain panel"}.`
           : "Sign-in didn't complete — the GitHub hand-off was rejected or expired. Try again."}
       </p>
+    ) : deleted ? (
+      <p className="rounded-[10px] border border-[var(--wg-wait-line)] bg-[var(--wg-wait-bg)] px-3.5 py-2.5 text-[13px] text-wait">Your account is deleted. Thanks for trying DevBrain.</p>
     ) : null;
 
   if (!inPanel) {
     return (
       <BrowserShell>
-        <Landing nextParam={nextParam} from={from} notice={notice} signedIn={Boolean(user)} />
+        <Landing nextParam={nextParam} from={from} notice={notice} account={user ? { login: loginOf(user) } : null} />
       </BrowserShell>
     );
   }

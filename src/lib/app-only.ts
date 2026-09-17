@@ -11,6 +11,7 @@
 //   /welcome*        create or join a team
 //   /join/*          invite links (people click these in email)
 //   /open            the hand-off page, and the download
+//   /account         the website's account page (sign out, teams, devices, delete)
 //   /faq             frequently asked questions
 //   /download        the app download page
 //   /desk/plan       billing — someone whose app will not open, or whose
@@ -32,6 +33,7 @@ const BROWSER_OK = [
   /^\/welcome(\/|$)/,
   /^\/join(\/|$)/,
   /^\/open(\/|$)/,
+  /^\/account(\/|$)/,
   /^\/faq(\/|$)/,
   /^\/download(\/|$)/,
   /^\/desk\/plan(\/|$)/,

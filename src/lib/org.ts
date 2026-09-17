@@ -27,6 +27,12 @@ export type OrgContext = {
   orgs: { id: string; name: string; role: Role }[];   // every membership, for the switcher
 };
 
+/** The name we show for a person: GitHub login, else the email's local part. */
+export function loginOf(user: { email: string | null; user_metadata: Record<string, unknown> }): string {
+  const m = user.user_metadata ?? {};
+  return String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "member");
+}
+
 export const currentOrg = cache(async (): Promise<OrgContext | null> => {
   const user = await currentUser();
   if (!user) return null;
@@ -39,8 +45,7 @@ export const currentOrg = cache(async (): Promise<OrgContext | null> => {
   const wanted = (await cookies()).get(COOKIE.org)?.value;
   const pick = rows.find((r) => r.org_id === wanted) ?? rows[0];
   const org = pick.orgs as unknown as { name: string; slug: string } | null;
-  const m = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const login = String(m.user_name || m.preferred_username || user.email?.split("@")[0] || "member");
+  const login = loginOf(user);
   return {
     userId: user.id,
     login,

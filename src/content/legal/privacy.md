@@ -28,7 +28,7 @@ DevBrain coordinates coding-agent sessions across a team. To do that it stores *
 
 **Spec documents (optional).** If you drop a document into the Specs feature, we store its text (converted from PDF, Markdown, HTML, or pasted text) so it can be broken into tasks, and we send that text, or the PDF itself for conversion, to the AI provider.
 
-**Usage and technical data.** Our hosting provider keeps server logs (IP address, user agent, request path, timestamps, error details) for security and debugging. The Service records operational error events, such as a failed GitHub webhook, in its own database. We do not run analytics on the website or in the app today. If we add website analytics, they will be cookie-free and we will update this policy. We do not use advertising trackers.
+**Usage and technical data.** Our hosting provider keeps server logs (IP address, user agent, request path, timestamps, error details) for security and debugging. The Service records operational error events, such as a failed GitHub webhook, in its own database, and sends error reports (the error, its stack trace, the page or request it happened on, the app version, and your account and team identifiers, never your name or email) to an error tracking provider (section 5). We do not run analytics on the website or in the app today. If we add website analytics, they will be cookie-free and we will update this policy. We do not use advertising trackers.
 
 **Email addresses you give us on the website.** If you leave an email address to hear about the beta, we store it with the date and the page it came from, and will use it only to contact you about DevBrain.
 
@@ -56,6 +56,7 @@ We share information with these service providers, only as needed to run the Ser
 - **GitHub.** The GitHub App exchanges repository metadata and, where a write rule is enabled, performs the actions in section 6. GitHub's own privacy statement applies to your GitHub account.
 - **Hosting and infrastructure.** {{hosting}} (application hosting and server logs) and {{database}} (database, sign-in, and realtime). These providers process data on our behalf under their standard terms.
 - **Email delivery: {{emailProvider}}.** Sends the confirmation and our replies for support requests; receives your address, name if given, and the text of your request to do so.
+- **Error tracking: {{errorProvider}}.** Receives error reports as described in section 2, so we can find and fix what broke.
 - **Apple.** The macOS app is distributed as a signed and notarised download. Apple may receive notarisation and crash information under its own policies.
 
 We may also disclose information if required by law, to protect the rights, safety, or property of users or the public, or as part of a merger, acquisition, or sale of the Service, in which case this policy will continue to apply to the transferred data until it is updated.
@@ -85,6 +86,7 @@ Data is stored on servers operated by our hosting and database providers in {{re
 - **Server logs:** kept by our hosting provider for a short rolling window, never more than 30 days.
 - **Website email sign-ups:** until you ask us to remove you.
 - **Support requests:** until answered and no longer needed to fix what you reported, or until you ask us to remove them.
+- **Error reports:** kept by the error tracking provider for 90 days.
 - **Backups:** we do not keep separate database backups today, so deleted data is gone when it is deleted. If we add backups, they will be kept for no more than 30 days and deleted data may persist in them for that period.
 
 ## 8. Security

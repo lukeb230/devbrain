@@ -20,6 +20,13 @@ describe("legal documents", () => {
     expect(privacy).toContain("delete your account from the website's Account page");
   });
 
+  it("the privacy policy discloses error tracking and its provider", () => {
+    const privacy = legalMarkdown("privacy");
+    expect(privacy).toContain(`Error tracking: ${LEGAL.errorProvider}`);
+    expect(privacy).toContain("account and team identifiers, never your name or email");
+    expect(privacy).toContain("**Error reports:**");
+  });
+
   it("the privacy policy discloses support requests and the email provider", () => {
     const privacy = legalMarkdown("privacy");
     expect(privacy).toContain("**Support requests.**");

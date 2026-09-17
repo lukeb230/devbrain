@@ -13,6 +13,7 @@ export const LEGAL = {
   hosting: "Vercel",
   database: "Supabase",
   emailProvider: "Resend",
+  errorProvider: "Sentry",
   region: "the United States",
   law: "the State of California, United States",
   venue: "San Diego County, California",

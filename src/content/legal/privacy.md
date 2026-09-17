@@ -95,12 +95,13 @@ If you find a security issue, please email {{securityContact}} before disclosing
 
 ## 9. Your controls and rights
 
-At any time you can, from the app or the Console:
+At any time you can, from the app, the Console, or the website's Account page:
 
 - revoke any device token;
 - unlink a repository, which stops all new data flow for it immediately and keeps its history until you delete the repository from DevBrain;
 - delete a repository from DevBrain, which removes every record for it apart from one line in the team's feed noting the deletion;
 - leave a team, or, as its owner, delete the team, which removes all of its data;
+- delete your account from the website's Account page, which removes your memberships, device tokens and sessions and deletes any team you were the only member of; support requests you sent keep their text without the link to your account;
 - turn journals off (team admins), which stops excerpts being collected;
 - disable any write rule (team admins).
 

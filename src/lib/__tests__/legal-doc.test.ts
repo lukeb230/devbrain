@@ -15,6 +15,11 @@ describe("legal documents", () => {
     }
   });
 
+  it("the privacy policy says you can delete your account from the website", () => {
+    const privacy = legalMarkdown("privacy");
+    expect(privacy).toContain("delete your account from the website's Account page");
+  });
+
   it("the privacy policy discloses support requests and the email provider", () => {
     const privacy = legalMarkdown("privacy");
     expect(privacy).toContain("**Support requests.**");

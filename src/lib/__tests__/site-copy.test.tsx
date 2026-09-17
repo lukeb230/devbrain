@@ -106,15 +106,19 @@ describe("the site's copy", () => {
     const out = renderToStaticMarkup(<SiteHeader />);
     expect(out).toMatch(/href="\/faq"[^>]*>FAQ/);
     expect(out).toMatch(/href="\/support"[^>]*>Support/);
+    expect(out.indexOf("FAQ")).toBeLessThan(out.indexOf("Support"));
     expect(out).toContain("Download for Mac");
     expect(out).not.toContain("/account");
     const on = renderToStaticMarkup(<SiteHeader current="support" />);
     expect(on).toMatch(/<span[^>]*>Support<\/span>/); // current page is not a link
-    const signedIn = renderToStaticMarkup(<SiteHeader account={{ login: "lukeb230" }} />);
-    expect(signedIn).toMatch(/href="\/account"[^>]*>lukeb230/);
-    expect(signedIn).toMatch(/href="\/open"[^>]*>Open the Console/);
-    expect(signedIn).not.toContain("Download for Mac");
-    expect(signedIn.indexOf("Support")).toBeLessThan(signedIn.indexOf("lukeb230"));
+    const withAccount = renderToStaticMarkup(<SiteHeader account={{ login: "lukeb230" }} />);
+    expect(withAccount).toMatch(/href="\/account"[^>]*>lukeb230/);
+    expect(withAccount).toMatch(/href="\/open"[^>]*>Open the Console/);
+    expect(withAccount).not.toContain("Download for Mac");
+    expect(withAccount.indexOf("Support")).toBeLessThan(withAccount.indexOf("lukeb230"));
+    const onAccount = renderToStaticMarkup(<SiteHeader current="account" account={{ login: "lukeb230" }} />);
+    expect(onAccount).toMatch(/<span[^>]*>lukeb230<\/span>/);
+    expect(onAccount).not.toMatch(/href="\/account"/);
   });
   it("the spawn window has three real tabs and starts on the second", () => {
     const tabButtons = [...html.matchAll(/<button [^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
